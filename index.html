@@ -4053,9 +4053,12 @@ const CierreCaja = {
             // ── Llamada a la API ─────────────────────────────────────
             // URL: https://api.miapi.cloud/v1/dni/{DNI}?token={TOKEN}
             // La API devuelve: { success: true, data: { nombres, apellidoPaterno, apellidoMaterno } }
-            fetch('https://api.miapi.cloud/v1/dni/' + dni + '?token=' + token)
+            fetch('https://miapi.cloud/v1/dni/' + dni, {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                })
                 .then(function (response) {
-                    // Convertir respuesta a JSON
                     return response.json();
                 })
                 .then(function (data) {
