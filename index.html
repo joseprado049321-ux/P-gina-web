@@ -2191,7 +2191,11 @@
                 const c = document.getElementById('tabla-ventas');
                 if (!c) return;
                 if (!ventas.length) { c.innerHTML='<p style="text-align:center;color:#666;padding:40px;">No hay ventas que coincidan.</p>'; return; }
-                c.innerHTML=`<table><thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Cant.</th><th>Precio</th><th>Total</th><th>Cliente</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`+
+                // Destruir DataTable existente antes de re-renderizar
+                if (typeof $ !== 'undefined' && $.fn.DataTable && $.fn.DataTable.isDataTable('#miTablaVentas')) {
+                    $('#miTablaVentas').DataTable().destroy();
+                }
+                c.innerHTML=`<table id="miTablaVentas"><thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Cant.</th><th>Precio</th><th>Total</th><th>Cliente</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>`+
                 ventas.map(v=>{
                     const [y,m,d]=v.fecha.split('-');
                     const metodoCombinado = Ventas.calcularMetodoCombinado(v.historialPagos||[{monto:v.adelanto,metodo:v.metodo||'-'}]);
@@ -2207,6 +2211,17 @@
                         </td>
                     </tr>`;
                 }).join('')+`</tbody></table>`;
+                // ── Activar DataTables en la tabla recién renderizada ──
+                if (typeof $ !== 'undefined' && $.fn.DataTable) {
+                    setTimeout(() => {
+                        $('#miTablaVentas').DataTable({
+                            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                            pageLength: 10,
+                            order: [],
+                            columnDefs: [{ orderable: false, targets: 10 }]
+                        });
+                    }, 50);
+                }
             }
         };
 
@@ -4002,102 +4017,96 @@ const CierreCaja = {
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <!-- ══════════════════════════════════════════════════════════
+         CONSULTA DE DNI  ─  Un solo bloque, limpio y sin duplicados
+         ══════════════════════════════════════════════════════════ -->
     <script>
-    $(document).ready(function() {
-        // 1. ACTIVAR EL "TA-TA-TA-TABLES"
-        // Cambia '#miTabla' por el ID que tenga tu etiqueta <table>
-        $('#miTabla').DataTable({
-            language: {
-                url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
+    $(document).ready(function () {
+
+        // ── BOTÓN CONSULTAR DNI ──────────────────────────────────────
+        // Paso 1: El usuario escribe 8 dígitos en #dniInput
+        // Paso 2: Hace clic en #btnConsultarDNI
+        // Paso 3: Se llama a la API MiAPI Cloud con fetch()
+        // Paso 4: Si hay respuesta exitosa, se rellena #cliente
+        // Paso 5: Se muestra una alerta de éxito con SweetAlert2
+        // ─────────────────────────────────────────────────────────────
+        $('#btnConsultarDNI').on('click', function () {
+            var dni   = $('#dniInput').val().toString().trim();
+            var token = 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
+
+            // Validar que sean exactamente 8 dígitos
+            if (!/^\d{8}$/.test(dni)) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'DNI inválido',
+                    text: 'Por favor ingresa exactamente 8 dígitos numéricos.',
+                    confirmButtonColor: '#4472C4'
+                });
+                return;
             }
-        });
 
-        // 2. LÓGICA PARA CONSULTAR EL DNI
-        $('#btnConsultarDNI').click(function() {
-            const dni = $('#dniInput').val(); // Aquí pones el ID de tu cuadro de texto de DNI
-            const token = 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
+            // Deshabilitar el botón mientras busca (evita doble clic)
+            var $btn = $(this);
+            $btn.html('⏳ Buscando...').prop('disabled', true);
 
-            if (dni.length === 8) {
-                // Mostramos un mensaje de "cargando" (opcional)
-                console.log("Buscando...");
+            // ── Llamada a la API ─────────────────────────────────────
+            // URL: https://api.miapi.cloud/v1/dni/{DNI}?token={TOKEN}
+            // La API devuelve: { success: true, data: { nombres, apellidoPaterno, apellidoMaterno } }
+            fetch('https://api.miapi.cloud/v1/dni/' + dni + '?token=' + token)
+                .then(function (response) {
+                    // Convertir respuesta a JSON
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (data && data.success && data.data) {
+                        // ── Rellenar el campo "cliente" con nombre completo ──
+                        var nombreCompleto = data.data.nombres + ' '
+                                           + data.data.apellidoPaterno + ' '
+                                           + data.data.apellidoMaterno;
+                        $('#cliente').val(nombreCompleto.trim());
 
-                fetch(`https://api.miapi.cloud/v1/dni/${dni}?token=${token}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // RELLENAR LOS CAMPOS (Asegúrate de que los ID coincidan con tu HTML)
-                            $('#nombreInput').val(data.data.nombres);
-                            $('#apellidoInput').val(data.data.apellidoPaterno + ' ' + data.data.apellidoMaterno);
-                        } else {
-                            alert("No se encontró el DNI o hubo un error.");
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error al conectar con la API:", error);
-                        alert("Error de conexión.");
-                    });
-            } else {
-                alert("Por favor, ingresa un DNI válido de 8 dígitos.");
-            }
-        });
-    });
-    </script>
-        <script>
-            $(document).ready(function() {
-                // FUNCIÓN PARA CONSULTAR EL DNI
-                $('#btnConsultarDNI').on('click', function() {
-                    const dni = $('#dniInput').val();
-                    const token = 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
-
-                    if (dni.length !== 8) {
-                        Swal.fire('Atención', 'El DNI debe tener 8 dígitos', 'warning');
-                        return;
-                    }
-
-                    // Cambiamos el texto del botón mientras busca
-                    const btn = $(this);
-                    btn.html('⏳...').prop('disabled', true);
-
-                    fetch(`https://api.miapi.cloud/v1/dni/${dni}?token=${token}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                // Unimos nombres y apellidos
-                                const nombreCompleto = `${data.data.nombres} ${data.data.apellidoPaterno} ${data.data.apellidoMaterno}`;
-                                $('#cliente').val(nombreCompleto);
-                                
-                                // Notificación bonita (ya que vi que usas Toastify o SweetAlert)
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Cliente encontrado',
-                                    text: nombreCompleto,
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                });
-                            } else {
-                                Swal.fire('Error', 'No se encontró el DNI o el token expiró', 'error');
-                            }
-                        })
-                        .catch(error => {
-                            console.error(error);
-                            Swal.fire('Error', 'Hubo un problema con la conexión', 'error');
-                        })
-                        .finally(() => {
-                            btn.html('🔍 Consultar').prop('disabled', false);
+                        // Notificación de éxito
+                        Swal.fire({
+                            icon: 'success',
+                            title: '✅ Cliente encontrado',
+                            text: nombreCompleto.trim(),
+                            timer: 2500,
+                            showConfirmButton: false
                         });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'DNI no encontrado',
+                            text: 'Verifica el número o intenta nuevamente.',
+                            confirmButtonColor: '#4472C4'
+                        });
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Error API DNI:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de conexión',
+                        text: 'No se pudo conectar con la API. Revisa tu internet.',
+                        confirmButtonColor: '#4472C4'
+                    });
+                })
+                .finally(function () {
+                    // Restaurar el botón siempre, haya error o éxito
+                    $btn.html('🔍 Consultar').prop('disabled', false);
                 });
+        });
 
-                // ACTIVAR DATA TABLES EN EL HISTORIAL
-                // Nota: Como tu sistema genera la tabla dinámicamente, 
-                // lo ideal es ejecutar esto cada vez que cambies de pestaña.
-                // Pero para probar, esto lo intentará activar al inicio:
-                $('table').DataTable({
-                    language: {
-                        url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
-                    },
-                    pageLength: 10
-                });
-            });
+        // También activar la consulta al presionar ENTER dentro del campo DNI
+        $('#dniInput').on('keypress', function (e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                $('#btnConsultarDNI').trigger('click');
+            }
+        });
+
+    }); // fin $(document).ready
     </script>
 </body>
 </html>
