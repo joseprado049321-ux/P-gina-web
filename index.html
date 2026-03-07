@@ -929,6 +929,26 @@
                                     🔍 Consultar
                                 </button>
                             </div>
+                            <!-- Enlace para ingresar manualmente -->
+                            <div style="margin-top:6px;">
+                                <a href="#" id="btnIngresarManual" style="font-size:12px;color:var(--text-link);text-decoration:none;">
+                                    ✏️ ¿Sin DNI? Ingresar nombre manualmente
+                                </a>
+                            </div>
+                            <!-- Panel de ingreso manual (oculto por defecto) -->
+                            <div id="campos-manuales-dni" style="display:none;margin-top:10px;padding:12px;background:var(--bg-surface);border:1.5px dashed var(--border-focus);border-radius:var(--radius-md);">
+                                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">📝 Ingresa los datos del cliente manualmente:</p>
+                                <div style="display:flex;flex-direction:column;gap:8px;">
+                                    <input type="text" id="manual-nombres" placeholder="Nombres (Ej: JOSE ENRIQUE)" style="font-size:13px;">
+                                    <div style="display:flex;gap:8px;">
+                                        <input type="text" id="manual-ap-paterno" placeholder="Apellido Paterno" style="font-size:13px;flex:1;">
+                                        <input type="text" id="manual-ap-materno" placeholder="Apellido Materno" style="font-size:13px;flex:1;">
+                                    </div>
+                                    <button type="button" id="btnAplicarManual" style="padding:8px;font-size:13px;background:linear-gradient(135deg,#10B981,#059669);color:white;border:none;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;">
+                                        ✅ Aplicar nombre
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="cliente">Nombre del Cliente</label>
@@ -4062,20 +4082,20 @@ const CierreCaja = {
                     return response.json();
                 })
                 .then(function (data) {
-                    // 👇 Esto muestra en consola la respuesta real de la API (para depurar)
                     console.log('Respuesta API DNI:', JSON.stringify(data));
 
-                    // La API puede devolver el nombre en distintos formatos.
-                    // Intentamos los más comunes de miapi.cloud:
-                    var nombres      = data.nombres      || (data.data && data.data.nombres)      || '';
-                    var apPaterno    = data.apellidoPaterno || (data.data && data.data.apellidoPaterno)
-                                    || data.apellido_paterno || (data.data && data.data.apellido_paterno) || '';
-                    var apMaterno    = data.apellidoMaterno || (data.data && data.data.apellidoMaterno)
-                                    || data.apellido_materno || (data.data && data.data.apellido_materno) || '';
+                    // Formato real de miapi.cloud:
+                    // { success: true, datos: { nombres, ape_paterno, ape_materno, ... } }
+                    var d = data.datos || data.data || {};
+                    var nombres   = d.nombres      || '';
+                    var apPaterno = d.ape_paterno  || d.apellidoPaterno || '';
+                    var apMaterno = d.ape_materno  || d.apellidoMaterno || '';
                     var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
 
                     if (nombreCompleto.length > 2) {
                         $('#cliente').val(nombreCompleto);
+                        // Ocultar campos manuales si estaban visibles
+                        $('#campos-manuales-dni').slideUp(200);
                         Swal.fire({
                             icon: 'success',
                             title: '✅ Cliente encontrado',
@@ -4084,14 +4104,12 @@ const CierreCaja = {
                             showConfirmButton: false
                         });
                     } else {
-                        // Mostrar la respuesta cruda para saber qué devuelve la API
                         Swal.fire({
                             icon: 'warning',
                             title: 'Respuesta inesperada',
-                            html: '<p>La API respondió pero con un formato distinto.</p>'
-                                + '<p style="font-size:12px;margin-top:10px;background:#f0f0f0;padding:8px;border-radius:6px;text-align:left;word-break:break-all;">'
-                                + JSON.stringify(data)
-                                + '</p><p style="font-size:12px;color:#666;">Copia este texto y compártelo para corregir el código.</p>',
+                            html: '<p>La API respondió con un formato distinto.</p>'
+                                + '<pre style="font-size:11px;text-align:left;background:#f0f0f0;padding:8px;border-radius:6px;overflow:auto;max-height:120px;">'
+                                + JSON.stringify(data, null, 2) + '</pre>',
                             confirmButtonColor: '#4472C4'
                         });
                     }
@@ -4117,6 +4135,45 @@ const CierreCaja = {
                 e.preventDefault();
                 $('#btnConsultarDNI').trigger('click');
             }
+        });
+
+        // ── INGRESO MANUAL DE NOMBRE ─────────────────────────────────
+        // Mostrar / ocultar el panel al hacer clic en el enlace
+        $('#btnIngresarManual').on('click', function (e) {
+            e.preventDefault();
+            $('#campos-manuales-dni').slideToggle(200);
+        });
+
+        // Botón "Aplicar nombre" — une los 3 campos y los coloca en #cliente
+        $('#btnAplicarManual').on('click', function () {
+            var nombres    = $('#manual-nombres').val().trim().toUpperCase();
+            var apPaterno  = $('#manual-ap-paterno').val().trim().toUpperCase();
+            var apMaterno  = $('#manual-ap-materno').val().trim().toUpperCase();
+
+            if (!nombres && !apPaterno) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Campos vacíos',
+                    text: 'Ingresa al menos el nombre y el apellido paterno.',
+                    confirmButtonColor: '#4472C4'
+                });
+                return;
+            }
+
+            var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
+            $('#cliente').val(nombreCompleto);
+
+            // Limpiar y ocultar el panel
+            $('#manual-nombres, #manual-ap-paterno, #manual-ap-materno').val('');
+            $('#campos-manuales-dni').slideUp(200);
+
+            Toastify({
+                text: '✅ Nombre aplicado: ' + nombreCompleto,
+                duration: 2500,
+                gravity: 'top',
+                position: 'right',
+                style: { background: 'linear-gradient(135deg,#10B981,#059669)', borderRadius: '10px', fontWeight: '600' }
+            }).showToast();
         });
 
     }); // fin $(document).ready
