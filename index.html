@@ -4062,26 +4062,36 @@ const CierreCaja = {
                     return response.json();
                 })
                 .then(function (data) {
-                    if (data && data.success && data.data) {
-                        // ── Rellenar el campo "cliente" con nombre completo ──
-                        var nombreCompleto = data.data.nombres + ' '
-                                           + data.data.apellidoPaterno + ' '
-                                           + data.data.apellidoMaterno;
-                        $('#cliente').val(nombreCompleto.trim());
+                    // 👇 Esto muestra en consola la respuesta real de la API (para depurar)
+                    console.log('Respuesta API DNI:', JSON.stringify(data));
 
-                        // Notificación de éxito
+                    // La API puede devolver el nombre en distintos formatos.
+                    // Intentamos los más comunes de miapi.cloud:
+                    var nombres      = data.nombres      || (data.data && data.data.nombres)      || '';
+                    var apPaterno    = data.apellidoPaterno || (data.data && data.data.apellidoPaterno)
+                                    || data.apellido_paterno || (data.data && data.data.apellido_paterno) || '';
+                    var apMaterno    = data.apellidoMaterno || (data.data && data.data.apellidoMaterno)
+                                    || data.apellido_materno || (data.data && data.data.apellido_materno) || '';
+                    var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
+
+                    if (nombreCompleto.length > 2) {
+                        $('#cliente').val(nombreCompleto);
                         Swal.fire({
                             icon: 'success',
                             title: '✅ Cliente encontrado',
-                            text: nombreCompleto.trim(),
+                            text: nombreCompleto,
                             timer: 2500,
                             showConfirmButton: false
                         });
                     } else {
+                        // Mostrar la respuesta cruda para saber qué devuelve la API
                         Swal.fire({
-                            icon: 'error',
-                            title: 'DNI no encontrado',
-                            text: 'Verifica el número o intenta nuevamente.',
+                            icon: 'warning',
+                            title: 'Respuesta inesperada',
+                            html: '<p>La API respondió pero con un formato distinto.</p>'
+                                + '<p style="font-size:12px;margin-top:10px;background:#f0f0f0;padding:8px;border-radius:6px;text-align:left;word-break:break-all;">'
+                                + JSON.stringify(data)
+                                + '</p><p style="font-size:12px;color:#666;">Copia este texto y compártelo para corregir el código.</p>',
                             confirmButtonColor: '#4472C4'
                         });
                     }
