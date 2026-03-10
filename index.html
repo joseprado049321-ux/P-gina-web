@@ -726,6 +726,19 @@
         .swal-btn-reemplazar{background:linear-gradient(135deg,#F59E0B 0%,#D97706 100%)!important;border:none!important;}
         .swal-btn-cancelar{background:linear-gradient(135deg,var(--danger) 0%,#B91C1C 100%)!important;border:none!important;}
 
+        /* ============================================================
+           BOLETA BUTTONS
+           ============================================================ */
+        .btn-boleta {
+            background: linear-gradient(135deg, #1E3A6E 0%, #2B56A5 100%) !important;
+            padding: 5px 12px !important;
+            border-radius: var(--radius-sm) !important;
+            font-size: 12px !important;
+            box-shadow: 0 2px 8px rgba(30,58,110,0.30) !important;
+            white-space: nowrap !important;
+        }
+        .btn-boleta:hover { filter: brightness(1.15); transform: translateY(-1px); }
+
         /* Hidden */
         .hidden{display:none!important;}
 
@@ -1816,7 +1829,24 @@
                 msg.classList.add('show');
                 setTimeout(() => msg.classList.remove('show'), 3000);
                 Toastify({ text:"✅ Venta registrada", duration:3000, gravity:"top", position:"right", backgroundColor:"linear-gradient(to right,#00b09b,#96c93d)" }).showToast();
+                const ventaGuardada = venta;
                 this.limpiarFormulario();
+                // Ofrecer generar boleta
+                const { isConfirmed: hacerBoleta } = await Swal.fire({
+                    icon: 'success',
+                    title: '✅ Venta Registrada',
+                    html: `<p>¿Deseas generar una boleta electrónica para esta venta?</p>`,
+                    showCancelButton: true,
+                    confirmButtonText: '🧾 Generar Boleta',
+                    cancelButtonText: 'No, gracias',
+                    confirmButtonColor: '#1E3A6E',
+                    cancelButtonColor: '#6c757d',
+                    timer: 8000,
+                    timerProgressBar: true
+                });
+                if (hacerBoleta) {
+                    await Boletas.generarDesdeVenta(ventaGuardada.id);
+                }
                 const nombreCliente = venta.cliente ? venta.cliente.trim() : '';
                 if (nombreCliente && !Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase())) {
                     const result = await Swal.fire({ title:'¿Registrar cliente nuevo?', html:`<p>¿Agregar a <strong>${nombreCliente}</strong>?</p>`, icon:'question', showCancelButton:true, showDenyButton:true, confirmButtonText:'Sí, registrar', denyButtonText:'Después', cancelButtonText:'No', confirmButtonColor:'#4472C4', denyButtonColor:'#6c757d', cancelButtonColor:'#6c757d' });
@@ -1880,44 +1910,574 @@
             }
         };
 
-        const Facturas = {
-            generar(id) {
+        // ════════════════════════════════════════════════════════════════
+        // MÓDULO: BOLETAS ELECTRÓNICAS
+        // ════════════════════════════════════════════════════════════════
+        const Boletas = {
+            _getNextNumber() {
+                const n = parseInt(localStorage.getItem('boletaCounter') || '0') + 1;
+                localStorage.setItem('boletaCounter', n);
+                return String(n).padStart(6, '0');
+            },
+            _peekNextNumber() {
+                const n = parseInt(localStorage.getItem('boletaCounter') || '0') + 1;
+                return String(n).padStart(6, '0');
+            },
+            _fmtFecha(fechaISO) {
+                if (!fechaISO) return { d:'__', m:'__', y:'____' };
+                const parts = fechaISO.split('-');
+                return { d: parts[2]||'__', m: parts[1]||'__', y: parts[0]||'____' };
+            },
+
+            // ─── ENTRADA DESDE VENTA ─────────────────────────────────────
+            async generarDesdeVenta(id) {
                 const venta = Estado.ventas.find(v => v.id === id);
                 if (!venta) return Swal.fire('Error','Venta no encontrada','error');
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                doc.setFillColor(68,114,196); doc.rect(0,0,210,40,'F');
-                doc.setTextColor(255,255,255); doc.setFontSize(22); doc.setFont('helvetica','bold');
-                doc.text('COMPROBANTE DE VENTA', 105, 18, {align:'center'});
-                doc.setFontSize(11); doc.text('Tecnología - Servicio Técnico', 105, 28, {align:'center'});
-                doc.setTextColor(0,0,0); doc.setFontSize(10); doc.setFont('helvetica','normal');
-                const [year,month,day] = venta.fecha.split('-');
-                doc.text(`Fecha: ${day}/${month}/${year}`, 14, 55);
-                doc.text(`ID Venta: ${venta.id}`, 14, 62);
-                doc.text(`SKU: ${venta.sku || '-'}`, 14, 69);
-                if(venta.cliente) { doc.setFont('helvetica','bold'); doc.text('Cliente:', 120,55); doc.setFont('helvetica','normal'); doc.text(venta.cliente, 140, 55); }
-                if(venta.vendedor) { doc.text(`Vendedor: ${venta.vendedor}`, 120, 62); }
-                doc.setFillColor(68,114,196); doc.rect(14,78,182,8,'F');
-                doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
-                doc.text('PRODUCTO',16,84); doc.text('CATEGORÍA',80,84); doc.text('CANT.',120,84); doc.text('PRECIO',140,84); doc.text('TOTAL',172,84);
-                doc.setTextColor(0,0,0); doc.setFont('helvetica','normal'); doc.setFontSize(10);
-                doc.setFillColor(245,248,255); doc.rect(14,86,182,10,'F');
-                doc.text(venta.producto.slice(0,35), 16, 93); doc.text(venta.categoria||'-', 80, 93);
-                doc.text(String(venta.cantidad), 122, 93); doc.text(`S/${venta.precio.toFixed(2)}`, 140, 93);
-                doc.setFont('helvetica','bold'); doc.text(`S/${venta.total.toFixed(2)}`, 170, 93);
-                let y=115;
-                doc.setFont('helvetica','bold');
-                doc.text(`Pagado:`, 140, y); doc.text(`S/${venta.adelanto.toFixed(2)}`, 172, y); y+=7;
-                if(venta.saldoPendiente>0){ doc.setTextColor(220,53,69); doc.text(`Pendiente:`, 140, y); doc.text(`S/${venta.saldoPendiente.toFixed(2)}`, 172, y); doc.setTextColor(0,0,0); y+=7; }
-                doc.setFontSize(12); doc.text(`TOTAL: S/${venta.total.toFixed(2)}`, 140, y+5);
-                if(venta.historialPagos && venta.historialPagos.length>0){
-                    y+=20; doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('Historial de Pagos:', 14, y);
-                    venta.historialPagos.forEach((p,i)=>{ y+=6; const fd=new Date(p.fecha); doc.setFont('helvetica','normal'); doc.text(`  ${fd.toLocaleDateString('es-PE')} - ${p.metodo}: S/${p.monto.toFixed(2)}`,14,y); });
+                const datos = {
+                    tipo: 'venta',
+                    ventaId: id,
+                    cliente: venta.cliente || '',
+                    dni: '',
+                    telefono: '',
+                    direccion: '',
+                    fecha: venta.fecha,
+                    items: [{ cant: venta.cantidad, descripcion: venta.producto, codigo: venta.sku||'', precioUnit: venta.precio, total: venta.total }],
+                    total: venta.total,
+                    metodoPago: venta.metodo || '',
+                    notas: venta.notas || ''
+                };
+                // Buscar datos del cliente en el módulo Clientes
+                if (venta.cliente) {
+                    const cl = Estado.clientes.find(c => c.nombre.toLowerCase() === venta.cliente.toLowerCase());
+                    if (cl) { datos.telefono = cl.telefono || ''; datos.direccion = cl.direccion || ''; }
                 }
-                if(venta.notas){ y+=10; doc.setFontSize(9); doc.text(`Notas: ${venta.notas}`,14,y); }
-                doc.setFontSize(8); doc.setTextColor(150,150,150); doc.text('Gracias por su compra · Sistema de Registro de Ventas', 105, 280, {align:'center'});
-                doc.save(`Factura_${venta.id}.pdf`);
+                await this._flujo(datos);
+            },
+
+            // ─── ENTRADA DESDE ORDEN ─────────────────────────────────────
+            async generarDesdeOrden(id) {
+                const ordenes = OrdenesServicio.cargar();
+                const orden = ordenes.find(o => o.id === id);
+                if (!orden) return Swal.fire('Error','Orden no encontrada','error');
+                const desc = `Servicio técnico: ${orden.tipoEquipo}${orden.marca?' '+orden.marca:''}${orden.modelo?' - '+orden.modelo:''}`;
+                const datos = {
+                    tipo: 'orden',
+                    ordenId: id,
+                    cliente: orden.cliente || '',
+                    dni: '',
+                    telefono: orden.telefono || '',
+                    direccion: '',
+                    fecha: orden.fecha,
+                    items: [{ cant: 1, descripcion: desc, codigo: orden.numero||'', precioUnit: orden.costo, total: orden.costo }],
+                    total: orden.costo,
+                    metodoPago: orden.metodo || '',
+                    notas: orden.notas || ''
+                };
+                const cl = Estado.clientes.find(c => c.nombre.toLowerCase() === (orden.cliente||'').toLowerCase());
+                if (cl) { datos.telefono = cl.telefono || datos.telefono; datos.direccion = cl.direccion || ''; }
+                await this._flujo(datos);
+            },
+
+            // ─── PASO 1: ELEGIR TIPO ─────────────────────────────────────
+            async _flujo(datos) {
+                const { value: tipo } = await Swal.fire({
+                    title: '🧾 Generar Boleta Electrónica',
+                    html: `<p style="margin-bottom:18px;color:#555;">Selecciona el tipo de boleta que deseas generar:</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0;">
+                            <div onclick="document.getElementById('tipo-simple').click()" style="border:2px solid #e2e8f0;border-radius:12px;padding:18px;cursor:pointer;transition:all 0.2s;" id="card-simple" onmouseover="this.style.borderColor='#2B56A5'" onmouseout="document.getElementById('tipo-simple').checked&&(this.style.borderColor='#2B56A5')||( this.style.borderColor='#e2e8f0')">
+                                <div style="font-size:2em;margin-bottom:8px;">📄</div>
+                                <div style="font-weight:700;color:#1A2340;margin-bottom:4px;">Boleta Simple</div>
+                                <div style="font-size:0.82em;color:#666;">Formato texto con líneas de separación. Ideal para impresión rápida.</div>
+                                <input type="radio" id="tipo-simple" name="tipo-boleta" value="simple" style="margin-top:10px;">
+                            </div>
+                            <div onclick="document.getElementById('tipo-estructurada').click()" style="border:2px solid #e2e8f0;border-radius:12px;padding:18px;cursor:pointer;transition:all 0.2s;" id="card-estruct" onmouseover="this.style.borderColor='#2B56A5'" onmouseout="document.getElementById('tipo-estructurada').checked&&(this.style.borderColor='#2B56A5')||( this.style.borderColor='#e2e8f0')">
+                                <div style="font-size:2em;margin-bottom:8px;">📋</div>
+                                <div style="font-weight:700;color:#1A2340;margin-bottom:4px;">Boleta Estructurada</div>
+                                <div style="font-size:0.82em;color:#666;">Formato empresarial con IGV, garantías y datos completos.</div>
+                                <input type="radio" id="tipo-estructurada" name="tipo-boleta" value="estructurada" style="margin-top:10px;">
+                            </div>
+                        </div>`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Continuar →',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#2B56A5',
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        const sel = document.querySelector('input[name="tipo-boleta"]:checked');
+                        if (!sel) { Swal.showValidationMessage('Por favor selecciona un tipo de boleta'); return null; }
+                        return sel.value;
+                    }
+                });
+                if (!tipo) return;
+                await this._mostrarFormulario(datos, tipo);
+            },
+
+            // ─── PASO 2: FORMULARIO DE DATOS ────────────────────────────
+            async _mostrarFormulario(datos, tipo) {
+                const numPreview = this._peekNextNumber();
+                const f = this._fmtFecha(datos.fecha);
+                const esEstructurada = tipo === 'estructurada';
+
+                // Construir filas de items editables
+                let itemsHTML = datos.items.map((it, i) => `
+                    <tr id="boleta-item-row-${i}">
+                        <td><input type="number" min="1" value="${it.cant}" id="bitem-cant-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:55px;" oninput="Boletas._recalcItem(${i})"></td>
+                        ${esEstructurada?`<td><input type="text" value="${it.codigo||''}" id="bitem-cod-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:80px;"></td>`:''}
+                        <td style="min-width:130px;"><input type="text" value="${it.descripcion}" id="bitem-desc-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;"></td>
+                        <td><input type="number" step="0.01" value="${it.precioUnit.toFixed(2)}" id="bitem-pu-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${i})"></td>
+                        <td id="bitem-tot-${i}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${it.total.toFixed(2)}</td>
+                        <td><button type="button" onclick="Boletas._removeItemRow(${i})" style="background:#dc3545;color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                    </tr>`).join('');
+
+                const igvPct = 0.18;
+                const subtotalOrig = datos.items.reduce((s,it) => s + it.total, 0);
+                const igvOrig = subtotalOrig * igvPct;
+
+                const { value: formData } = await Swal.fire({
+                    title: `🧾 ${esEstructurada ? 'Boleta Estructurada' : 'Boleta Simple'} — N° 001-${numPreview}`,
+                    width: '720px',
+                    html: `
+                    <div style="text-align:left;font-family:'Poppins',sans-serif;font-size:13px;">
+                        <div style="background:#EEF4FF;border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #c5d3f5;">
+                            <div style="font-weight:700;color:#1E3A6E;margin-bottom:10px;">📋 Datos del Cliente</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div>
+                                    <label style="font-weight:600;color:#2C3A58;font-size:12px;">Nombre / Razón Social *</label>
+                                    <input id="bcliente-nombre" class="swal2-input" value="${datos.cliente}" placeholder="Nombre del cliente" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:#2C3A58;font-size:12px;">DNI / RUC</label>
+                                    <input id="bcliente-dni" class="swal2-input" value="${datos.dni||''}" placeholder="DNI o RUC" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:#2C3A58;font-size:12px;">Teléfono</label>
+                                    <input id="bcliente-tel" class="swal2-input" value="${datos.telefono||''}" placeholder="987654321" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:#2C3A58;font-size:12px;">Dirección</label>
+                                    <input id="bcliente-dir" class="swal2-input" value="${datos.direccion||''}" placeholder="Dirección del cliente" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background:#F7F9FC;border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #d5dce9;">
+                            <div style="font-weight:700;color:#1E3A6E;margin-bottom:10px;">📦 Ítems de la Boleta</div>
+                            <div style="overflow-x:auto;">
+                                <table id="boleta-items-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+                                    <thead>
+                                        <tr style="background:#1E3A6E;color:white;">
+                                            <th style="padding:6px 8px;">Cant.</th>
+                                            ${esEstructurada?'<th style="padding:6px 8px;">Código</th>':''}
+                                            <th style="padding:6px 8px;min-width:140px;">Descripción</th>
+                                            <th style="padding:6px 8px;">P. Unit.</th>
+                                            <th style="padding:6px 8px;">Total</th>
+                                            <th style="padding:6px 8px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="boleta-items-tbody">${itemsHTML}</tbody>
+                                </table>
+                            </div>
+                            <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <input type="number" min="1" value="1" id="bnew-cant" class="swal2-input" placeholder="Cant." style="margin:0;padding:4px 6px;font-size:12px;width:60px;">
+                                ${esEstructurada?'<input type="text" id="bnew-cod" class="swal2-input" placeholder="Código" style="margin:0;padding:4px 6px;font-size:12px;width:80px;">':''}
+                                <input type="text" id="bnew-desc" class="swal2-input" placeholder="Descripción" style="margin:0;padding:4px 6px;font-size:12px;flex:1;min-width:100px;">
+                                <input type="number" step="0.01" id="bnew-pu" class="swal2-input" placeholder="P. Unit." style="margin:0;padding:4px 6px;font-size:12px;width:80px;">
+                                <button type="button" onclick="Boletas._addItemRow(${esEstructurada})" style="background:#2B56A5;color:white;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;">➕ Añadir</button>
+                            </div>
+                        </div>
+
+                        <div style="background:#EEF4FF;border-radius:10px;padding:14px;margin-bottom:${esEstructurada?'14':'0'}px;border:1px solid #c5d3f5;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                                ${esEstructurada?`
+                                <div style="font-size:12px;">
+                                    <label style="font-weight:600;"><input type="checkbox" id="bincluir-igv" onchange="Boletas._recalcTotales()" checked> Incluir IGV (18%)</label>
+                                </div>
+                                <div style="text-align:right;font-size:13px;line-height:1.9;">
+                                    <div>Op. Gravadas: <strong id="b-subtotal">S/${subtotalOrig.toFixed(2)}</strong></div>
+                                    <div>IGV (18%): <strong id="b-igv">S/${igvOrig.toFixed(2)}</strong></div>
+                                    <div style="font-size:1.1em;color:#1E3A6E;">TOTAL FINAL: <strong id="b-total">S/${(subtotalOrig+igvOrig).toFixed(2)}</strong></div>
+                                </div>`
+                                :`<div style="font-size:1.1em;font-weight:700;color:#1E3A6E;width:100%;text-align:right;">
+                                    TOTAL A PAGAR: <strong id="b-total">S/${subtotalOrig.toFixed(2)}</strong>
+                                </div>`}
+                            </div>
+                        </div>
+
+                        ${esEstructurada?`
+                        <div style="background:#F7F9FC;border-radius:10px;padding:14px;border:1px solid #d5dce9;">
+                            <div style="font-weight:700;color:#1E3A6E;margin-bottom:10px;">📝 Notas y Garantía</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div>
+                                    <label style="font-weight:600;color:#2C3A58;font-size:12px;">Meses de Garantía</label>
+                                    <input id="bgarantia-meses" class="swal2-input" type="number" min="0" value="6" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:#2C3A58;font-size:12px;">Notas adicionales</label>
+                                    <input id="bnotas-extra" class="swal2-input" value="${datos.notas||''}" placeholder="Observaciones..." style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                            </div>
+                        </div>`:''}
+                    </div>`,
+                    showCancelButton: true,
+                    confirmButtonText: '🧾 Generar PDF',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#1E3A6E',
+                    didOpen: () => {
+                        window._boletaItemsTemp = datos.items.map(it => ({...it}));
+                        window._boletaEsEstructurada = esEstructurada;
+                        if (esEstructurada) Boletas._recalcTotales();
+                    },
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        const nombre = document.getElementById('bcliente-nombre').value.trim();
+                        if (!nombre) { Swal.showValidationMessage('El nombre del cliente es obligatorio'); return null; }
+                        if (!window._boletaItemsTemp || !window._boletaItemsTemp.length) { Swal.showValidationMessage('Debes tener al menos un ítem'); return null; }
+                        const result = {
+                            cliente: nombre,
+                            dni: document.getElementById('bcliente-dni').value.trim(),
+                            telefono: document.getElementById('bcliente-tel').value.trim(),
+                            direccion: document.getElementById('bcliente-dir').value.trim(),
+                            items: window._boletaItemsTemp.slice(),
+                        };
+                        if (esEstructurada) {
+                            result.incluirIGV = document.getElementById('bincluir-igv').checked;
+                            result.garantiaMeses = parseInt(document.getElementById('bgarantia-meses').value)||6;
+                            result.notasExtra = document.getElementById('bnotas-extra').value.trim();
+                        }
+                        const subtotal = result.items.reduce((s,it) => s + it.total, 0);
+                        result.subtotal = subtotal;
+                        result.igv = esEstructurada && result.incluirIGV ? subtotal * 0.18 : 0;
+                        result.total = subtotal + result.igv;
+                        return result;
+                    }
+                });
+                if (!formData) return;
+
+                // Actualizar cliente si ya existe
+                this._actualizarCliente({ ...datos, ...formData });
+
+                // Generar número de boleta real
+                const numBoleta = this._getNextNumber();
+
+                if (tipo === 'simple') {
+                    this._generarSimplePDF({ ...datos, ...formData, numBoleta });
+                } else {
+                    this._generarEstructuradaPDF({ ...datos, ...formData, numBoleta });
+                }
+            },
+
+            // ─── HELPERS PARA EL FORMULARIO DINÁMICO ────────────────────
+            _recalcItem(i) {
+                const cant = parseFloat(document.getElementById(`bitem-cant-${i}`)?.value) || 0;
+                const pu = parseFloat(document.getElementById(`bitem-pu-${i}`)?.value) || 0;
+                const tot = cant * pu;
+                const totEl = document.getElementById(`bitem-tot-${i}`);
+                if (totEl) totEl.textContent = `S/${tot.toFixed(2)}`;
+                if (window._boletaItemsTemp && window._boletaItemsTemp[i]) {
+                    window._boletaItemsTemp[i].cant = cant;
+                    window._boletaItemsTemp[i].precioUnit = pu;
+                    window._boletaItemsTemp[i].total = tot;
+                }
+                this._recalcTotales();
+            },
+            _recalcTotales() {
+                if (!window._boletaItemsTemp) return;
+                const subtotal = window._boletaItemsTemp.reduce((s,it) => s + (it.total||0), 0);
+                const incIGV = document.getElementById('bincluir-igv')?.checked;
+                const igv = incIGV ? subtotal * 0.18 : 0;
+                const total = subtotal + igv;
+                const subEl = document.getElementById('b-subtotal');
+                if (subEl) subEl.textContent = `S/${subtotal.toFixed(2)}`;
+                const igvEl = document.getElementById('b-igv');
+                if (igvEl) igvEl.textContent = `S/${igv.toFixed(2)}`;
+                const totEl = document.getElementById('b-total');
+                if (totEl) totEl.textContent = `S/${total.toFixed(2)}`;
+            },
+            _removeItemRow(i) {
+                if (!window._boletaItemsTemp) return;
+                window._boletaItemsTemp.splice(i, 1);
+                // Re-render rows
+                const tbody = document.getElementById('boleta-items-tbody');
+                if (!tbody) return;
+                const esE = window._boletaEsEstructurada;
+                tbody.innerHTML = window._boletaItemsTemp.map((it, idx) => `
+                    <tr id="boleta-item-row-${idx}">
+                        <td><input type="number" min="1" value="${it.cant}" id="bitem-cant-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:55px;" oninput="Boletas._recalcItem(${idx})"></td>
+                        ${esE?`<td><input type="text" value="${it.codigo||''}" id="bitem-cod-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:80px;"></td>`:''}
+                        <td><input type="text" value="${it.descripcion}" id="bitem-desc-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;min-width:120px;"></td>
+                        <td><input type="number" step="0.01" value="${it.precioUnit.toFixed(2)}" id="bitem-pu-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${idx})"></td>
+                        <td id="bitem-tot-${idx}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${it.total.toFixed(2)}</td>
+                        <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:#dc3545;color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                    </tr>`).join('');
+                this._recalcTotales();
+            },
+            _addItemRow(esE) {
+                const cantEl = document.getElementById('bnew-cant');
+                const descEl = document.getElementById('bnew-desc');
+                const puEl   = document.getElementById('bnew-pu');
+                const codEl  = document.getElementById('bnew-cod');
+                const cant = parseFloat(cantEl?.value) || 1;
+                const desc = descEl?.value.trim() || '';
+                const pu   = parseFloat(puEl?.value) || 0;
+                const cod  = codEl?.value.trim() || '';
+                if (!desc || pu <= 0) { alert('Ingresa descripción y precio unitario'); return; }
+                if (!window._boletaItemsTemp) window._boletaItemsTemp = [];
+                const newItem = { cant, descripcion: desc, codigo: cod, precioUnit: pu, total: cant * pu };
+                window._boletaItemsTemp.push(newItem);
+                // Re-render
+                const tbody = document.getElementById('boleta-items-tbody');
+                if (tbody) {
+                    const idx = window._boletaItemsTemp.length - 1;
+                    tbody.insertAdjacentHTML('beforeend', `
+                        <tr id="boleta-item-row-${idx}">
+                            <td><input type="number" min="1" value="${cant}" id="bitem-cant-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:55px;" oninput="Boletas._recalcItem(${idx})"></td>
+                            ${esE?`<td><input type="text" value="${cod}" id="bitem-cod-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:80px;"></td>`:''}
+                            <td><input type="text" value="${desc}" id="bitem-desc-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;min-width:120px;"></td>
+                            <td><input type="number" step="0.01" value="${pu.toFixed(2)}" id="bitem-pu-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${idx})"></td>
+                            <td id="bitem-tot-${idx}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${(cant*pu).toFixed(2)}</td>
+                            <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:#dc3545;color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                        </tr>`);
+                }
+                if (cantEl) cantEl.value = '1';
+                if (descEl) descEl.value = '';
+                if (puEl)   puEl.value   = '';
+                if (codEl)  codEl.value  = '';
+                this._recalcTotales();
+            },
+
+            // ─── ACTUALIZAR CLIENTE ──────────────────────────────────────
+            _actualizarCliente(datos) {
+                if (!datos.cliente) return;
+                const nombreNorm = datos.cliente.toLowerCase();
+                const idx = Estado.clientes.findIndex(c => c.nombre.toLowerCase() === nombreNorm);
+                if (idx !== -1) {
+                    // Actualizar datos existentes
+                    if (datos.telefono) Estado.clientes[idx].telefono = datos.telefono;
+                    if (datos.direccion) Estado.clientes[idx].direccion = datos.direccion;
+                    if (datos.dni) Estado.clientes[idx].dni = datos.dni;
+                    Storage.guardarClientes();
+                    Clientes.renderizarLista();
+                }
+            },
+
+            // ─── PDF: BOLETA SIMPLE ──────────────────────────────────────
+            _generarSimplePDF(d) {
+                const { jsPDF } = window.jspdf;
+                // Formato 80mm (ancho ~80mm = 226pt, pero usamos A4 con columna estrecha para impresión)
+                const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+                const W = 210; // ancho A4
+                const PX = 14; // padding izquierdo
+                const PXR = 196; // padding derecho
+                let y = 15;
+
+                const line = (txt, size=9, bold=false, align='left', color=[0,0,0]) => {
+                    doc.setFontSize(size); doc.setFont('courier', bold?'bold':'normal');
+                    doc.setTextColor(color[0], color[1], color[2]);
+                    const x = align==='center' ? W/2 : align==='right' ? PXR : PX;
+                    doc.text(txt, x, y, {align});
+                    y += size*0.45;
+                };
+                const sep = (char='=', len=42) => {
+                    line(char.repeat(len), 9, false, 'center'); y += 1;
+                };
+                const hr = () => { line('-'.repeat(42), 9, false, 'center'); y += 1; };
+
+                sep('=');
+                line('BOLETA DE VENTA', 13, true, 'center', [30,58,110]);
+                sep('=');
+                y += 2;
+                line(`RUC / DNI: ___________________`, 8.5);
+                line(`Negocio: iNextTech`, 8.5, true);
+                line(`Propietario: José Antonio Lisboa Prado`, 8.5);
+                line(`Dirección: Huanta, Ayacucho`, 8.5);
+                line(`Teléfono: ___________________`, 8.5);
+                y += 2;
+                hr();
+                const f = this._fmtFecha(d.fecha);
+                line(`Boleta N°: 001 - ${d.numBoleta}`, 9, true);
+                line(`Fecha: ${f.d}/${f.m}/${f.y}`, 9);
+                hr();
+                y += 1;
+                line(`Cliente: ${d.cliente || '_'.repeat(28)}`, 9);
+                line(`DNI: ${d.dni || '_'.repeat(32)}`, 9);
+                if (d.telefono) line(`Teléfono: ${d.telefono}`, 9);
+                if (d.direccion) line(`Dirección: ${d.direccion}`, 9);
+                y += 2;
+                // Cabecera tabla
+                doc.setFont('courier','bold'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
+                doc.text('Cant.', PX, y);
+                doc.text('Descripción', PX+18, y);
+                doc.text('Total', PXR, y, {align:'right'});
+                y += 4;
+                hr();
+                // Items
+                doc.setFont('courier','normal'); doc.setFontSize(8.5);
+                d.items.forEach(it => {
+                    const desc = (it.descripcion||'').slice(0, 28);
+                    doc.text(String(it.cant), PX+2, y);
+                    doc.text(desc, PX+18, y);
+                    doc.setFont('courier','bold');
+                    doc.text(`S/ ${it.total.toFixed(2)}`, PXR, y, {align:'right'});
+                    doc.setFont('courier','normal');
+                    y += 6;
+                });
+                hr();
+                y += 2;
+                doc.setFont('courier','bold'); doc.setFontSize(10);
+                doc.text('TOTAL A PAGAR:', PX, y);
+                doc.text(`S/ ${d.total.toFixed(2)}`, PXR, y, {align:'right'});
+                y += 5;
+                hr();
+                y += 4;
+                line('¡Gracias por su preferencia!', 9.5, true, 'center', [30,58,110]);
+                line('iNextTech - Huanta', 9, false, 'center', [30,58,110]);
+                sep('=');
+
+                doc.save(`Boleta_Simple_${d.numBoleta}.pdf`);
+                Toastify({text:'✅ Boleta simple generada', duration:3000, gravity:'top', position:'right', backgroundColor:'linear-gradient(to right,#1E3A6E,#2B56A5)'}).showToast();
+            },
+
+            // ─── PDF: BOLETA ESTRUCTURADA ────────────────────────────────
+            _generarEstructuradaPDF(d) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+                const W = 210;
+                const PX = 14;
+                let y = 0;
+
+                // ── Encabezado azul degradado ──
+                doc.setFillColor(30, 58, 110);
+                doc.rect(0, 0, W, 38, 'F');
+                doc.setFillColor(43, 86, 165);
+                doc.rect(0, 22, W, 16, 'F');
+
+                doc.setTextColor(255,255,255);
+                doc.setFont('helvetica','bold'); doc.setFontSize(20);
+                doc.text('iNextTech', PX, 14);
+                doc.setFontSize(9); doc.setFont('helvetica','normal');
+                doc.text('Tecnología · Servicio Técnico', PX, 20);
+
+                doc.setFont('helvetica','bold'); doc.setFontSize(16);
+                doc.text('BOLETA ELECTRÓNICA', W/2, 14, {align:'center'});
+                doc.setFontSize(9); doc.setFont('helvetica','normal');
+                doc.text('Propietario: José Antonio Lisboa Prado', W/2, 20, {align:'center'});
+
+                const f = this._fmtFecha(d.fecha);
+                doc.setFont('helvetica','bold'); doc.setFontSize(10);
+                doc.text(`N° de Serie: 001 - ${d.numBoleta}`, W-PX, 14, {align:'right'});
+                doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+                doc.text(`Fecha: ${f.d}/${f.m}/${f.y}`, W-PX, 20, {align:'right'});
+
+                // segunda fila encabezado
+                doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+                doc.text('RUC: ___________________', PX, 30);
+                doc.text('Ubicación: Huanta, Ayacucho', W/2, 30, {align:'center'});
+                const now = new Date();
+                doc.text(`Hora: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`, W-PX, 30, {align:'right'});
+
+                y = 46;
+                doc.setTextColor(0,0,0);
+
+                // ── Sección Datos del Cliente ──
+                doc.setFillColor(238, 244, 255);
+                doc.rect(PX, y-5, W-PX*2, 32, 'F');
+                doc.setDrawColor(197, 211, 245);
+                doc.rect(PX, y-5, W-PX*2, 32, 'S');
+                doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30,58,110);
+                doc.text('DATOS DEL CLIENTE', PX+4, y+1);
+                doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(0,0,0);
+                y += 7;
+                doc.text(`* Nombre/Razón Social: ${d.cliente}`, PX+4, y); y += 6;
+                doc.text(`* DNI / RUC: ${d.dni||'___________________'}`, PX+4, y);
+                doc.text(`Teléfono: ${d.telefono||'___________________'}`, W/2, y); y += 6;
+                doc.text(`* Dirección: ${d.direccion||'______________________________________________'}`, PX+4, y);
+                y += 14;
+
+                // ── Tabla de Ítems ──
+                const colW = [18, 28, 80, 22, 28]; // Cant, Código, Descripción, Unit, Importe
+                const tableX = [PX, PX+colW[0], PX+colW[0]+colW[1], PX+colW[0]+colW[1]+colW[2], PX+colW[0]+colW[1]+colW[2]+colW[3]];
+                doc.setFillColor(30,58,110);
+                doc.rect(PX, y-4, W-PX*2, 8, 'F');
+                doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+                doc.text('Cant.', tableX[0]+1, y+1);
+                doc.text('Código/Serie', tableX[1]+1, y+1);
+                doc.text('Descripción del Producto o Servicio', tableX[2]+1, y+1);
+                doc.text('Unit.', tableX[3]+1, y+1);
+                doc.text('Importe', tableX[4]+1, y+1);
+                y += 6;
+
+                doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+                d.items.forEach((it, i) => {
+                    if (y > 240) { doc.addPage(); y = 20; }
+                    const bg = i%2===0 ? [245,248,255] : [255,255,255];
+                    doc.setFillColor(bg[0],bg[1],bg[2]);
+                    doc.rect(PX, y-4, W-PX*2, 8, 'F');
+                    doc.setFontSize(8.5);
+                    doc.text(String(it.cant), tableX[0]+1, y+1);
+                    doc.text((it.codigo||'').slice(0,12), tableX[1]+1, y+1);
+                    const descLines = doc.splitTextToSize(it.descripcion||'', colW[2]-4);
+                    doc.text(descLines[0]||'', tableX[2]+1, y+1);
+                    doc.text(`S/${it.precioUnit.toFixed(2)}`, tableX[3]+1, y+1);
+                    doc.setFont('helvetica','bold');
+                    doc.text(`S/${it.total.toFixed(2)}`, tableX[4]+1, y+1);
+                    doc.setFont('helvetica','normal');
+                    y += 8;
+                });
+
+                // Línea de cierre tabla
+                doc.setDrawColor(197,211,245); doc.line(PX, y-2, W-PX, y-2);
+                y += 6;
+
+                // ── Resumen de Venta ──
+                doc.setFillColor(238,244,255);
+                doc.rect(PX, y-5, W-PX*2, d.incluirIGV ? 30 : 22, 'F');
+                doc.setDrawColor(197,211,245);
+                doc.rect(PX, y-5, W-PX*2, d.incluirIGV ? 30 : 22, 'S');
+                doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30,58,110);
+                doc.text('RESUMEN DE VENTA', PX+4, y+1);
+                doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(0,0,0);
+                y += 7;
+                if (d.incluirIGV) {
+                    doc.text(`* Op. Gravadas: S/ ${d.subtotal.toFixed(2)}`, PX+4, y); y += 6;
+                    doc.text(`* I.G.V. (18%): S/ ${d.igv.toFixed(2)}`, PX+4, y); y += 6;
+                }
+                doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(30,58,110);
+                doc.text(`* TOTAL FINAL: S/ ${d.total.toFixed(2)}`, PX+4, y);
+                y += 14;
+
+                // ── Notas / Garantía ──
+                const garantiaMeses = d.garantiaMeses || 6;
+                doc.setFillColor(247,249,252);
+                doc.rect(PX, y-5, W-PX*2, 24, 'F');
+                doc.setDrawColor(213,220,233);
+                doc.rect(PX, y-5, W-PX*2, 24, 'S');
+                doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(30,58,110);
+                doc.text('NOTAS/GARANTÍA:', PX+4, y+1);
+                doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
+                y += 6;
+                doc.text(`* Los componentes cuentan con ${garantiaMeses} meses de garantía bajo defectos de fábrica.`, PX+4, y); y += 6;
+                doc.text(`* No se aceptan devoluciones si los sellos de seguridad están violados.`, PX+4, y); y += 6;
+                if (d.notasExtra) { doc.text(`* ${d.notasExtra}`, PX+4, y); y += 6; }
+                y += 8;
+
+                // ── Firma ──
+                doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(150,150,150);
+                doc.text('Firma del cliente: _______________________________', PX, y); y += 12;
+
+                // ── Footer ──
+                doc.setFillColor(30,58,110);
+                doc.rect(0, 282, W, 15, 'F');
+                doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+                doc.text('¡Gracias por su preferencia! · iNextTech - Huanta, Ayacucho', W/2, 291, {align:'center'});
+
+                doc.save(`Boleta_Estructurada_${d.numBoleta}.pdf`);
+                Toastify({text:'✅ Boleta estructurada generada', duration:3000, gravity:'top', position:'right', backgroundColor:'linear-gradient(to right,#1E3A6E,#2B56A5)'}).showToast();
             }
+        };
+
+        // Alias para retrocompatibilidad
+        const Facturas = {
+            generar(id) { Boletas.generarDesdeVenta(id); }
         };
 
         const Inventario = {
@@ -2226,7 +2786,7 @@
                         <td>${v.estadoPago==='Pagado'?'<span class="estado-pagado">✅ Pagado</span>':'<span class="estado-pendiente">⏳ Pendiente</span>'}</td>
                         <td style="white-space:nowrap;">
                             ${v.estadoPago==='Pendiente'?`<button class="btn-pago" onclick="Ventas.actualizarPago(${v.id})">💰 Pago</button>`:''}
-                            <button class="small-btn" onclick="Facturas.generar(${v.id})">📄</button>
+                            <button class="small-btn" onclick="Boletas.generarDesdeVenta(${v.id})" style="background:linear-gradient(135deg,#1E3A6E,#2B56A5);" title="Generar Boleta">🧾 Boleta</button>
                             <button class="delete-btn" onclick="Ventas.eliminar(${v.id})">🗑️</button>
                         </td>
                     </tr>`;
@@ -2696,7 +3256,8 @@
                             </div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                 <button class="small-btn gray" onclick="OrdenesServicio.editarOrden('${o.id}')">✏️ Editar</button>
-                                <button class="small-btn" onclick="OrdenesServicio.generarPDFOrden('${o.id}')" style="background:#dc3545;">📄</button>
+                                <button class="small-btn" onclick="OrdenesServicio.generarPDFOrden('${o.id}')" style="background:#dc3545;">📄 PDF</button>
+                                <button class="small-btn" onclick="Boletas.generarDesdeOrden('${o.id}')" style="background:linear-gradient(135deg,#1E3A6E,#2B56A5);">🧾 Boleta</button>
                                 <button class="delete-btn" onclick="OrdenesServicio.eliminarOrden('${o.id}')">🗑️</button>
                             </div>
                         </div>
