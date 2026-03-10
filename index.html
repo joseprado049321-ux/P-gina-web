@@ -4590,20 +4590,20 @@ const CierreCaja = {
                 gap(1); sep();
 
                 const f = this._fmtFecha(d.fecha);
-                row(\`Boleta N.: 001-\${d.numBoleta}\`, FS, true);
-                row(\`Fecha    : \${f.d}/\${f.m}/\${f.y}\`, FS);
+                row(`Boleta N.: 001-${d.numBoleta}`, FS, true);
+                row(`Fecha    : ${f.d}/${f.m}/${f.y}`, FS);
                 const hh = String(now.getHours()).padStart(2,'0');
                 const mm2 = String(now.getMinutes()).padStart(2,'0');
-                row(\`Hora     : \${hh}:\${mm2}\`, FS);
+                row(`Hora     : ${hh}:${mm2}`, FS);
                 gap(0.5); sep();
 
                 gap(0.5);
-                const cliLines = doc.splitTextToSize(\`Cliente: \${d.cliente||'—'}\`, W - PX*2);
+                const cliLines = doc.splitTextToSize(`Cliente: ${d.cliente||'—'}`, W - PX*2);
                 cliLines.forEach(l => { row(l, FS); });
-                row(\`DNI/RUC: \${d.dni||'___________________'}\`, FS);
-                if (d.telefono)  row(\`Telef. : \${d.telefono}\`, FS);
+                row(`DNI/RUC: ${d.dni||'___________________'}`, FS);
+                if (d.telefono)  row(`Telef. : ${d.telefono}`, FS);
                 if (d.direccion) {
-                    const dirLines = doc.splitTextToSize(\`Dir.   : \${d.direccion}\`, W - PX*2);
+                    const dirLines = doc.splitTextToSize(`Dir.   : ${d.direccion}`, W - PX*2);
                     dirLines.forEach(l => { row(l, FS); });
                 }
                 gap(1);
@@ -4630,7 +4630,7 @@ const CierreCaja = {
                     txtt(chunks[0]||'',             PX+9,  y);
                     txtt(it.precioUnit.toFixed(2),  PX+47, y);
                     doc.setFont('courier','bold');
-                    txtt(\`S/\${it.total.toFixed(2)}\`, PXR, y, {align:'right'});
+                    txtt(`S/${it.total.toFixed(2)}`, PXR, y, {align:'right'});
                     doc.setFont('courier','normal');
                     y += LH;
 
@@ -4639,7 +4639,7 @@ const CierreCaja = {
                     }
                     if (esE && it.codigo) {
                         doc.setFont('courier','italic'); doc.setFontSize(FS-0.5);
-                        txtt(\`  Cod: \${it.codigo}\`, PX+9, y); y += LH;
+                        txtt(`  Cod: ${it.codigo}`, PX+9, y); y += LH;
                         doc.setFont('courier','normal'); doc.setFontSize(FS);
                     }
                 });
@@ -4650,21 +4650,21 @@ const CierreCaja = {
                 if (esE && d.incluirIGV) {
                     doc.setFont('courier','normal'); doc.setFontSize(FS); doc.setTextColor(0,0,0);
                     txtt('Op. Gravadas:', PX, y);
-                    txtt(\`S/ \${d.subtotal.toFixed(2)}\`, PXR, y, {align:'right'});
+                    txtt(`S/ ${d.subtotal.toFixed(2)}`, PXR, y, {align:'right'});
                     y += LH;
                     txtt('IGV (18%):', PX, y);
-                    txtt(\`S/ \${d.igv.toFixed(2)}\`, PXR, y, {align:'right'});
+                    txtt(`S/ ${d.igv.toFixed(2)}`, PXR, y, {align:'right'});
                     y += LH; sep();
                 }
 
                 doc.setFont('courier','bold'); doc.setFontSize(FS+1); doc.setTextColor(0,0,0);
                 txtt('TOTAL A PAGAR:', PX, y);
-                txtt(\`S/ \${d.total.toFixed(2)}\`, PXR, y, {align:'right'});
+                txtt(`S/ ${d.total.toFixed(2)}`, PXR, y, {align:'right'});
                 y += LH + 1;
 
                 if (d.metodoPago) {
                     doc.setFont('courier','normal'); doc.setFontSize(FS);
-                    txtt(\`Metodo: \${d.metodoPago}\`, PX, y); y += LH;
+                    txtt(`Metodo: ${d.metodoPago}`, PX, y); y += LH;
                 }
 
                 sep(); gap(1);
@@ -4672,12 +4672,12 @@ const CierreCaja = {
                 // ── Garantía (sólo estructurada) ─────────────────
                 if (esE) {
                     row('GARANTIA/NOTAS:', FS, true, 'left', [30,58,110]);
-                    const g1 = doc.splitTextToSize(\`* Componentes con \${garantiaMeses} meses de garantia por defecto de fabrica.\`, W-PX*2);
+                    const g1 = doc.splitTextToSize(`* Componentes con ${garantiaMeses} meses de garantia por defecto de fabrica.`, W-PX*2);
                     g1.forEach(l => { row(l, FS-0.5); });
                     const g2 = doc.splitTextToSize('* Sin devolucion si sellos violados.', W-PX*2);
                     g2.forEach(l => { row(l, FS-0.5); });
                     if (d.notasExtra) {
-                        const gx = doc.splitTextToSize(\`* \${d.notasExtra}\`, W-PX*2);
+                        const gx = doc.splitTextToSize(`* ${d.notasExtra}`, W-PX*2);
                         gx.forEach(l => { row(l, FS-0.5); });
                     }
                     gap(1);
@@ -4694,8 +4694,8 @@ const CierreCaja = {
                 gap(5); // espacio corte
 
                 const label = esE ? 'Estructurada' : 'Simple';
-                doc.save(\`Boleta_\${label}_\${d.numBoleta}.pdf\`);
-                Toastify({text:\`✅ Boleta \${label.toLowerCase()} generada (80 mm)\`, duration:3000, gravity:'top', position:'right', backgroundColor:'linear-gradient(to right,#1E3A6E,#2B56A5)'}).showToast();
+                doc.save(`Boleta_${label}_${d.numBoleta}.pdf`);
+                Toastify({text:`✅ Boleta ${label.toLowerCase()} generada (80 mm)`, duration:3000, gravity:'top', position:'right', backgroundColor:'linear-gradient(to right,#1E3A6E,#2B56A5)'}).showToast();
             },
 
             // ─── PDF: BOLETA SIMPLE ──────────────────────────────────────────────
