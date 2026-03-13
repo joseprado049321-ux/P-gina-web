@@ -1399,9 +1399,13 @@
 
             <!-- ===== TAB: GESTIÓN DE USUARIOS ===== -->
             <div id="usuarios" class="tab-content">
-                <h2 style="margin-bottom:5px;color:#333;">👨‍💼 Gestión de Usuarios</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px;">
+                    <h2 style="color:#333;margin:0;">👨‍💼 Gestión de Usuarios</h2>
+                    <button onclick="GestionUsuarios.mostrarModalAgregarLocal()" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px;box-shadow:0 4px 12px rgba(40,167,69,0.3);">➕ Añadir Usuario Local</button>
+                </div>
                 <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Aprueba o rechaza accesos al sistema.</p>
                 <div class="summary-cards" id="usuarios-cards"></div>
+                <div style="margin-bottom:30px;"><h3 style="color:#2B56A5;margin-bottom:15px;">🔑 Usuarios Locales</h3><div id="usuarios-locales-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div style="margin-bottom:30px;"><h3 style="color:#fd7e14;margin-bottom:15px;">⏳ Pendientes de Aprobación</h3><div id="usuarios-pendientes-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div style="margin-bottom:30px;"><h3 style="color:#28a745;margin-bottom:15px;">✅ Usuarios Aprobados</h3><div id="usuarios-aprobados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div><h3 style="color:#dc3545;margin-bottom:15px;">🚫 Usuarios Rechazados</h3><div id="usuarios-rechazados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
@@ -1487,6 +1491,42 @@
         // ════════════════════════════════════════════════════════════════
         // MÓDULO: AUTENTICACIÓN
         // ════════════════════════════════════════════════════════════════
+        /* ── Usuarios Locales (almacenados en localStorage) ─────────── */
+        const LocalUsers = {
+            _KEY: 'localUsersDB',
+            _defaults: [
+                { id: 'sebastian', username: 'Sebastian', password: 'S3b4sV3nt4s', nombre: 'Sebastian', fechaCreacion: new Date().toISOString() }
+            ],
+            _load() {
+                try {
+                    const d = localStorage.getItem(this._KEY);
+                    return d ? JSON.parse(d) : null;
+                } catch(e) { return null; }
+            },
+            _save(lista) {
+                try { localStorage.setItem(this._KEY, JSON.stringify(lista)); } catch(e) {}
+            },
+            getAll() {
+                let lista = this._load();
+                if (!lista) { lista = this._defaults; this._save(lista); }
+                return lista;
+            },
+            verificar(username, password) {
+                return this.getAll().find(u => u.username === username && u.password === password) || null;
+            },
+            agregar(username, password) {
+                const lista = this.getAll();
+                if (lista.find(u => u.username.toLowerCase() === username.toLowerCase())) return false;
+                lista.push({ id: 'lu_' + Date.now(), username, password, nombre: username, fechaCreacion: new Date().toISOString() });
+                this._save(lista);
+                return true;
+            },
+            eliminar(id) {
+                const lista = this.getAll().filter(u => u.id !== id);
+                this._save(lista);
+            }
+        };
+
         const Auth = {
             ADMIN_EMAIL: "joseprado049321@gmail.com",
             esAdmin: false,
@@ -1515,7 +1555,16 @@
                     localStorage.removeItem('sesionInvitado');
                     this.mostrarPantallaPrincipal();
                     this._notificar("✅ Bienvenido Administrador", "linear-gradient(to right,#4472C4,#2c5aa0)");
-                } else { this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d"); }
+                } else {
+                    const localUser = LocalUsers.verificar(user, pass);
+                    if (localUser) {
+                        this.esAdmin = false; this.modoInvitado = false;
+                        localStorage.setItem('sesionActiva', 'true');
+                        localStorage.removeItem('sesionInvitado');
+                        this.mostrarPantallaPrincipal();
+                        this._notificar(`✅ Bienvenido, ${localUser.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
+                    } else { this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d"); }
+                }
             },
             entrarComoInvitado(auto = false) {
                 this.modoInvitado = true; this.esAdmin = false;
@@ -1586,7 +1635,9 @@
 
         const GestionUsuarios = {
             async cargarTodos() {
-                if (!window.firebaseOK || !Auth.esAdmin) return;
+                if (!Auth.esAdmin) return;
+                this.cargarLocales();
+                if (!window.firebaseOK) return;
                 try {
                     const snap = await db.collection('usuarios_acceso').get();
                     const todos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1602,6 +1653,19 @@
                     this._renderLista('usuarios-rechazados-lista', rechazados, 'rechazado');
                 } catch(e) { console.error("Error cargando usuarios:", e); }
             },
+            cargarLocales() {
+                const c = document.getElementById('usuarios-locales-lista');
+                if (!c) return;
+                const lista = LocalUsers.getAll();
+                if (!lista.length) { c.innerHTML = '<p style="text-align:center;color:#aaa;padding:15px;">Sin usuarios locales</p>'; return; }
+                c.innerHTML = lista.map(u => {
+                    const fecha = u.fechaCreacion ? new Date(u.fechaCreacion).toLocaleDateString('es-PE') : '-';
+                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
+                        <div><div style="font-weight:700;">👤 ${u.nombre}</div><div style="font-size:0.85em;color:#666;">🔑 Usuario: <strong>${u.username}</strong></div><div style="font-size:0.8em;color:#aaa;">📅 Creado: ${fecha}</div></div>
+                        <div><button onclick="GestionUsuarios.eliminarLocal('${u.id}','${u.username}')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🗑️ Eliminar</button></div>
+                    </div>`;
+                }).join('');
+            },
             _renderLista(containerId, usuarios, tipo) {
                 const c = document.getElementById(containerId);
                 if (!c) return;
@@ -1612,9 +1676,10 @@
                     if (tipo === 'pendiente') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button><button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;">🚫 Rechazar</button>`;
                     else if (tipo === 'aprobado') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🚫 Revocar</button>`;
                     else botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button>`;
+                    const eliminarBtn = `<button onclick="GestionUsuarios.eliminarFirebase('${u.id}','${u.nombre||u.email}')" style="background:linear-gradient(135deg,#6c757d,#495057);color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;" title="Eliminar usuario">🗑️</button>`;
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
                         <div><div style="font-weight:700;">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:#666;">📧 ${u.email}</div><div style="font-size:0.8em;color:#aaa;">📅 ${fecha}</div></div>
-                        <div>${botonesHtml}</div></div>`;
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${eliminarBtn}</div></div>`;
                 }).join('');
             },
             async cambiarEstado(uid, nuevoEstado) {
@@ -1625,6 +1690,56 @@
                     Toastify({ text: nuevoEstado==='aprobado'?'✅ Usuario aprobado':'🚫 Usuario rechazado', duration:3000, gravity:'top', position:'right', backgroundColor: nuevoEstado==='aprobado'?'linear-gradient(to right,#28a745,#20c997)':'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
                     this.cargarTodos();
                 } catch(e) { Swal.fire('Error', e.message, 'error'); }
+            },
+            async eliminarFirebase(uid, nombreMostrar) {
+                const result = await Swal.fire({ title: `🗑️ ¿Eliminar a ${nombreMostrar}?`, text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                try {
+                    await db.collection('usuarios_acceso').doc(uid).delete();
+                    Toastify({ text: `🗑️ Usuario eliminado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+                    this.cargarTodos();
+                } catch(e) { Swal.fire('Error', e.message, 'error'); }
+            },
+            async eliminarLocal(id, username) {
+                const result = await Swal.fire({ title: `🗑️ ¿Eliminar a ${username}?`, text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                LocalUsers.eliminar(id);
+                Toastify({ text: `🗑️ Usuario local "${username}" eliminado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+                this.cargarLocales();
+            },
+            mostrarModalAgregarLocal() {
+                Swal.fire({
+                    title: '➕ Nuevo Usuario Local',
+                    html: `
+                        <div style="text-align:left;margin-bottom:10px;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">👤 Nombre de usuario</label>
+                            <input id="swal-new-username" class="swal2-input" placeholder="Ej: Juan" style="margin:0 0 12px 0;width:100%;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">🔒 Contraseña</label>
+                            <input id="swal-new-password" type="password" class="swal2-input" placeholder="Contraseña segura" style="margin:0;width:100%;">
+                        </div>`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#2B56A5',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '✅ Crear usuario',
+                    cancelButtonText: 'Cancelar',
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        const username = document.getElementById('swal-new-username').value.trim();
+                        const password = document.getElementById('swal-new-password').value.trim();
+                        if (!username || !password) { Swal.showValidationMessage('⚠️ Completa ambos campos'); return false; }
+                        if (password.length < 6) { Swal.showValidationMessage('⚠️ La contraseña debe tener al menos 6 caracteres'); return false; }
+                        return { username, password };
+                    }
+                }).then(result => {
+                    if (!result.isConfirmed) return;
+                    const { username, password } = result.value;
+                    if (LocalUsers.agregar(username, password)) {
+                        Toastify({ text: `✅ Usuario "${username}" creado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
+                        this.cargarLocales();
+                    } else {
+                        Swal.fire('❌ Error', `El usuario "${username}" ya existe.`, 'error');
+                    }
+                });
             }
         };
 
