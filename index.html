@@ -844,6 +844,7 @@
                     <button class="sidebar-close-btn" onclick="SidebarMenu.close()">✕</button>
                 </div>
                 <div class="sidebar-nav">
+                    <button class="sidebar-item" id="sidebarTab-configuracion" onclick="SidebarMenu.selectTab('configuracion')"><span class="item-left"><span class="item-icon">⚙️</span> Configuración</span><span class="arrow">›</span></button>
                     <button class="sidebar-item active" id="sidebarTab-registro" onclick="SidebarMenu.selectTab('registro')"><span class="item-left"><span class="item-icon">📝</span> Registro</span><span class="arrow">›</span></button>
                     <button class="sidebar-item" id="sidebarTab-historial" onclick="SidebarMenu.selectTab('historial')"><span class="item-left"><span class="item-icon">📋</span> Historial</span><span class="arrow">›</span></button>
                     <button class="sidebar-item" id="sidebarTab-cuentas-cobrar" onclick="SidebarMenu.selectTab('cuentas-cobrar')"><span class="item-left"><span class="item-icon">💰</span> Cuentas por Cobrar</span><span class="arrow">›</span></button>
@@ -1409,6 +1410,49 @@
                 <div style="margin-bottom:30px;"><h3 style="color:#fd7e14;margin-bottom:15px;">⏳ Pendientes de Aprobación</h3><div id="usuarios-pendientes-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div style="margin-bottom:30px;"><h3 style="color:#28a745;margin-bottom:15px;">✅ Usuarios Aprobados</h3><div id="usuarios-aprobados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div><h3 style="color:#dc3545;margin-bottom:15px;">🚫 Usuarios Rechazados</h3><div id="usuarios-rechazados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
+            </div>
+            <!-- ===== TAB: CONFIGURACIÓN ===== -->
+            <div id="configuracion" class="tab-content">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                    <h2 style="color:#333;margin:0;">⚙️ Configuración del Negocio</h2>
+                </div>
+                <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Estos datos aparecerán en los encabezados de las boletas y reportes generados por el sistema.</p>
+                
+                <div style="background:var(--bg-card);padding:25px;border-radius:12px;border:1px solid var(--border);max-width:800px;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nombre del Negocio / Razón Social *</label>
+                            <input type="text" id="conf-nombre" placeholder="Ej: Minimarket El Sol">
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre del Propietario</label>
+                            <input type="text" id="conf-propietario" placeholder="Ej: Juan Pérez">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Dirección del Local</label>
+                            <input type="text" id="conf-direccion" placeholder="Ej: Av. Principal 123, Huanta">
+                        </div>
+                        <div class="form-group">
+                            <label>RUC o DNI *</label>
+                            <input type="text" id="conf-documento" placeholder="Ej: 20123456789">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Teléfono Principal</label>
+                            <input type="text" id="conf-telefono" placeholder="Ej: 999 888 777">
+                        </div>
+                        <div class="form-group">
+                            <label>Mensaje de Agradecimiento (Ticket)</label>
+                            <input type="text" id="conf-mensaje" placeholder="Ej: ¡Gracias por su compra, vuelva pronto!">
+                        </div>
+                    </div>
+                    <div style="margin-top:15px;display:flex;gap:10px;">
+                        <button onclick="ConfiguracionNegocio.guardar()" style="background:linear-gradient(135deg,#2B56A5,#1E3A6E);">💾 Guardar Configuración</button>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -2024,6 +2068,59 @@
                 else Toastify({ text:`💰 Saldo restante: S/${venta.saldoPendiente.toFixed(2)}`, duration:4000, gravity:"top", position:"right", backgroundColor:"linear-gradient(to right,#17a2b8,#138496)" }).showToast();
             }
         };
+        // ========================================
+        // MÓDULO: CONFIGURACIÓN
+        // ========================================
+        const ConfiguracionNegocio = {
+            cargar() {
+                // Carga los datos guardados o pone tus datos de iNextTech por defecto
+                const data = JSON.parse(localStorage.getItem('configuracionNegocio')) || {
+                    nombre: 'iNextTech',
+                    propietario: 'Jose A. Lisboa Prado',
+                    direccion: 'Huanta, Ayacucho',
+                    documento: '___________________',
+                    telefono: '',
+                    mensaje: '¡Gracias por su preferencia!'
+                };
+                
+                // Llena los campos visuales con la información
+                document.getElementById('conf-nombre').value = data.nombre;
+                document.getElementById('conf-propietario').value = data.propietario;
+                document.getElementById('conf-direccion').value = data.direccion;
+                document.getElementById('conf-documento').value = data.documento;
+                document.getElementById('conf-telefono').value = data.telefono || '';
+                document.getElementById('conf-mensaje').value = data.mensaje || '¡Gracias por su preferencia!';
+                
+                return data;
+            },
+            
+            guardar() {
+                const nombre = document.getElementById('conf-nombre').value.trim();
+                if (!nombre) {
+                    Swal.fire('Error', 'El nombre del negocio es obligatorio', 'error');
+                    return;
+                }
+
+                const data = {
+                    nombre: nombre,
+                    propietario: document.getElementById('conf-propietario').value.trim(),
+                    direccion: document.getElementById('conf-direccion').value.trim(),
+                    documento: document.getElementById('conf-documento').value.trim(),
+                    telefono: document.getElementById('conf-telefono').value.trim(),
+                    mensaje: document.getElementById('conf-mensaje').value.trim()
+                };
+
+                localStorage.setItem('configuracionNegocio', JSON.stringify(data));
+                
+                Toastify({ 
+                    text: '✅ Configuración actualizada', 
+                    duration: 3000, 
+                    gravity: 'top', 
+                    position: 'right', 
+                    backgroundColor: 'linear-gradient(135deg,#28a745,#20c997)' 
+                }).showToast();
+            }
+        };
 
         // ════════════════════════════════════════════════════════════════
         // MÓDULO: BOLETAS ELECTRÓNICAS
@@ -2422,18 +2519,26 @@
                 const dbl = () => { row('.'.repeat(15), FS, false, 'center'); };
 
                 // ══════════════════════════════════════════════════════
-                // ENCABEZADO
+                // ENCABEZADO DINÁMICO
                 // ══════════════════════════════════════════════════════
+                // Obtenemos los datos del negocio guardados, o usamos unos por defecto
+                const datosNegocioLocal = JSON.parse(localStorage.getItem('configuracionNegocio')) || {
+                    nombre: 'Nombre de su Negocio',
+                    propietario: 'Propietario',
+                    direccion: 'Dirección del Local',
+                    documento: '___________________'
+                };
+
                 dbl(); gap(0.5);
-                row('iNextTech', 12, true, 'center', [30,58,110]);
+                row(datosNegocioLocal.nombre, 12, true, 'center', [30,58,110]);
                 gap(0.5);
                 row('BOLETA DE VENTA', 9, true, 'center');
                 gap(0.5); dbl(); gap(1);
 
-                row('Negocio : iNextTech', FS, true);
-                row('Propiet.: Jose A. Lisboa Prado', FS);
-                row('Direcc. : Huanta, Ayacucho', FS);
-                row('RUC/DNI : ___________________', FS);
+                row(`Negocio : ${datosNegocioLocal.nombre}`, FS, true);
+                row(`Propiet.: ${datosNegocioLocal.propietario}`, FS);
+                row(`Direcc. : ${datosNegocioLocal.direccion}`, FS);
+                row(`RUC/DNI : ${datosNegocioLocal.documento}`, FS);
                 gap(1); sep();
 
                 const f = this._fmtFecha(d.fecha);
@@ -2709,7 +2814,7 @@
 
         const SidebarMenu = {
             currentTab: 'registro',
-            tabNames: { registro:'Registro',historial:'Historial',reportes:'Reportes',resumen:'Resumen',inventario:'Inventario',clientes:'Clientes','cuentas-cobrar':'Cuentas por Cobrar',gastos:'Gastos',rentabilidad:'Rentabilidad','ordenes-servicio':'Órdenes de Servicio',proveedores:'Proveedores',compras:'Compras',devoluciones:'Devoluciones',cotizaciones:'Cotizaciones','cierre-caja':'Cierre de Caja',usuarios:'Gestión de Usuarios' },
+            tabNames: { registro:'Registro',historial:'Historial',reportes:'Reportes',resumen:'Resumen',inventario:'Inventario',clientes:'Clientes','cuentas-cobrar':'Cuentas por Cobrar',gastos:'Gastos',rentabilidad:'Rentabilidad','ordenes-servicio':'Órdenes de Servicio',proveedores:'Proveedores',compras:'Compras',devoluciones:'Devoluciones',cotizaciones:'Cotizaciones','cierre-caja':'Cierre de Caja',usuarios:'Gestión de Usuarios', configuracion:'Configuración' },
             open() { document.getElementById('sidebarMenu').classList.add('open'); document.getElementById('menuOverlay').classList.add('open'); document.body.style.overflow='hidden'; },
             close() { document.getElementById('sidebarMenu').classList.remove('open'); document.getElementById('menuOverlay').classList.remove('open'); document.body.style.overflow=''; },
             toggle() { if (document.getElementById('sidebarMenu').classList.contains('open')) this.close(); else this.open(); },
@@ -2745,6 +2850,7 @@
                 if (tabId==='devoluciones') { Devoluciones.actualizarVista(); }
                 if (tabId==='cotizaciones') { Cotizaciones.actualizarVista(); }
                 if (tabId==='cierre-caja') { CierreCaja.actualizarVista(); }
+                if (tabId==='configuracion') ConfiguracionNegocio.cargar();
             },
             actualizarVistas() {
                 Dashboard.actualizar();
