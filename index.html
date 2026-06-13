@@ -1602,9 +1602,9 @@
                 } else {
                     const localUser = LocalUsers.verificar(user, pass);
                     if (localUser) {
-                        this.esAdmin = false; this.modoInvitado = false;
+                        this.esAdmin = (localUser.rol === 'admin'); 
+                        this.modoInvitado = false;
                         localStorage.setItem('sesionActiva', 'true');
-                        localStorage.removeItem('sesionInvitado');
                         this.mostrarPantallaPrincipal();
                         this._notificar(`✅ Bienvenido, ${localUser.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
                     } else { this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d"); }
@@ -1759,7 +1759,12 @@
                             <label style="font-weight:600;display:block;margin-bottom:4px;">👤 Nombre de usuario</label>
                             <input id="swal-new-username" class="swal2-input" placeholder="Ej: Juan" style="margin:0 0 12px 0;width:100%;">
                             <label style="font-weight:600;display:block;margin-bottom:4px;">🔒 Contraseña</label>
-                            <input id="swal-new-password" type="password" class="swal2-input" placeholder="Contraseña segura" style="margin:0;width:100%;">
+                            <input id="swal-new-password" type="password" class="swal2-input" placeholder="Contraseña segura" style="margin:0 0 12px 0;width:100%;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">🎭 Rol del Usuario</label>
+                            <select id="swal-new-rol" class="swal2-input" style="margin:0;width:100%;">
+                                <option value="empleado">Empleado / Vendedor</option>
+                                <option value="admin">Administrador</option>
+                            </select>
                         </div>`,
                     showCancelButton: true,
                     confirmButtonColor: '#2B56A5',
