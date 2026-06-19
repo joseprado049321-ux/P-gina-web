@@ -1426,7 +1426,7 @@
             <!-- ===== TAB: CONFIGURACIÓN ===== -->
              <div style="margin-bottom:15px;">
                 <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
-                <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="Configuracion.adaptarRubro(this.value)">
+                <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
                     <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
                     <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
                 </select>
@@ -1798,7 +1798,7 @@
                                     <label><input type="checkbox" value="registro" class="swal-modulos" checked> 📝 Registro</label>
                                     <label><input type="checkbox" value="historial" class="swal-modulos" checked> 📋 Historial</label>
                                     <label><input type="checkbox" value="inventario" class="swal-modulos" checked> 📦 Inventario</label>
-                                    <label><input type="checkbox" value="ordenes-servicio" class="swal-modulos"> 🔧 Órdenes Serv.</label>
+                                    <label style="${localStorage.getItem('giroNegocio') === 'general' ? 'display:none;' : ''}"><input type="checkbox" value="ordenes-servicio" class="swal-modulos"> 🔧 Órdenes Serv.</label>
                                     <label><input type="checkbox" value="cuentas-cobrar" class="swal-modulos"> 💰 Ctas. Cobrar</label>
                                     <label><input type="checkbox" value="clientes" class="swal-modulos"> 👥 Clientes</label>
                                     <label><input type="checkbox" value="cierre-caja" class="swal-modulos"> 🏧 Cierre Caja</label>
@@ -2144,6 +2144,10 @@
                 if (tabSoporte) {
                     if (rubro === 'general') {
                         tabSoporte.style.setProperty('display', 'none', 'important');
+                        // Si la pestaña actual es Órdenes de Servicio, cambiar a otra
+                        if (typeof SidebarMenu !== 'undefined' && SidebarMenu.currentTab === 'ordenes-servicio') {
+                            SidebarMenu.selectTab('registro');
+                        }
                     } else {
                         // Si el usuario actual tiene permisos, se vuelve a mostrar
                         if (typeof Auth !== 'undefined' && (Auth.esAdmin || Auth.usuarioActual?.permisos?.['ordenes-servicio'])) {
@@ -4809,6 +4813,7 @@ const CierreCaja = {
         // ════════════════════════════════════════════════════════════════
         document.addEventListener('DOMContentLoaded', () => {
             Auth.init();
+            ConfiguracionNegocio.inicializarRubro();
             Storage.cargarClientes();
             Storage.cargarGastos();
             Storage.cargarCostos();
