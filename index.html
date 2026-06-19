@@ -1152,17 +1152,28 @@
                     <button onclick="document.getElementById('fileInputInventario').click()" class="btn-secondary">📂 Importar JSON</button>
                     <input type="file" id="fileInputInventario" accept=".json" style="display:none;" onchange="Inventario.importarInventarioJSON(event)">
                 </div>
-                <div id="form-nuevo-item" class="hidden" style="margin-bottom:20px;padding:12px;border:1px solid #eee;border-radius:8px;">
+                <div id="form-nuevo-item" class="hidden" style="margin-bottom:20px;padding:15px;border:2px solid #4472C4;border-radius:10px;background:#f8f9fa;">
+                    <h3 style="margin-bottom:15px;color:#4472C4;">📦 Nuevo Producto</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>SKU *</label><input id="nuevo-sku" type="text" placeholder="Ej: SKU-001"></div>
-                        <div class="form-group"><label>Nombre *</label><input id="nuevo-nombre" type="text" placeholder="Nombre del producto"></div>
+                        <div class="form-group"><label>📁 Categoría</label><input id="nuevo-categoria-inv" type="text" placeholder="Ej: Abarrotes, Ropa" oninput="calcularSKUDinamico()"></div>
+                        <div class="form-group"><label>🏷️ Marca</label><input id="nuevo-marca-inv" type="text" placeholder="Ej: Gloria, Nike" oninput="calcularSKUDinamico()"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>🔑 SKU (Auto-generado) *</label>
+                            <div style="display:flex;gap:8px;">
+                                <input id="nuevo-sku" type="text" placeholder="Se generará solo..." style="margin:0;width:100%;background:#e9ecef;font-weight:bold;color:#2B56A5;" readonly>
+                                <button type="button" class="btn-secondary" onclick="document.getElementById('nuevo-sku').readOnly = !document.getElementById('nuevo-sku').readOnly" style="padding:0 10px;font-size:12px;" title="Editar manualmente">✏️</button>
+                            </div>
+                        </div>
+                        <div class="form-group"><label>📦 Nombre del Producto *</label><input id="nuevo-nombre" type="text" placeholder="Ej: Leche Evaporada 400g"></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Stock *</label><input id="nuevo-stock" type="number" min="0" value="0"></div>
                         <div class="form-group"><label>Umbral de reposición</label><input id="nuevo-reorder" type="number" min="0" value="5"></div>
                     </div>
                     <div style="margin-top:10px;">
-                        <button onclick="Inventario.guardarNuevoItem()">Guardar Item</button>
+                        <button onclick="Inventario.guardarNuevoItem()">💾 Guardar Item</button>
                         <button class="btn-secondary" onclick="Inventario.cancelarNuevoItem()">Cancelar</button>
                     </div>
                 </div>
@@ -1413,6 +1424,13 @@
                 <div><h3 style="color:#dc3545;margin-bottom:15px;">🚫 Usuarios Rechazados</h3><div id="usuarios-rechazados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
             </div>
             <!-- ===== TAB: CONFIGURACIÓN ===== -->
+             <div style="margin-bottom:15px;">
+                <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
+                <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="Configuracion.adaptarRubro(this.value)">
+                    <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
+                    <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
+                </select>
+            </div>
             <div id="configuracion" class="tab-content">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
                     <h2 style="color:#333;margin:0;">⚙️ Configuración del Negocio</h2>
@@ -2116,6 +2134,32 @@
         // MÓDULO: CONFIGURACIÓN
         // ========================================
         const ConfiguracionNegocio = {
+            adaptarRubro(rubro) {
+                // Guardar la preferencia en el almacenamiento
+                localStorage.setItem('giroNegocio', rubro);
+                
+                // Buscar el botón o pestaña de Órdenes de Servicio en la barra lateral
+                const tabSoporte = document.getElementById('sidebarTab-ordenes-servicio');
+                
+                if (tabSoporte) {
+                    if (rubro === 'general') {
+                        tabSoporte.style.setProperty('display', 'none', 'important');
+                    } else {
+                        // Si el usuario actual tiene permisos, se vuelve a mostrar
+                        if (typeof Auth !== 'undefined' && (Auth.esAdmin || Auth.usuarioActual?.permisos?.['ordenes-servicio'])) {
+                            tabSoporte.style.display = 'flex';
+                        }
+                    }
+                }
+            },
+
+            // Ejecuta esto siempre que inicie la aplicación o se cambie de pestaña
+            inicializarRubro() {
+                const rubroGuardado = localStorage.getItem('giroNegocio') || 'tecnico';
+                const selectGiro = document.getElementById('config-giro-negocio');
+                if (selectGiro) selectGiro.value = rubroGuardado;
+                this.adaptarRubro(rubroGuardado);
+            },
             cargar() {
                 // Carga los datos guardados o pone tus datos de iNextTech por defecto
                 const data = JSON.parse(localStorage.getItem('configuracionNegocio')) || {
@@ -2713,6 +2757,24 @@
         const Facturas = {
             generar(id) { Boletas.generarDesdeVenta(id); }
         };
+        function calcularSKUDinamico() {
+            const catInput = document.getElementById('swal-prod-categoria');
+            const marInput = document.getElementById('swal-prod-marca');
+            const skuInput = document.getElementById('swal-prod-sku');
+            
+            if (!catInput || !marInput || !skuInput) return;
+
+            // Tomar las 3 primeras letras o rellenar con 'X' si está vacío
+            const cat = catInput.value.trim().substring(0, 3).toUpperCase().padEnd(3, 'X');
+            const mar = marInput.value.trim().substring(0, 3).toUpperCase().padEnd(3, 'X');
+            
+            // Generar un número correlativo basado en los productos que ya existen
+            const listaProductos = (typeof Estado !== 'undefined' && Estado.inventario) ? Estado.inventario : [];
+            const correlativo = String(listaProductos.length + 1).padStart(4, '0');
+
+            // Ejemplo de resultado: ROP-ZAR-0024 (Ropa - Zara - Producto 24)
+            skuInput.value = `${cat}-${mar}-${correlativo}`;
+        }
 
         const Inventario = {
             mostrarFormNuevoItem() { document.getElementById('form-nuevo-item').classList.remove('hidden'); },
