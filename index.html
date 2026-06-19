@@ -1389,8 +1389,9 @@
             <!-- ===== TAB: CIERRE DE CAJA ===== -->
             <div id="cierre-caja" class="tab-content">
                 <h2 style="margin-bottom:20px;color:#333;">🏧 Cierre de Caja</h2>
-                <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-                    <button onclick="CierreCaja.realizarCierre()" style="background:linear-gradient(135deg,#28a745,#20c997);">🏧 Realizar Cierre del Día</button>
+                <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;" id="caja-controles">
+                    <button id="btn-abrir-caja" onclick="CierreCaja.abrirCaja()" style="background:linear-gradient(135deg,#ffc107,#fd7e14);color:#000;">🔓 Abrir Caja</button>
+                    <button id="btn-cerrar-caja" onclick="CierreCaja.realizarCierre()" style="background:linear-gradient(135deg,#28a745,#20c997);display:none;">🏧 Realizar Cierre del Día</button>
                     <button class="btn-secondary" onclick="CierreCaja.exportarExcel()">📥 Exportar Excel</button>
                 </div>
                 <div class="summary-cards" id="caja-cards" style="margin-bottom:25px;"></div>
@@ -4406,84 +4407,115 @@ const CierreCaja = {
     },
     guardar(data) {
         localStorage.setItem('cierresCaja', JSON.stringify(data));
-        Firebase.guardar('cierresCaja', data);
+        if (window.firebaseOK && !Auth.modoInvitado) Firebase.guardar('cierresCaja', data);
+    },
+    cargarEstado() { 
+        try { return JSON.parse(localStorage.getItem('estadoCaja')) || { abierta: false, montoInicial: 0, fechaApertura: null }; } 
+        catch(e) { return { abierta: false, montoInicial: 0, fechaApertura: null }; } 
+    },
+    guardarEstado(estado) { 
+        localStorage.setItem('estadoCaja', JSON.stringify(estado)); 
+    },
+
+    async abrirCaja() {
+        const estado = this.cargarEstado();
+        if (estado.abierta) { Swal.fire('Caja ya abierta', 'La caja ya se encuentra abierta.', 'info'); return; }
+        
+        const { value: monto } = await Swal.fire({
+            title: '🔓 Apertura de Caja',
+            html: `<p style="margin-bottom:15px;color:#555;">Ingresa el monto inicial (sencillo) con el que abres la caja hoy:</p>
+                   <input id="swal-monto-inicial" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="0">`,
+            showCancelButton: true, confirmButtonText: '✅ Abrir Caja', cancelButtonText: 'Cancelar', confirmButtonColor: '#ffc107',
+            preConfirm: () => parseFloat(document.getElementById('swal-monto-inicial').value) || 0
+        });
+        
+        if (monto === undefined) return;
+        
+        this.guardarEstado({ abierta: true, montoInicial: monto, fechaApertura: new Date().toISOString() });
+        
+        if (typeof Auditoria !== 'undefined') Auditoria.registrar('APERTURA CAJA', `Monto inicial: S/${monto.toFixed(2)}`);
+        
+        Toastify({ text: `🔓 Caja abierta con S/${monto.toFixed(2)}`, duration: 3000, gravity: 'top', position: 'right', style: { background: 'linear-gradient(135deg,#ffc107,#fd7e14)', color: '#000' } }).showToast();
+        this.actualizarVista();
     },
 
     async realizarCierre() {
-        const hoy = new Date().toISOString().slice(0,10);
-        // Verificar si ya hay cierre hoy
-        const cierres = this.cargar();
-        if (cierres.find(c=>c.fecha===hoy)) {
-            const r = await Swal.fire({ title:'Ya existe cierre hoy', text:'¿Deseas crear un nuevo cierre para hoy de todas formas?', icon:'warning', showCancelButton:true, confirmButtonText:'Sí, crear otro', cancelButtonText:'Cancelar', confirmButtonColor:'#4472C4', cancelButtonColor:'#6c757d' });
-            if (!r.isConfirmed) return;
+        const estado = this.cargarEstado();
+        if (!estado.abierta) {
+            Swal.fire('Caja no abierta', 'Debes abrir la caja antes de poder realizar el cierre.', 'warning');
+            return;
         }
 
-        // Calcular automáticamente las ventas del día
+        const hoy = new Date().toISOString().slice(0,10);
+        
+        // Calcular valores del día
         const ventasHoy = Estado.ventas.filter(v=>v.fecha===hoy);
         const cobradoEfectivo = ventasHoy.reduce((s,v)=>{
             return s + (v.historialPagos||[]).filter(p=>p.metodo==='Efectivo' && p.fecha.slice(0,10)===hoy).reduce((ss,p)=>ss+p.monto,0);
         },0);
         const cobradoDigital = ventasHoy.reduce((s,v)=>{
-            return s + (v.historialPagos||[]).filter(p=>['Yape','Plin','Transferencia'].includes(p.metodo) && p.fecha.slice(0,10)===hoy).reduce((ss,p)=>ss+p.monto,0);
+            return s + (v.historialPagos||[]).filter(p=>['Yape','Plin','Transferencia','Tarjeta'].includes(p.metodo) && p.fecha.slice(0,10)===hoy).reduce((ss,p)=>ss+p.monto,0);
         },0);
+        
         const totalVentas = ventasHoy.reduce((s,v)=>s+v.total,0);
-        const totalCobradoHoy = cobradoEfectivo+cobradoDigital;
         const gastosHoy = Estado.gastos.filter(g=>g.fecha===hoy).reduce((s,g)=>s+g.monto,0);
+
+        // Matemática clave: Lo que debe haber físicamente en el cajón
+        const montoInicial = estado.montoInicial;
+        const efectivoEsperado = montoInicial + cobradoEfectivo - gastosHoy;
 
         const { value: formData } = await Swal.fire({
             title: '🏧 Cierre de Caja',
             width: '640px',
             html: `
                 <div style="background:#f8f9fa;border-radius:10px;padding:15px;margin-bottom:15px;text-align:left;font-size:0.9em;line-height:2;">
-                    <div style="font-size:1em;font-weight:700;color:#333;margin-bottom:8px;">📊 Resumen Automático del Día: ${hoy.split('-').reverse().join('/')}</div>
-                    <div>🛒 Ventas del día: <strong>${ventasHoy.length}</strong> | Total facturado: <strong style="color:#4472C4;">S/${totalVentas.toFixed(2)}</strong></div>
-                    <div>💵 Cobrado efectivo hoy: <strong style="color:#28a745;">S/${cobradoEfectivo.toFixed(2)}</strong></div>
-                    <div>📱 Cobrado digital hoy: <strong style="color:#17a2b8;">S/${cobradoDigital.toFixed(2)}</strong></div>
-                    <div>💸 Gastos del día: <strong style="color:#dc3545;">S/${gastosHoy.toFixed(2)}</strong></div>
-                    <div>💰 Neto estimado: <strong style="color:${totalCobradoHoy-gastosHoy>=0?'#28a745':'#dc3545'};">S/${(totalCobradoHoy-gastosHoy).toFixed(2)}</strong></div>
+                    <div style="font-size:1em;font-weight:700;color:#333;margin-bottom:8px;">📊 Resumen del Día: ${hoy.split('-').reverse().join('/')}</div>
+                    <div>🔓 Monto inicial en caja: <strong style="color:#ffc107;">S/${montoInicial.toFixed(2)}</strong></div>
+                    <div>💵 Cobrado efectivo: <strong style="color:#28a745;">S/${cobradoEfectivo.toFixed(2)}</strong></div>
+                    <div>📱 Cobrado digital (Yape/Plin/Tarjeta): <strong style="color:#17a2b8;">S/${cobradoDigital.toFixed(2)}</strong></div>
+                    <div>💸 Gastos pagados en efectivo: <strong style="color:#dc3545;">S/${gastosHoy.toFixed(2)}</strong></div>
+                    <div style="border-top:2px dashed #ddd;margin-top:8px;padding-top:8px;font-size:1.1em;">
+                        💰 Efectivo ESPERADO en cajón: <strong style="color:#1E3A6E;">S/${efectivoEsperado.toFixed(2)}</strong>
+                    </div>
                 </div>
                 <div style="text-align:left;">
-                    <label style="font-weight:600;display:block;margin-bottom:4px;">💵 Efectivo físico contado en caja (S/):</label>
-                    <input id="cc-efectivo" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="${cobradoEfectivo.toFixed(2)}">
-                    <label style="font-weight:600;display:block;margin:10px 0 4px;">📱 Pagos digitales recibidos (S/):</label>
+                    <label style="font-weight:600;display:block;margin-bottom:4px;">💵 Efectivo FÍSICO contado (S/):</label>
+                    <input id="cc-efectivo" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="${efectivoEsperado.toFixed(2)}">
+                    <label style="font-weight:600;display:block;margin:10px 0 4px;">📱 Total comprobado en digital (S/):</label>
                     <input id="cc-digital" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="${cobradoDigital.toFixed(2)}">
-                    <label style="font-weight:600;display:block;margin:10px 0 4px;">💸 Gastos pagados en efectivo (S/):</label>
-                    <input id="cc-gastos" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="${gastosHoy.toFixed(2)}">
-                    <label style="font-weight:600;display:block;margin:10px 0 4px;">🏦 Monto para depósito/retiro (S/):</label>
+                    <label style="font-weight:600;display:block;margin:10px 0 4px;">🏦 Monto para retiro/depósito (S/):</label>
                     <input id="cc-retiro" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="0">
                     <label style="font-weight:600;display:block;margin:10px 0 4px;">📝 Observaciones:</label>
                     <input id="cc-obs" class="swal2-input" placeholder="Notas del cierre...">
                 </div>`,
-            showCancelButton: true,
-            confirmButtonText: '✅ Registrar Cierre',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#4472C4',
+            showCancelButton: true, confirmButtonText: '✅ Registrar Cierre', cancelButtonText: 'Cancelar', confirmButtonColor: '#4472C4',
             preConfirm: () => ({
                 efectivoReal: parseFloat(document.getElementById('cc-efectivo').value)||0,
                 digitalReal: parseFloat(document.getElementById('cc-digital').value)||0,
-                gastosPagados: parseFloat(document.getElementById('cc-gastos').value)||0,
                 retiro: parseFloat(document.getElementById('cc-retiro').value)||0,
                 observaciones: document.getElementById('cc-obs').value.trim()
             })
         });
+        
         if (!formData) return;
 
-        const { efectivoReal, digitalReal, gastosPagados, retiro, observaciones } = formData;
-        const totalRealCobrado = efectivoReal + digitalReal;
-        const diferencia = totalRealCobrado - totalCobradoHoy;
-        const saldoFinal = efectivoReal - gastosPagados - retiro;
+        const { efectivoReal, digitalReal, retiro, observaciones } = formData;
+        // La diferencia se calcula en base al efectivo físico esperado vs el contado
+        const diferencia = efectivoReal - efectivoEsperado;
+        const saldoFinal = efectivoReal - retiro;
 
         const cierre = {
             id: Date.now().toString(),
             fecha: hoy,
             hora: new Date().toLocaleTimeString('es-PE'),
+            montoInicial,
             ventasCount: ventasHoy.length,
             totalFacturado: totalVentas,
             cobradoEfectivoSistema: cobradoEfectivo,
             cobradoDigitalSistema: cobradoDigital,
             efectivoReal,
             digitalReal,
-            gastosPagados,
+            gastosPagados: gastosHoy,
             retiro,
             diferencia,
             saldoFinal,
@@ -4491,24 +4523,28 @@ const CierreCaja = {
             createdAt: new Date().toISOString()
         };
 
+        const cierres = this.cargar();
         cierres.unshift(cierre);
         this.guardar(cierres);
+        
+        // Se cierra la caja reseteando el estado
+        this.guardarEstado({ abierta: false, montoInicial: 0, fechaApertura: null });
+        
+        if (typeof Auditoria !== 'undefined') Auditoria.registrar('CIERRE CAJA', `Diferencia: S/${diferencia.toFixed(2)} | Real: S/${efectivoReal.toFixed(2)}`);
+        
         this.actualizarVista();
 
-        const diferenciaTexto = diferencia === 0 ? '✅ Sin diferencia' : diferencia > 0 ? `✅ Sobrante: S/${diferencia.toFixed(2)}` : `⚠️ Faltante: S/${Math.abs(diferencia).toFixed(2)}`;
+        const diferenciaTexto = diferencia === 0 ? '✅ Sin diferencia (Caja cuadrada)' : diferencia > 0 ? `✅ Sobrante: S/${diferencia.toFixed(2)}` : `⚠️ Faltante: S/${Math.abs(diferencia).toFixed(2)}`;
 
         await Swal.fire({
             icon: diferencia < -0.01 ? 'warning' : 'success',
-            title: '🏧 Cierre Registrado',
+            title: '🏧 Cierre Completado',
             html: `<div style="text-align:left;line-height:2;font-size:0.95em;">
-                <div>📅 Fecha: <strong>${hoy.split('-').reverse().join('/')}</strong></div>
                 <div>💵 Efectivo real: <strong style="color:#28a745;">S/${efectivoReal.toFixed(2)}</strong></div>
-                <div>📱 Digital real: <strong style="color:#17a2b8;">S/${digitalReal.toFixed(2)}</strong></div>
-                <div>💸 Gastos: <strong style="color:#dc3545;">S/${gastosPagados.toFixed(2)}</strong></div>
-                <div>🏦 Retiro: <strong>S/${retiro.toFixed(2)}</strong></div>
+                <div>🏦 Retiro realizado: <strong>S/${retiro.toFixed(2)}</strong></div>
                 <div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px;">
-                    <strong>Saldo final en caja: S/${saldoFinal.toFixed(2)}</strong><br>
-                    <span style="color:${diferencia<-0.01?'#dc3545':'#28a745'};">${diferenciaTexto}</span>
+                    <strong>Fondo para mañana: S/${saldoFinal.toFixed(2)}</strong><br>
+                    <span style="color:${diferencia<-0.01?'#dc3545':'#28a745'};font-weight:bold;">${diferenciaTexto}</span>
                 </div>
             </div>`,
             confirmButtonColor: '#4472C4'
@@ -4522,46 +4558,57 @@ const CierreCaja = {
 
     actualizarCards() {
         const cierres = this.cargar();
+        const estado = this.cargarEstado();
         const ultimo = cierres[0];
-        const totalAcumulado = cierres.reduce((s,c)=>s+c.efectivoReal+c.digitalReal,0);
-        const mes = new Date().getMonth();
-        const cierresMes = cierres.filter(c=>new Date(c.fecha).getMonth()===mes);
+        
+        // Alternar visualización de los botones
+        const btnAbrir = document.getElementById('btn-abrir-caja');
+        const btnCerrar = document.getElementById('btn-cerrar-caja');
+        if (btnAbrir && btnCerrar) {
+            btnAbrir.style.display = estado.abierta ? 'none' : 'inline-block';
+            btnCerrar.style.display = estado.abierta ? 'inline-block' : 'none';
+        }
+
         document.getElementById('caja-cards').innerHTML=`
+            <div class="card" style="border-left:4px solid ${estado.abierta?'#28a745':'#dc3545'};">
+                <h3>🛒 Estado de Caja</h3>
+                <div class="value" style="color:${estado.abierta?'#28a745':'#dc3545'};font-size:1.4em;">${estado.abierta ? '🔓 ABIERTA' : '🔒 CERRADA'}</div>
+                ${estado.abierta ? `<div style="font-size:0.85em;color:#666;margin-top:5px;">Fondo actual: S/${estado.montoInicial.toFixed(2)}</div>` : '<div style="font-size:0.85em;color:#666;margin-top:5px;">Requiere apertura</div>'}
+            </div>
             <div class="card"><h3>🏧 Total Cierres</h3><div class="value">${cierres.length}</div></div>
             <div class="card"><h3>📅 Último Cierre</h3><div class="value" style="font-size:1.2em;">${ultimo?ultimo.fecha.split('-').reverse().join('/'):'--'}</div>
                 ${ultimo?`<div style="font-size:0.8em;color:${ultimo.diferencia<-0.01?'#dc3545':'#28a745'};margin-top:5px;">${ultimo.diferencia<-0.01?'⚠️ Faltante: S/'+Math.abs(ultimo.diferencia).toFixed(2):'✅ Cuadrado'}</div>`:''}
-            </div>
-            <div class="card"><h3>📆 Cierres este Mes</h3><div class="value">${cierresMes.length}</div></div>
-            <div class="card"><h3>💰 Total Cobrado (Mes)</h3><div class="value" style="color:#28a745;">S/${cierresMes.reduce((s,c)=>s+(c.efectivoReal+c.digitalReal),0).toFixed(2)}</div></div>`;
+            </div>`;
     },
 
     actualizarTabla() {
         const c = document.getElementById('tabla-cierres');
         const cierres = this.cargar();
         if (!cierres.length) { c.innerHTML='<p style="text-align:center;color:#666;padding:40px;">No hay cierres registrados</p>'; return; }
-        c.innerHTML=`<table><thead><tr><th>Fecha</th><th>Hora</th><th>Ventas</th><th>Facturado</th><th>Ef. Real</th><th>Digital Real</th><th>Gastos</th><th>Retiro</th><th>Diferencia</th><th>Saldo Final</th></tr></thead><tbody>`+
+        c.innerHTML=`<div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Inicial</th><th>Ventas</th><th>Ef. Real</th><th>Digital Real</th><th>Gastos</th><th>Retiro</th><th>Diferencia</th><th>Saldo Final</th></tr></thead><tbody>`+
             cierres.map(c=>{
                 const [y,m,d]=c.fecha.split('-');
-                const difClass = c.diferencia < -0.01 ? 'color:#dc3545;' : c.diferencia > 0.01 ? 'color:#28a745;' : 'color:#28a745;';
+                const difClass = c.diferencia < -0.01 ? 'color:#dc3545;' : 'color:#28a745;';
+                const inicial = c.montoInicial || 0;
                 return `<tr>
-                    <td><strong>${d}/${m}/${y}</strong></td>
+                    <td style="white-space:nowrap;"><strong>${d}/${m}/${y}</strong></td>
                     <td>${c.hora||'-'}</td>
-                    <td>${c.ventasCount}</td>
-                    <td>S/${c.totalFacturado.toFixed(2)}</td>
+                    <td style="color:#ffc107;font-weight:600;">S/${inicial.toFixed(2)}</td>
+                    <td>${c.ventasCount} <span style="font-size:0.85em;color:#666;">(S/${c.totalFacturado.toFixed(2)})</span></td>
                     <td style="color:#28a745;font-weight:600;">S/${c.efectivoReal.toFixed(2)}</td>
-                    <td style="color:#17a2b8;font-weight:600;">S/${c.digitalReal.toFixed(2)}</td>
-                    <td style="color:#dc3545;">S/${c.gastosPagados.toFixed(2)}</td>
+                    <td style="color:#17a2b8;">S/${c.digitalReal.toFixed(2)}</td>
+                    <td style="color:#dc3545;">S/${(c.gastosPagados||0).toFixed(2)}</td>
                     <td>S/${c.retiro.toFixed(2)}</td>
                     <td style="${difClass}font-weight:700;">${c.diferencia>0?'+':''}S/${c.diferencia.toFixed(2)}</td>
                     <td style="font-weight:700;">S/${c.saldoFinal.toFixed(2)}</td>
                 </tr>`;
-            }).join('')+`</tbody></table>`;
+            }).join('')+`</tbody></table></div>`;
     },
 
     exportarExcel() {
         const data = this.cargar();
         if (!data.length) { Swal.fire('Sin datos','No hay cierres para exportar','info'); return; }
-        const ws = XLSX.utils.json_to_sheet(data.map(c=>({ Fecha:c.fecha, Hora:c.hora, Ventas:c.ventasCount, 'Facturado':c.totalFacturado, 'Efectivo Real':c.efectivoReal, 'Digital Real':c.digitalReal, Gastos:c.gastosPagados, Retiro:c.retiro, Diferencia:c.diferencia, 'Saldo Final':c.saldoFinal, Observaciones:c.observaciones||'-' })));
+        const ws = XLSX.utils.json_to_sheet(data.map(c=>({ Fecha:c.fecha, Hora:c.hora, 'Fondo Inicial': c.montoInicial||0, Ventas:c.ventasCount, 'Facturado Total':c.totalFacturado, 'Efectivo Real':c.efectivoReal, 'Digital Real':c.digitalReal, Gastos:c.gastosPagados||0, Retiro:c.retiro, Diferencia:c.diferencia, 'Fondo para mañana':c.saldoFinal, Observaciones:c.observaciones||'-' })));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb,ws,'Cierres de Caja');
         XLSX.writeFile(wb,`CierresCaja_${new Date().toISOString().slice(0,10)}.xlsx`);
