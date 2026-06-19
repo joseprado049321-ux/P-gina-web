@@ -824,7 +824,7 @@
             <header>
                 <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú">☰</button>
                 <h1>📊 Sistema de Registro de Ventas</h1>
-                <p>Gestión de Tecnología</p>
+                <p>Gestión de Productos</p>
                 <button class="logout-btn" onclick="Auth.cerrarSesion()">🚪 Cerrar Sesión</button>
                 <button id="theme-toggle-btn" onclick="ThemeManager.toggle()" title="Cambiar modo">
                     <span id="theme-icon">🌙</span>
@@ -892,7 +892,7 @@
                     <div class="form-group">
                         <label for="sku">SKU (Código de Producto)</label>
                         <div style="display:flex;gap:8px;align-items:center;">
-                            <input type="text" id="sku" placeholder="Ej: SAMSUNG-LAPTOP-512GB-NEGRO" style="text-transform:uppercase;flex:1;">
+                            <input type="text" id="sku" placeholder="Ej: XXXX-XXXX-XXXX-XXXX" style="text-transform:uppercase;flex:1;">
                             <button type="button" onclick="SkuGen.togglePanel()" style="white-space:nowrap;padding:10px 16px;font-size:13px;background:linear-gradient(135deg,#7C3AED,#5B21B6);box-shadow:0 4px 12px rgba(124,58,237,0.3);">🏷️ Generar SKU</button>
                         </div>
                         <small>Escribe un SKU o usa el generador para crearlo automáticamente.</small>
@@ -920,7 +920,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-group"><label for="producto">Nombre del Producto *</label><input type="text" id="producto" placeholder="Ej: Laptop HP Pavilion" required autocomplete="off"></div>
+                    <div class="form-group"><label for="producto">Nombre del Producto *</label><input type="text" id="producto" placeholder="Ej: Bolsa de Arroz" required autocomplete="off"></div>
                     <div class="form-row">
                         <div class="form-group"><label for="cantidad">Cantidad *</label><input type="number" id="cantidad" min="1" value="1" required></div>
                         <div class="form-group"><label for="precio">Precio Unitario (S/) *</label><input type="number" id="precio" step="0.01" min="0" placeholder="0.00" required></div>
