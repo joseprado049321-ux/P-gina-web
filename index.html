@@ -1548,7 +1548,13 @@
                 } catch(e) { return null; }
             },
             _save(lista) {
-                try { localStorage.setItem(this._KEY, JSON.stringify(lista)); } catch(e) {}
+                try { 
+                    localStorage.setItem(this._KEY, JSON.stringify(lista)); 
+                    // Si Firebase está activo, respaldamos la lista de usuarios en la nube
+                    if (window.firebaseOK && !Auth.modoInvitado) {
+                        Firebase.guardar('localUsersDB', lista);
+                    }
+                } catch(e) {}
             },
             getAll() {
                 let lista = this._load();
@@ -1669,9 +1675,11 @@
             },
             async cerrarSesion() {
                 if (window.firebaseOK) await firebase.auth().signOut();
-                localStorage.clear();
-                location.reload();
-            },
+                    // Solo removemos las credenciales de la sesión actual
+                    localStorage.removeItem('sesionActiva');
+                    localStorage.removeItem('sesionInvitado');
+                    location.reload();
+                },
             _notificar(texto, color) {
                 if (typeof Toastify !== 'undefined') Toastify({ text: texto, duration: 3500, gravity: "top", position: "right", backgroundColor: color }).showToast();
             }
@@ -1854,7 +1862,8 @@
                 const indicador = document.getElementById('firebase-sync-indicator');
                 if (indicador) indicador.style.display = 'flex';
                 try {
-                    const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja'];
+                    // Añadimos 'localUsersDB' al final de la lista de sincronización
+                    const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja', 'localUsersDB'];
                     await Promise.all(claves.map(async clave => {
                         const datos = await Firebase.cargar(clave);
                         if (datos !== null) this._lsSet(clave, datos);
