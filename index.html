@@ -1761,10 +1761,24 @@
                             <label style="font-weight:600;display:block;margin-bottom:4px;">🔒 Contraseña</label>
                             <input id="swal-new-password" type="password" class="swal2-input" placeholder="Contraseña segura" style="margin:0 0 12px 0;width:100%;">
                             <label style="font-weight:600;display:block;margin-bottom:4px;">🎭 Rol del Usuario</label>
-                            <select id="swal-new-rol" class="swal2-input" style="margin:0;width:100%;">
+                            <select id="swal-new-rol" class="swal2-input" style="margin:0 0 12px 0;width:100%;" onchange="document.getElementById('modulos-container').style.display = this.value === 'empleado' ? 'block' : 'none';">
                                 <option value="empleado">Empleado / Vendedor</option>
                                 <option value="admin">Administrador</option>
                             </select>
+                            <div id="modulos-container" style="border:1px solid #d5dce9; border-radius:8px; padding:12px; background:#f8f9fa;">
+                                <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos (Solo Empleado):</label>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
+                                    <label><input type="checkbox" value="registro" class="swal-modulos" checked> 📝 Registro</label>
+                                    <label><input type="checkbox" value="historial" class="swal-modulos" checked> 📋 Historial</label>
+                                    <label><input type="checkbox" value="inventario" class="swal-modulos" checked> 📦 Inventario</label>
+                                    <label><input type="checkbox" value="ordenes-servicio" class="swal-modulos"> 🔧 Órdenes Serv.</label>
+                                    <label><input type="checkbox" value="cuentas-cobrar" class="swal-modulos"> 💰 Ctas. Cobrar</label>
+                                    <label><input type="checkbox" value="clientes" class="swal-modulos"> 👥 Clientes</label>
+                                    <label><input type="checkbox" value="cierre-caja" class="swal-modulos"> 🏧 Cierre Caja</label>
+                                    <label><input type="checkbox" value="cotizaciones" class="swal-modulos"> 📄 Cotizaciones</label>
+                                    <label><input type="checkbox" value="devoluciones" class="swal-modulos"> ↩️ Devoluciones</label>
+                                </div>
+                            </div>
                         </div>`,
                     showCancelButton: true,
                     confirmButtonColor: '#2B56A5',
@@ -1775,20 +1789,35 @@
                     preConfirm: () => {
                         const username = document.getElementById('swal-new-username').value.trim();
                         const password = document.getElementById('swal-new-password').value.trim();
+                        const rol = document.getElementById('swal-new-rol').value;
+                        const modulos = Array.from(document.querySelectorAll('.swal-modulos:checked')).map(cb => cb.value);
+
                         if (!username || !password) { Swal.showValidationMessage('⚠️ Completa ambos campos'); return false; }
                         if (password.length < 6) { Swal.showValidationMessage('⚠️ La contraseña debe tener al menos 6 caracteres'); return false; }
-                        return { username, password };
+                        if (rol === 'empleado' && modulos.length === 0) { Swal.showValidationMessage('⚠️ Selecciona al menos un módulo de acceso'); return false; }
+
+                        return { username, password, rol, modulos };
                     }
                 }).then(result => {
                     if (!result.isConfirmed) return;
-                    const { username, password } = result.value;
+                    const { username, password, rol, modulos } = result.value;
+                    
                     if (LocalUsers.agregar(username, password)) {
+                        const lista = LocalUsers.getAll();
+                        const user = lista.find(u => u.username.toLowerCase() === username.toLowerCase());
+                        if (user) {
+                            user.rol = rol;
+                            if (rol === 'empleado') user.modulos = modulos;
+                            LocalUsers._save(lista);
+                        }
+                        
                         Toastify({ text: `✅ Usuario "${username}" creado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
                         this.cargarLocales();
                     } else {
                         Swal.fire('❌ Error', `El usuario "${username}" ya existe.`, 'error');
                     }
                 });
+
             }
         };
 
