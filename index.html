@@ -4873,7 +4873,14 @@ const CierreCaja = {
     <script>
     const CategoriaCustom = (() => {
         const STORAGE_KEY = 'categorias_custom';
-        const DEFAULT_CATS = ['Laptops','Desktops','Accesorios','Periféricos','Componentes','Servicios','Otros'];
+
+        function getDefaultCats() {
+            const giro = localStorage.getItem('giroNegocio') || 'tecnico';
+            if (giro === 'general') {
+                return ['Abarrotes', 'Ropa', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'];
+            }
+            return ['Laptops', 'Desktops', 'Accesorios', 'Periféricos', 'Componentes', 'Servicios', 'Otros'];
+        }
 
         function getCustom() {
             try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
@@ -4882,16 +4889,45 @@ const CierreCaja = {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
         }
         function cargarEnSelect() {
+            const defaults = getDefaultCats();
+            const customCats = getCustom().filter(c => c && c !== 'Seleccionar...' && c !== 'Todas');
+            const combined = [...new Set([...defaults, ...customCats])];
+
             const sel = document.getElementById('categoria');
-            if (!sel) return;
-            const val = sel.value;
-            sel.innerHTML = '<option value="">Seleccionar...</option>';
-            [...DEFAULT_CATS, ...getCustom()].forEach(cat => {
-                const opt = document.createElement('option');
-                opt.textContent = cat;
-                sel.appendChild(opt);
-            });
-            if (val) sel.value = val;
+            if (sel) {
+                const val = sel.value;
+                sel.innerHTML = '';
+                const optDef = document.createElement('option');
+                optDef.value = '';
+                optDef.textContent = 'Seleccionar...';
+                sel.appendChild(optDef);
+                
+                combined.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    sel.appendChild(opt);
+                });
+                if (val) sel.value = val;
+            }
+
+            const selFiltro = document.getElementById('filtro-categoria');
+            if (selFiltro) {
+                const valFiltro = selFiltro.value;
+                selFiltro.innerHTML = '';
+                const optDefFiltro = document.createElement('option');
+                optDefFiltro.value = '';
+                optDefFiltro.textContent = 'Todas';
+                selFiltro.appendChild(optDefFiltro);
+
+                combined.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    selFiltro.appendChild(opt);
+                });
+                if (valFiltro) selFiltro.value = valFiltro;
+            }
         }
         function toggleInput() {
             const panel = document.getElementById('nueva-categoria-panel');
@@ -4913,7 +4949,8 @@ const CierreCaja = {
                 setTimeout(() => inp.style.borderColor = '#10B981', 1500);
                 return;
             }
-            const all = [...DEFAULT_CATS, ...getCustom()].map(c => c.toLowerCase());
+            const defaults = getDefaultCats();
+            const all = [...defaults, ...getCustom()].map(c => c.toLowerCase());
             if (all.includes(nombre.toLowerCase())) {
                 // Ya existe — solo seleccionarla
                 const sel = document.getElementById('categoria');
