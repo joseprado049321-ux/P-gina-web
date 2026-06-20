@@ -2138,7 +2138,7 @@
                 // Guardar la preferencia en el almacenamiento
                 localStorage.setItem('giroNegocio', rubro);
                 
-                // Buscar el botón o pestaña de Órdenes de Servicio en la barra lateral
+                // Buscar el botón o pestaña de Ordenes de Servicio en la barra lateral
                 const tabSoporte = document.getElementById('sidebarTab-ordenes-servicio');
                 
                 if (tabSoporte) {
@@ -2154,6 +2154,11 @@
                             tabSoporte.style.display = 'flex';
                         }
                     }
+                }
+                
+                // Recargar las categorías dinámicamente cada vez que se cambia de rubro
+                if (typeof CategoriaCustom !== 'undefined' && typeof CategoriaCustom.cargarEnSelect === 'function') {
+                    CategoriaCustom.cargarEnSelect();
                 }
             },
 
@@ -4890,13 +4895,23 @@ const CierreCaja = {
         }
         function cargarEnSelect() {
             const defaults = getDefaultCats();
-            const customCats = getCustom().filter(c => c && c !== 'Seleccionar...' && c !== 'Todas');
+            let customCats = [];
+            try { 
+                const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
+                customCats = Array.isArray(parsed) ? parsed : [];
+            } catch(e) { }
+
+            customCats = customCats.filter(c => {
+                if (!c || typeof c !== 'string') return false;
+                const clean = c.trim().toLowerCase();
+                return clean !== 'seleccionar...' && clean !== 'todas' && clean !== 'seleccionar';
+            });
             const combined = [...new Set([...defaults, ...customCats])];
 
             const sel = document.getElementById('categoria');
             if (sel) {
                 const val = sel.value;
-                sel.innerHTML = '';
+                sel.options.length = 0; // Limpiar opciones de manera segura
                 const optDef = document.createElement('option');
                 optDef.value = '';
                 optDef.textContent = 'Seleccionar...';
@@ -4914,7 +4929,7 @@ const CierreCaja = {
             const selFiltro = document.getElementById('filtro-categoria');
             if (selFiltro) {
                 const valFiltro = selFiltro.value;
-                selFiltro.innerHTML = '';
+                selFiltro.options.length = 0;
                 const optDefFiltro = document.createElement('option');
                 optDefFiltro.value = '';
                 optDefFiltro.textContent = 'Todas';
