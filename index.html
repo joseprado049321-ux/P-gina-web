@@ -1424,13 +1424,6 @@
                 <div><h3 style="color:#dc3545;margin-bottom:15px;">🚫 Usuarios Rechazados</h3><div id="usuarios-rechazados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
             </div>
             <!-- ===== TAB: CONFIGURACIÓN ===== -->
-             <div style="margin-bottom:15px;">
-                <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
-                <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
-                    <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
-                    <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
-                </select>
-            </div>
             <div id="configuracion" class="tab-content">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
                     <h2 style="color:#333;margin:0;">⚙️ Configuración del Negocio</h2>
@@ -1438,6 +1431,13 @@
                 <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Estos datos aparecerán en los encabezados de las boletas y reportes generados por el sistema.</p>
                 
                 <div style="background:var(--bg-card);padding:25px;border-radius:12px;border:1px solid var(--border);max-width:800px;">
+                    <div style="margin-bottom:15px;">
+                        <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
+                        <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
+                            <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
+                            <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
+                        </select>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Nombre del Negocio / Razón Social *</label>
