@@ -2156,6 +2156,11 @@
                     }
                 }
                 
+                // Actualizar sugerencias del SkuGen al instante
+                if (typeof SkuGen !== 'undefined') {
+                    SkuGen.actualizarSugerencias();
+                }
+                
                 // Recargar las categorías dinámicamente cada vez que se cambia de rubro
                 if (typeof CategoriaCustom !== 'undefined' && typeof CategoriaCustom.cargarEnSelect === 'function') {
                     CategoriaCustom.cargarEnSelect();
@@ -4693,7 +4698,7 @@ const CierreCaja = {
             _activeIdx: {},
             _fields: ['marca','producto','unidad','color','tipo','modelo','voltaje','capacidad','usb','extra'],
 
-            suggestions: {
+            suggestionsTecnica: {
                 marca: ['SAMSUNG','APPLE','HP','DELL','LENOVO','ASUS','ACER','SONY','LG','LOGITECH','RAZER','MSI','CORSAIR','KINGSTON','SEAGATE','WESTERN DIGITAL','CRUCIAL','INTEL','AMD','NVIDIA','TP-LINK','D-LINK','BELKIN','ANKER','JBL','XIAOMI','HUAWEI','CANON','BROTHER','EPSON'],
                 producto: ['LAPTOP','DESKTOP','MONITOR','TECLADO','MOUSE','AURICULARES','WEBCAM','IMPRESORA','SCANNER','DISCO DURO','SSD','MEMORIA RAM','TARJETA GRAFICA','PROCESADOR','PLACA MADRE','FUENTE DE PODER','GABINETE','COOLER','TABLET','SMARTPHONE','CARGADOR','CABLE HDMI','HUB USB','ROUTER','SWITCH','ACCESS POINT','PROYECTOR','CAMARA WEB','MICROFONO','PARLANTE BLUETOOTH'],
                 unidad: ['UNIDAD','PAR','SET','PAQUETE','CAJA','METRO','CENTIMETRO','KILOGRAMO','GRAMO','LITRO','MILILITRO','DOCENA','LOTE','KIT','ROLL','TIRA','PIEZA','SECCION','BOBINA','BUNDLE','COMBO','BLISTER','SOBRE','BOLSA','CARTUCHO','RESMA','PALETA','DISPLAY','TORRE','RACK'],
@@ -4704,6 +4709,30 @@ const CierreCaja = {
                 capacidad: ['64GB','128GB','256GB','512GB','1TB','2TB','4TB','8TB','16GB','32GB','8GB','4GB','2GB','1GB','500GB','250GB','120GB','480GB','960GB','240GB','6TB','10TB','12TB','16TB','18TB','20TB','3TB','500MB','4K','8K'],
                 usb: ['USB 2.0','USB 3.0','USB 3.1','USB 3.2','USB 4.0','USB-C','USB-A','USB-B','MINI-USB','MICRO-USB','USB 3.0 GEN1','USB 3.0 GEN2','USB 3.2 GEN2X2','THUNDERBOLT 3','THUNDERBOLT 4','LIGHTNING','USB-C PD','USB-C 3.1','USB-C 3.2','USB-C 4.0','FIREWIRE','ESATA','HUB 4 PUERTOS','HUB 7 PUERTOS','USB-C A USB-A','OTG','USB 2.0 HUB','USB 3.0 HUB','USB-C A HDMI','USB-C DOCK'],
                 extra: ['4K','8K','1080P','2K','144HZ','240HZ','HDR','OLED','IPS','TN','VA','DDR4','DDR5','PCIe 4.0','PCIe 5.0','NVMe','SATA','M.2','RGB','BACKLIT','IP67','IP68','WATERPROOF','ANTIVIRUS','1AÑO','2AÑOS','3AÑOS','LICENCIA','ORIGINAL','COMPATIBLE']
+            },
+
+            suggestionsGeneral: {
+                marca: ['GLORIA', 'NESTLE', 'ALICORP', 'BIMBO', 'COCA COLA', 'PEPSI', 'NIKE', 'ADIDAS', 'GENERICO'],
+                producto: ['LECHE', 'ARROZ', 'FIDEOS', 'ACEITE', 'GALLETAS', 'GASEOSA', 'DETERGENTE', 'POLO', 'PANTALON', 'ZAPATILLAS'],
+                unidad: ['UNIDAD', 'CAJA', 'DOCENA', 'KILOGRAMO', 'GRAMO', 'LITRO', 'MILILITRO', 'PAQUETE', 'PAR'],
+                color: ['ROJO', 'AZUL', 'BLANCO', 'NEGRO', 'VARIADO', 'VERDE', 'AMARILLO'],
+                tipo: ['ABARROTES', 'BEBIDAS', 'LIMPIEZA', 'ROPA', 'CUIDADO PERSONAL', 'OTROS'],
+                modelo: ['N/A', 'ESTANDAR', 'OFERTA'],
+                voltaje: ['N/A', 'ESTANDAR', 'OFERTA'],
+                capacidad: ['N/A', 'ESTANDAR', 'OFERTA'],
+                usb: ['N/A', 'ESTANDAR', 'OFERTA'],
+                extra: ['N/A', 'ESTANDAR', 'OFERTA']
+            },
+
+            suggestions: {}, // Se llenará dinámicamente
+
+            actualizarSugerencias() {
+                const giro = localStorage.getItem('giroNegocio') || 'tecnologia';
+                if (giro === 'general') {
+                    this.suggestions = this.suggestionsGeneral;
+                } else {
+                    this.suggestions = this.suggestionsTecnica;
+                }
             },
 
             _abbrev(str) {
@@ -4810,7 +4839,9 @@ const CierreCaja = {
                 this.updatePanelOutput();
             },
 
-            init() { /* panel starts hidden, nothing to init */ }
+            init() { 
+                this.actualizarSugerencias(); 
+            }
         };
 
         // ════════════════════════════════════════════════════════════════
