@@ -2009,12 +2009,54 @@
                     return;
                 }
                 if (sku) {
-                    const item = Estado.inventario.find(x => x.sku === sku);
+                    let item = Estado.inventario.find(x => x.sku === sku);
                     if (!item) {
-                        const result = await Swal.fire({ title:'SKU no encontrado', text:`No existe el SKU ${sku}. ¿Crear en inventario?`, icon:'warning', showCancelButton:true, confirmButtonColor:'#4472C4', cancelButtonColor:'#6c757d', confirmButtonText:'Sí, crear', cancelButtonText:'Cancelar' });
-                        if (result.isConfirmed) { UI.switchTab('inventario'); Inventario.mostrarFormNuevoItem(); document.getElementById('nuevo-sku').value = sku; document.getElementById('nuevo-nombre').value = document.getElementById('producto').value; return; }
-                        else { Swal.fire('Cancelado','No se registró la venta.','info'); return; }
-                    } else if (item.stock < cantidad) { Swal.fire('Stock insuficiente',`Stock: ${item.stock} disponibles.`,'error'); return; }
+                        const result = await Swal.fire({
+                            title: '¡Nuevo SKU!',
+                            text: 'Ingrese el Inventario existente',
+                            icon: 'info',
+                            input: 'number',
+                            inputAttributes: { min: 0, step: 1 },
+                            showDenyButton: true,
+                            showCancelButton: true,
+                            confirmButtonText: '✅ Confirmar',
+                            denyButtonText: '🕒 Lo ingresaré luego',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#28a745',
+                            denyButtonColor: '#ffc107',
+                            cancelButtonColor: '#6c757d',
+                            preConfirm: (stockValue) => {
+                                if (stockValue === '' || stockValue === null) {
+                                    Swal.showValidationMessage('Falta poner el Inventario');
+                                    return false;
+                                }
+                                return parseInt(stockValue);
+                            }
+                        });
+
+                        let stockInicial = 0;
+                        let faltaInventario = false;
+
+                        if (result.isConfirmed) {
+                            stockInicial = result.value;
+                        } else if (result.isDenied) {
+                            faltaInventario = true;
+                        } else {
+                            Swal.fire('Cancelado', 'No se registró la venta.', 'info');
+                            return;
+                        }
+
+                        const nuevoNombre = document.getElementById('producto').value || sku;
+                        item = { sku: sku, nombre: nuevoNombre, stock: stockInicial, reorderThreshold: 5, faltaInventario: faltaInventario };
+                        Estado.inventario.push(item);
+                        Storage.guardarInventario();
+                        if (typeof UI.actualizarAlertasInventario === 'function') UI.actualizarAlertasInventario();
+                    }
+
+                    if (!item.faltaInventario && item.stock < cantidad) { 
+                        Swal.fire('Stock insuficiente', `Stock: ${item.stock} disponibles.`, 'error'); 
+                        return; 
+                    }
                 }
                 const adelantoInicial = parseFloat(document.getElementById('adelanto').value) || 0;
                 const venta = {
@@ -2938,6 +2980,56 @@
         };
 
         const UI = {
+            actualizarAlertasInventario() {
+                let container = document.getElementById('alertas-globales-inventario');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'alertas-globales-inventario';
+                    container.style.cssText = 'position:fixed;top:90px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
+                    document.body.appendChild(container);
+                }
+                const pendientes = (typeof Estado !== 'undefined' && Estado.inventario) ? Estado.inventario.filter(i => i.faltaInventario) : [];
+                if (!pendientes.length) {
+                    container.innerHTML = '';
+                    return;
+                }
+                container.innerHTML = pendientes.map(p => `
+                    <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:13px;color:#856404;display:flex;align-items:center;gap:12px;pointer-events:auto;animation:fadeIn 0.3s ease;">
+                        <div style="font-size:1.5em;">⚠️</div>
+                        <div>
+                            <strong style="display:block;margin-bottom:2px;">Falta Inventario</strong>
+                            ${p.nombre} (${p.sku})
+                        </div>
+                        <button onclick="UI.resolverFaltaInventario('${p.sku}')" style="background:#ffc107;color:#000;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;margin-left:auto;">Ingresar</button>
+                    </div>
+                `).join('');
+            },
+            async resolverFaltaInventario(sku) {
+                const item = Estado.inventario.find(i => i.sku === sku);
+                if (!item) return;
+                const { value: stock } = await Swal.fire({
+                    title: 'Ingresar Inventario',
+                    text: `¿Cuánto inventario físico queda de ${item.nombre}?`,
+                    input: 'number',
+                    inputAttributes: { min: 0, step: 1 },
+                    showCancelButton: true,
+                    confirmButtonText: '✅ Guardar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#28a745',
+                    preConfirm: (val) => {
+                        if (val === '' || val === null) { Swal.showValidationMessage('Ingresa una cantidad'); return false; }
+                        return parseInt(val);
+                    }
+                });
+                if (stock !== undefined) {
+                    item.stock = stock;
+                    item.faltaInventario = false;
+                    Storage.guardarInventario();
+                    this.actualizarAlertasInventario();
+                    Toastify({ text: '✅ Inventario guardado', duration: 3000, backgroundColor: 'linear-gradient(135deg,#28a745,#20c997)' }).showToast();
+                    if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
+                }
+            },
             switchTab(tabId) {
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
@@ -2966,6 +3058,7 @@
                 if (tabId==='configuracion') ConfiguracionNegocio.cargar();
             },
             actualizarVistas() {
+                if (this.actualizarAlertasInventario) this.actualizarAlertasInventario();
                 Dashboard.actualizar();
                 Filtros.aplicarFiltros();
                 CuentasCobrar.actualizar();
