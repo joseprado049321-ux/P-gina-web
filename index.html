@@ -877,14 +877,7 @@
                         <div class="form-group">
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
                                 <label for="categoria" style="margin-bottom:0;">Categoría *</label>
-                                <button type="button" onclick="CategoriaCustom.toggleInput()" style="font-size:12px;padding:4px 11px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;font-weight:600;box-shadow:0 2px 6px rgba(16,185,129,0.3);">➕ Nueva categoría</button>
-                            </div>
-                            <div id="nueva-categoria-panel" style="display:none;margin-bottom:8px;">
-                                <div style="display:flex;gap:6px;align-items:center;">
-                                    <input type="text" id="nueva-categoria-input" placeholder="Ej: Impresoras" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #10B981;font-size:14px;outline:none;background:var(--bg-input);color:var(--text-main);" maxlength="40">
-                                    <button type="button" onclick="CategoriaCustom.agregar()" style="padding:8px 14px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap;font-weight:600;">✔ Agregar</button>
-                                    <button type="button" onclick="CategoriaCustom.toggleInput()" style="padding:8px 10px;background:var(--bg-surface2);color:var(--text-secondary);border:none;border-radius:8px;cursor:pointer;font-size:13px;">✕</button>
-                                </div>
+                                <button type="button" onclick="CategoriaCustom.agregar()" style="font-size:12px;padding:4px 11px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;font-weight:600;box-shadow:0 2px 6px rgba(16,185,129,0.3);">➕ Nueva categoría</button>
                             </div>
                             <select id="categoria" required><option value="">Seleccionar...</option><option>Laptops</option><option>Desktops</option><option>Accesorios</option><option>Periféricos</option><option>Componentes</option><option>Servicios</option><option>Otros</option></select>
                         </div>
@@ -1145,7 +1138,13 @@
                 <div id="form-nuevo-item" class="hidden" style="margin-bottom:20px;padding:15px;border:2px solid #4472C4;border-radius:10px;background:#f8f9fa;">
                     <h3 style="margin-bottom:15px;color:#4472C4;">📦 Nuevo Producto</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>📁 Categoría</label><input id="nuevo-categoria-inv" type="text" placeholder="Ej: Abarrotes, Ropa" oninput="calcularSKUDinamico()"></div>
+                        <div class="form-group">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                <label style="margin-bottom:0;">📁 Categoría</label>
+                                <button type="button" onclick="CategoriaCustom.agregar()" style="font-size:12px;padding:4px 11px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;font-weight:600;">➕ Nueva</button>
+                            </div>
+                            <select id="nuevo-categoria-inv" onchange="typeof calcularSKUDinamico === 'function' && calcularSKUDinamico()"><option value="">Seleccionar...</option></select>
+                        </div>
                         <div class="form-group"><label>🏷️ Marca</label><input id="nuevo-marca-inv" type="text" placeholder="Ej: Gloria, Nike" oninput="calcularSKUDinamico()"></div>
                     </div>
                     <div class="form-row">
@@ -1558,13 +1557,7 @@
                 } catch(e) { return null; }
             },
             _save(lista) {
-                try { 
-                    localStorage.setItem(this._KEY, JSON.stringify(lista)); 
-                    // Si Firebase está activo, respaldamos la lista de usuarios en la nube
-                    if (window.firebaseOK && !Auth.modoInvitado) {
-                        Firebase.guardar('localUsersDB', lista);
-                    }
-                } catch(e) {}
+                try { localStorage.setItem(this._KEY, JSON.stringify(lista)); if (window.firebaseOK && !Auth.modoInvitado) Firebase.guardar('localUsersDB', lista); } catch(e) {}
             },
             getAll() {
                 let lista = this._load();
@@ -1883,6 +1876,7 @@
                     Estado.clientes = this._lsGet('clientes', []);
                     Estado.gastos = this._lsGet('gastos', []);
                     Estado.costosProductos = this._lsGet('costos', {});
+                    if (typeof GestionUsuarios !== 'undefined') GestionUsuarios.cargarLocales();
                     UI.actualizarVistas();
                     Inventario.actualizarTabla();
                     Toastify({ text:"☁️ Datos sincronizados", duration:2500, gravity:"top", position:"right", backgroundColor:"linear-gradient(to right,#4472C4,#2c5aa0)" }).showToast();
@@ -5140,56 +5134,75 @@ const CierreCaja = {
                 });
                 if (valFiltro) selFiltro.value = valFiltro;
             }
-        }
-        function toggleInput() {
-            const panel = document.getElementById('nueva-categoria-panel');
-            if (!panel) return;
-            const visible = panel.style.display === 'block';
-            panel.style.display = visible ? 'none' : 'block';
-            if (!visible) {
-                const inp = document.getElementById('nueva-categoria-input');
-                if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+
+            const selInv = document.getElementById('nuevo-categoria-inv');
+            if (selInv) {
+                const valInv = selInv.value;
+                selInv.options.length = 0;
+                const optDefInv = document.createElement('option');
+                optDefInv.value = '';
+                optDefInv.textContent = 'Seleccionar...';
+                selInv.appendChild(optDefInv);
+                
+                combined.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    selInv.appendChild(opt);
+                });
+                if (valInv) selInv.value = valInv;
             }
         }
-        function agregar() {
-            const inp = document.getElementById('nueva-categoria-input');
-            if (!inp) return;
-            const nombre = inp.value.trim();
-            if (!nombre) {
-                inp.focus();
-                inp.style.borderColor = '#ef4444';
-                setTimeout(() => inp.style.borderColor = '#10B981', 1500);
-                return;
-            }
+
+        async function agregar() {
+            const { value: nombre } = await Swal.fire({
+                title: 'Nueva Categoría',
+                input: 'text',
+                inputPlaceholder: 'Ej: Abarrotes',
+                showCancelButton: true,
+                confirmButtonColor: '#10B981',
+                confirmButtonText: 'Guardar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!nombre || !nombre.trim()) return;
+
+            const cleanNombre = nombre.trim();
             const defaults = getDefaultCats();
             const all = [...defaults, ...getCustom()].map(c => c.toLowerCase());
-            if (all.includes(nombre.toLowerCase())) {
-                // Ya existe — solo seleccionarla
+            
+            if (all.includes(cleanNombre.toLowerCase())) {
                 const sel = document.getElementById('categoria');
-                [...sel.options].forEach(o => { if (o.text.toLowerCase() === nombre.toLowerCase()) sel.value = o.text; });
-                toggleInput();
+                if (sel) [...sel.options].forEach(o => { if (o.text.toLowerCase() === cleanNombre.toLowerCase()) sel.value = o.text; });
+                const selInv = document.getElementById('nuevo-categoria-inv');
+                if (selInv) [...selInv.options].forEach(o => { if (o.text.toLowerCase() === cleanNombre.toLowerCase()) selInv.value = o.text; });
                 return;
             }
+
             const custom = getCustom();
-            custom.push(nombre);
+            custom.push(cleanNombre);
             saveCustom(custom);
             cargarEnSelect();
-            document.getElementById('categoria').value = nombre;
-            toggleInput();
+
+            const sel = document.getElementById('categoria');
+            if (sel) sel.value = cleanNombre;
+            const selInv = document.getElementById('nuevo-categoria-inv');
+            if (selInv) selInv.value = cleanNombre;
+
             if (typeof Toastify !== 'undefined') {
                 Toastify({
-                    text: '✅ Categoría "' + nombre + '" añadida',
+                    text: '✅ Categoría "' + cleanNombre + '" añadida',
                     duration: 2500, gravity: 'bottom', position: 'right',
                     style: { background: 'linear-gradient(135deg,#10B981,#059669)', borderRadius: '10px', fontWeight: '600' }
                 }).showToast();
             }
         }
+
         document.addEventListener('DOMContentLoaded', () => {
             cargarEnSelect();
-            const inp = document.getElementById('nueva-categoria-input');
-            if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); agregar(); } });
         });
-        return { toggleInput, agregar, cargarEnSelect };
+
+        return { agregar, cargarEnSelect };
     })();
     </script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
