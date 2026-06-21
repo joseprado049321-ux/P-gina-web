@@ -906,18 +906,7 @@
                                     <button type="button" onclick="SkuGen.limpiarPanel()" class="btn-secondary" style="padding:8px 12px;font-size:13px;">🔄</button>
                                 </div>
                             </div>
-                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-                                <div class="sku-field-wrap"><label>🏢 Marca</label><input type="text" id="skup-marca" placeholder="SAMSUNG" oninput="SkuGen.onPanelInput(this,'marca')" onkeydown="SkuGen.onKey(event,'marca',true)" onfocus="SkuGen.showSuggestions('marca',true)" onblur="SkuGen.hideSuggestions('marca',true)"><div class="sku-suggestions" id="sugp-marca"></div></div>
-                                <div class="sku-field-wrap"><label>📦 Producto</label><input type="text" id="skup-producto" placeholder="LAPTOP" oninput="SkuGen.onPanelInput(this,'producto')" onkeydown="SkuGen.onKey(event,'producto',true)" onfocus="SkuGen.showSuggestions('producto',true)" onblur="SkuGen.hideSuggestions('producto',true)"><div class="sku-suggestions" id="sugp-producto"></div></div>
-                                <div class="sku-field-wrap"><label>📐 Unidad</label><input type="text" id="skup-unidad" placeholder="UNIDAD" oninput="SkuGen.onPanelInput(this,'unidad')" onkeydown="SkuGen.onKey(event,'unidad',true)" onfocus="SkuGen.showSuggestions('unidad',true)" onblur="SkuGen.hideSuggestions('unidad',true)"><div class="sku-suggestions" id="sugp-unidad"></div></div>
-                                <div class="sku-field-wrap"><label>🎨 Color</label><input type="text" id="skup-color" placeholder="NEGRO" oninput="SkuGen.onPanelInput(this,'color')" onkeydown="SkuGen.onKey(event,'color',true)" onfocus="SkuGen.showSuggestions('color',true)" onblur="SkuGen.hideSuggestions('color',true)"><div class="sku-suggestions" id="sugp-color"></div></div>
-                                <div class="sku-field-wrap"><label>🔌 Tipo</label><input type="text" id="skup-tipo" placeholder="INALAMBRICO" oninput="SkuGen.onPanelInput(this,'tipo')" onkeydown="SkuGen.onKey(event,'tipo',true)" onfocus="SkuGen.showSuggestions('tipo',true)" onblur="SkuGen.hideSuggestions('tipo',true)"><div class="sku-suggestions" id="sugp-tipo"></div></div>
-                                <div class="sku-field-wrap"><label>🔢 Modelo</label><input type="text" id="skup-modelo" placeholder="PRO" oninput="SkuGen.onPanelInput(this,'modelo')" onkeydown="SkuGen.onKey(event,'modelo',true)" onfocus="SkuGen.showSuggestions('modelo',true)" onblur="SkuGen.hideSuggestions('modelo',true)"><div class="sku-suggestions" id="sugp-modelo"></div></div>
-                                <div class="sku-field-wrap"><label>⚡ Voltaje/Watts</label><input type="text" id="skup-voltaje" placeholder="65W" oninput="SkuGen.onPanelInput(this,'voltaje')" onkeydown="SkuGen.onKey(event,'voltaje',true)" onfocus="SkuGen.showSuggestions('voltaje',true)" onblur="SkuGen.hideSuggestions('voltaje',true)"><div class="sku-suggestions" id="sugp-voltaje"></div></div>
-                                <div class="sku-field-wrap"><label>💾 Capacidad</label><input type="text" id="skup-capacidad" placeholder="512GB" oninput="SkuGen.onPanelInput(this,'capacidad')" onkeydown="SkuGen.onKey(event,'capacidad',true)" onfocus="SkuGen.showSuggestions('capacidad',true)" onblur="SkuGen.hideSuggestions('capacidad',true)"><div class="sku-suggestions" id="sugp-capacidad"></div></div>
-                                <div class="sku-field-wrap"><label>🔗 USB</label><input type="text" id="skup-usb" placeholder="USB 3.0" oninput="SkuGen.onPanelInput(this,'usb')" onkeydown="SkuGen.onKey(event,'usb',true)" onfocus="SkuGen.showSuggestions('usb',true)" onblur="SkuGen.hideSuggestions('usb',true)"><div class="sku-suggestions" id="sugp-usb"></div></div>
-                                <div class="sku-field-wrap"><label>➕ Extra</label><input type="text" id="skup-extra" placeholder="4K, DDR5..." oninput="SkuGen.onPanelInput(this,'extra')" onkeydown="SkuGen.onKey(event,'extra',true)" onfocus="SkuGen.showSuggestions('extra',true)" onblur="SkuGen.hideSuggestions('extra',true)"><div class="sku-suggestions" id="sugp-extra"></div></div>
-                            </div>
+                            <div id="sku-fields-container" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;"></div>
                         </div>
                     </div>
                     <div class="form-group"><label for="producto">Nombre del Producto *</label><input type="text" id="producto" placeholder="Ej: Bolsa de Arroz" required autocomplete="off"></div>
@@ -4696,7 +4685,31 @@ const CierreCaja = {
         // ════════════════════════════════════════════════════════════════
         const SkuGen = {
             _activeIdx: {},
-            _fields: ['marca','producto','unidad','color','tipo','modelo','voltaje','capacidad','usb','extra'],
+            _fields: [],
+            configCampos: {
+                tecnico: [
+                    { id:'marca', label:'🏢 Marca', placeholder:'SAMSUNG' },
+                    { id:'producto', label:'📦 Producto', placeholder:'LAPTOP' },
+                    { id:'unidad', label:'📐 Unidad', placeholder:'UNIDAD' },
+                    { id:'color', label:'🎨 Color', placeholder:'NEGRO' },
+                    { id:'tipo', label:'🔌 Tipo', placeholder:'INALAMBRICO' },
+                    { id:'modelo', label:'🔢 Modelo', placeholder:'PRO' },
+                    { id:'voltaje', label:'⚡ Voltaje/Watts', placeholder:'65W' },
+                    { id:'capacidad', label:'💾 Capacidad', placeholder:'512GB' },
+                    { id:'usb', label:'🔗 USB', placeholder:'USB 3.0' },
+                    { id:'extra', label:'➕ Extra', placeholder:'4K, DDR5...' }
+                ],
+                general: [
+                    { id:'categoria', label:'📁 Categoría', placeholder:'ABARROTES' },
+                    { id:'marca', label:'🏢 Marca', placeholder:'GLORIA' },
+                    { id:'producto', label:'📦 Producto', placeholder:'LECHE' },
+                    { id:'variante', label:'🏷️ Variante/Sabor', placeholder:'CHOCOLATE' },
+                    { id:'unidad', label:'📐 Unidad', placeholder:'CAJA' },
+                    { id:'tamano', label:'📏 Tamaño/Peso', placeholder:'1 LITRO' },
+                    { id:'color', label:'🎨 Color', placeholder:'N/A' },
+                    { id:'extra', label:'➕ Extra', placeholder:'PACK X6' }
+                ]
+            },
 
             suggestionsTecnica: {
                 marca: ['SAMSUNG','APPLE','HP','DELL','LENOVO','ASUS','ACER','SONY','LG','LOGITECH','RAZER','MSI','CORSAIR','KINGSTON','SEAGATE','WESTERN DIGITAL','CRUCIAL','INTEL','AMD','NVIDIA','TP-LINK','D-LINK','BELKIN','ANKER','JBL','XIAOMI','HUAWEI','CANON','BROTHER','EPSON'],
@@ -4712,9 +4725,12 @@ const CierreCaja = {
             },
 
             suggestionsGeneral: {
+                categoria: ['ABARROTES', 'BEBIDAS', 'LIMPIEZA', 'ROPA', 'CUIDADO PERSONAL', 'OTROS'],
                 marca: ['GLORIA', 'NESTLE', 'ALICORP', 'BIMBO', 'COCA COLA', 'PEPSI', 'NIKE', 'ADIDAS', 'GENERICO'],
                 producto: ['LECHE', 'ARROZ', 'FIDEOS', 'ACEITE', 'GALLETAS', 'GASEOSA', 'DETERGENTE', 'POLO', 'PANTALON', 'ZAPATILLAS'],
+                variante: ['CHOCOLATE', 'FRESA', 'VAINILLA', 'MENTA', 'CLASICO', 'INTEGRAL'],
                 unidad: ['UNIDAD', 'CAJA', 'DOCENA', 'KILOGRAMO', 'GRAMO', 'LITRO', 'MILILITRO', 'PAQUETE', 'PAR'],
+                tamano: ['1 LITRO', '500 ML', '1 KG', '500 G', 'PEQUEÑO', 'MEDIANO', 'GRANDE'],
                 color: ['ROJO', 'AZUL', 'BLANCO', 'NEGRO', 'VARIADO', 'VERDE', 'AMARILLO'],
                 tipo: ['ABARROTES', 'BEBIDAS', 'LIMPIEZA', 'ROPA', 'CUIDADO PERSONAL', 'OTROS'],
                 modelo: ['N/A', 'ESTANDAR', 'OFERTA'],
@@ -4726,6 +4742,24 @@ const CierreCaja = {
 
             suggestions: {}, // Se llenará dinámicamente
 
+            renderCampos() {
+                const giro = localStorage.getItem('giroNegocio') || 'tecnologia';
+                const configElegida = giro === 'general' ? this.configCampos.general : this.configCampos.tecnico;
+                this._fields = configElegida.map(c => c.id);
+
+                const html = configElegida.map(campo => `
+                    <div class="sku-field-wrap">
+                        <label>${campo.label}</label>
+                        <input type="text" id="skup-${campo.id}" placeholder="${campo.placeholder}" 
+                            oninput="SkuGen.onPanelInput(this,'${campo.id}')" 
+                            onkeydown="SkuGen.onKey(event,'${campo.id}')" 
+                            onfocus="SkuGen.showSuggestions('${campo.id}')" 
+                            onblur="SkuGen.hideSuggestions('${campo.id}')">
+                        <div class="sku-suggestions" id="sugp-${campo.id}"></div>
+                    </div>`).join('');
+                document.getElementById('sku-fields-container').innerHTML = html;
+            },
+
             actualizarSugerencias() {
                 const giro = localStorage.getItem('giroNegocio') || 'tecnologia';
                 if (giro === 'general') {
@@ -4733,6 +4767,7 @@ const CierreCaja = {
                 } else {
                     this.suggestions = this.suggestionsTecnica;
                 }
+                this.renderCampos();
             },
 
             _abbrev(str) {
@@ -4841,6 +4876,7 @@ const CierreCaja = {
 
             init() { 
                 this.actualizarSugerencias(); 
+                this.renderCampos();
             }
         };
 
