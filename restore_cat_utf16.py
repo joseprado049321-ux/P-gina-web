@@ -1,0 +1,52 @@
+import sys, re
+
+# Read backup
+backup_path = r'c:\Users\jose0\Documents\NextTech\Pagina_Web\P-gina-web-1\backup.html'
+with open(backup_path, 'r', encoding='utf-16') as f:
+    backup_content = f.read()
+
+# Extract CategoriaCustom from backup
+match = re.search(r'(const CategoriaCustom = \(\(\) => \{.*?\n\s+\};\n\s+\}\)\(\);)', backup_content, flags=re.DOTALL)
+if not match:
+    print("Not found in backup")
+    sys.exit(1)
+
+original_cat = match.group(1)
+
+# Now modify original_cat to use Estado and Firebase
+new_cat = original_cat.replace(
+    "try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }",
+    "return Estado.categoriasCustom || [];"
+)
+new_cat = new_cat.replace(
+    "function saveCustom(arr) {\n                localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));\n            }",
+    "async function saveCustom(arr) {\n                Estado.categoriasCustom = arr;\n                if (window.firebaseOK && !Auth.modoInvitado) await Firebase.guardar('categoriasCustom', arr);\n            }"
+)
+
+# Also there's another saveCustom format possibly? Let's use regex to replace saveCustom just in case
+new_cat = re.sub(
+    r'function saveCustom\(arr\) \{.*?\n\s+\}',
+    "async function saveCustom(arr) {\n                Estado.categoriasCustom = arr;\n                if (window.firebaseOK && !Auth.modoInvitado) await Firebase.guardar('categoriasCustom', arr);\n            }",
+    new_cat, flags=re.DOTALL
+)
+
+new_cat = new_cat.replace("saveCustom(allCustom);", "await saveCustom(allCustom);")
+new_cat = new_cat.replace("saveCustom(newCustom);", "await saveCustom(newCustom);")
+
+if "async function eliminar" not in new_cat:
+    new_cat = new_cat.replace("function eliminar(nombre) {", "async function eliminar(nombre) {")
+if "async function agregar" not in new_cat:
+    new_cat = new_cat.replace("function agregar() {", "async function agregar() {")
+
+# Update index.html
+path = r'c:\Users\jose0\Documents\NextTech\Pagina_Web\P-gina-web-1\index.html'
+with open(path, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# I messed up the block last time so it might be `const CategoriasCustom = ...`
+content = re.sub(r'const CategoriasCustom = \{.*?\n\s+eliminar\(nombre\) \{.*?\n\s+\}\n\s+\};', new_cat, content, flags=re.DOTALL)
+content = re.sub(r'const CategoriaCustom = \(\(\) => \{.*?\n\s+\};\n\s+\}\)\(\);', new_cat, content, flags=re.DOTALL) # in case it's still there
+
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(content)
+print("Done restoring")
