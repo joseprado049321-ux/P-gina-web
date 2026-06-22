@@ -1598,10 +1598,15 @@
                 const provider = new firebase.auth.GoogleAuthProvider();
                 try { await firebase.auth().signInWithPopup(provider); } catch(error) { this._notificar("❌ Error Google: " + error.message, "#ff5f6d"); }
             },
-            loginTradicional(e) {
+            async loginTradicional(e) {
                 e.preventDefault();
                 const user = document.getElementById('username').value.trim();
                 const pass = document.getElementById('password').value.trim();
+                
+                const btnSubmit = document.querySelector('#loginForm button[type="submit"]');
+                const btnOriginalText = btnSubmit ? btnSubmit.innerHTML : '🚀 Ingresar';
+                if (btnSubmit) { btnSubmit.innerHTML = '⏳ Verificando...'; btnSubmit.disabled = true; }
+
                 if (user === this.ADMIN_EMAIL && pass === "12345678") {
                     this.esAdmin = true; this.modoInvitado = false;
                     localStorage.setItem('sesionActiva', 'true');
@@ -1609,7 +1614,18 @@
                     this.mostrarPantallaPrincipal();
                     this._notificar("✅ Bienvenido Administrador", "linear-gradient(to right,#4472C4,#2c5aa0)");
                 } else {
-                    const localUser = LocalUsers.verificar(user, pass);
+                    let localUser = LocalUsers.verificar(user, pass);
+                    
+                    if (!localUser && window.firebaseOK) {
+                        try {
+                            const datosFB = await Firebase.cargar('localUsersDB');
+                            if (datosFB !== null) {
+                                localStorage.setItem('localUsersDB', JSON.stringify(datosFB));
+                                localUser = LocalUsers.verificar(user, pass);
+                            }
+                        } catch(err) { console.warn("Error sync local users", err); }
+                    }
+
                     if (localUser) {
                         this.esAdmin = (localUser.rol === 'admin'); 
                         this.modoInvitado = false;
@@ -1618,6 +1634,8 @@
                         this._notificar(`✅ Bienvenido, ${localUser.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
                     } else { this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d"); }
                 }
+                
+                if (btnSubmit) { btnSubmit.innerHTML = btnOriginalText; btnSubmit.disabled = false; }
             },
             entrarComoInvitado(auto = false) {
                 this.modoInvitado = true; this.esAdmin = false;
