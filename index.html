@@ -825,6 +825,12 @@
                 <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú">☰</button>
                 <h1>📊 Sistema de Registro de Ventas</h1>
                 <p>Gestión de Productos</p>
+                <div id="panel-superadmin" class="solo-admin" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.3);">
+                    <span style="font-size:13px; font-weight:600; margin-right:8px;">🏢 Supervisar empresa:</span>
+                    <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(0,0,0,0.2); color:white; border:1px solid rgba(255,255,255,0.4); font-family:'Poppins', sans-serif; cursor:pointer; outline:none; max-width:250px;">
+                        <option value="">Cargando clientes...</option>
+                    </select>
+                </div>
                 <button class="logout-btn" onclick="Auth.cerrarSesion()">🚪 Cerrar Sesión</button>
                 <button id="theme-toggle-btn" onclick="ThemeManager.toggle()" title="Cambiar modo">
                     <span id="theme-icon">🌙</span>
@@ -1512,7 +1518,10 @@
         }
 
         const Firebase = {
-            _col() { return db ? db.collection('tienda') : null; },
+            _col() { 
+                const tenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo'; 
+                return db ? db.collection('empresas').doc(tenant).collection('datos') : null; 
+            },
             async cargar(clave) {
                 if (!firebaseOK) return null;
                 try {
@@ -1652,6 +1661,7 @@
                     this.esAdmin = true; this.modoInvitado = false;
                     localStorage.setItem('superAdmin', 'true');
                     localStorage.setItem('sesionActiva', 'true');
+                    this.cargarEmpresas();
                     this.mostrarPantallaPrincipal();
                     this._notificar(`👑 Bienvenido Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
                     return;
@@ -1670,6 +1680,7 @@
                         if (data.estado === 'aprobado') {
                             this.esAdmin = false; this.modoInvitado = false;
                             localStorage.removeItem('superAdmin');
+                            localStorage.setItem('tenantId', user.uid); localStorage.removeItem('superAdminTenant');
                             localStorage.setItem('sesionActiva', 'true');
                             this.mostrarPantallaPrincipal();
                             this._notificar(`✅ Bienvenido, ${user.displayName || user.email}`, "linear-gradient(to right,#00b09b,#96c93d)");
@@ -1706,6 +1717,28 @@
                     localStorage.removeItem('superAdmin');
                     location.reload();
                 },
+            async cargarEmpresas() {
+                try {
+                    const snap = await db.collection('usuarios_acceso').get();
+                    const select = document.getElementById('select-empresas');
+                    if (!select) return;
+                    select.innerHTML = '<option value="super_admin">Mi Espacio Principal</option>' + 
+                        snap.docs.filter(d => d.data().estado === 'aprobado')
+                        .map(d => `<option value="${d.data().uid}">${d.data().email} (${d.data().nombre || 'Sin nombre'})</option>`).join('');
+                    
+                    const actual = localStorage.getItem('superAdminTenant');
+                    if (actual) select.value = actual;
+                    
+                    document.getElementById('panel-superadmin').style.display = 'block';
+                } catch(e) { console.error("Error cargando empresas", e); }
+            },
+            async cambiarTenant(uid) {
+                localStorage.setItem('superAdminTenant', uid);
+                // Al cambiar de empresa, limpiamos la memoria caché local y recargamos para descargar la nueva BD
+                const clavesLimpiar = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','localUsersDB'];
+                clavesLimpiar.forEach(k => localStorage.removeItem(k));
+                location.reload();
+            },
             _notificar(texto, color) {
                 if (typeof Toastify !== 'undefined') Toastify({ text: texto, duration: 3500, gravity: "top", position: "right", backgroundColor: color }).showToast();
             }
