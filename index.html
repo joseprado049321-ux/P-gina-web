@@ -1609,6 +1609,7 @@
 
                 if (user === this.ADMIN_EMAIL && pass === "12345678") {
                     this.esAdmin = true; this.modoInvitado = false;
+                    localStorage.setItem('superAdmin', 'true');
                     localStorage.setItem('sesionActiva', 'true');
                     localStorage.removeItem('sesionInvitado');
                     this.mostrarPantallaPrincipal();
@@ -1629,6 +1630,7 @@
                     if (localUser) {
                         this.esAdmin = (localUser.rol === 'admin'); 
                         this.modoInvitado = false;
+                        localStorage.removeItem('superAdmin');
                         localStorage.setItem('sesionActiva', 'true');
                         this.mostrarPantallaPrincipal();
                         this._notificar(`✅ Bienvenido, ${localUser.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
@@ -1648,6 +1650,7 @@
                 this.usuarioActual = user;
                 if (user.email === this.ADMIN_EMAIL) {
                     this.esAdmin = true; this.modoInvitado = false;
+                    localStorage.setItem('superAdmin', 'true');
                     localStorage.setItem('sesionActiva', 'true');
                     this.mostrarPantallaPrincipal();
                     this._notificar(`👑 Bienvenido Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
@@ -1666,6 +1669,7 @@
                         const data = snap.data();
                         if (data.estado === 'aprobado') {
                             this.esAdmin = false; this.modoInvitado = false;
+                            localStorage.removeItem('superAdmin');
                             localStorage.setItem('sesionActiva', 'true');
                             this.mostrarPantallaPrincipal();
                             this._notificar(`✅ Bienvenido, ${user.displayName || user.email}`, "linear-gradient(to right,#00b09b,#96c93d)");
@@ -1699,6 +1703,7 @@
                     // Solo removemos las credenciales de la sesión actual
                     localStorage.removeItem('sesionActiva');
                     localStorage.removeItem('sesionInvitado');
+                    localStorage.removeItem('superAdmin');
                     location.reload();
                 },
             _notificar(texto, color) {
@@ -1727,6 +1732,7 @@
                 } catch(e) { console.error("Error cargando usuarios:", e); }
             },
             cargarLocales() {
+                const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
                 const c = document.getElementById('usuarios-locales-lista');
                 if (!c) return;
                 const lista = LocalUsers.getAll();
@@ -1735,27 +1741,31 @@
                     const fecha = u.fechaCreacion ? new Date(u.fechaCreacion).toLocaleDateString('es-PE') : '-';
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
                         <div><div style="font-weight:700;">👤 ${u.nombre}</div><div style="font-size:0.85em;color:#666;">🔑 Usuario: <strong>${u.username}</strong></div><div style="font-size:0.8em;color:#aaa;">📅 Creado: ${fecha}</div></div>
-                        <div><button onclick="GestionUsuarios.eliminarLocal('${u.id}','${u.username}')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🗑️ Eliminar</button></div>
+                        <div>${esSuperAdmin ? `<button onclick="GestionUsuarios.eliminarLocal('${u.id}','${u.username}')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🗑️ Eliminar</button>` : ''}</div>
                     </div>`;
                 }).join('');
             },
             _renderLista(containerId, usuarios, tipo) {
+                const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
                 const c = document.getElementById(containerId);
                 if (!c) return;
                 if (!usuarios.length) { c.innerHTML = '<p style="text-align:center;color:#aaa;padding:15px;">Sin usuarios</p>'; return; }
                 c.innerHTML = usuarios.map(u => {
                     const fecha = u.fechaSolicitud ? new Date(u.fechaSolicitud).toLocaleDateString('es-PE') : '-';
                     let botonesHtml = '';
-                    if (tipo === 'pendiente') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button><button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;">🚫 Rechazar</button>`;
-                    else if (tipo === 'aprobado') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🚫 Revocar</button>`;
-                    else botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button>`;
-                    const eliminarBtn = `<button onclick="GestionUsuarios.eliminarFirebase('${u.id}','${u.nombre||u.email}')" style="background:linear-gradient(135deg,#6c757d,#495057);color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;" title="Eliminar usuario">🗑️</button>`;
+                    if (esSuperAdmin) {
+                        if (tipo === 'pendiente') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button><button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;">🚫 Rechazar</button>`;
+                        else if (tipo === 'aprobado') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🚫 Revocar</button>`;
+                        else botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button>`;
+                    }
+                    const eliminarBtn = esSuperAdmin ? `<button onclick="GestionUsuarios.eliminarFirebase('${u.id}','${u.nombre||u.email}')" style="background:linear-gradient(135deg,#6c757d,#495057);color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;" title="Eliminar usuario">🗑️</button>` : '';
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
                         <div><div style="font-weight:700;">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:#666;">📧 ${u.email}</div><div style="font-size:0.8em;color:#aaa;">📅 ${fecha}</div></div>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${eliminarBtn}</div></div>`;
                 }).join('');
             },
             async cambiarEstado(uid, nuevoEstado) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Acceso Denegado', 'Solo el administrador principal (joseprado049321@gmail.com) tiene permiso para eliminar usuarios o modificar accesos.', 'error'); return; }
                 const result = await Swal.fire({ title: nuevoEstado==='aprobado'?'✅ ¿Aprobar acceso?':'🚫 ¿Rechazar acceso?', icon:'question', showCancelButton:true, confirmButtonColor: nuevoEstado==='aprobado'?'#28a745':'#dc3545', cancelButtonColor:'#6c757d', confirmButtonText:'Sí, confirmar', cancelButtonText:'Cancelar' });
                 if (!result.isConfirmed) return;
                 try {
@@ -1765,6 +1775,7 @@
                 } catch(e) { Swal.fire('Error', e.message, 'error'); }
             },
             async eliminarFirebase(uid, nombreMostrar) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Acceso Denegado', 'Solo el administrador principal (joseprado049321@gmail.com) tiene permiso para eliminar usuarios o modificar accesos.', 'error'); return; }
                 const result = await Swal.fire({ title: `🗑️ ¿Eliminar a ${nombreMostrar}?`, text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
                 if (!result.isConfirmed) return;
                 try {
@@ -1774,6 +1785,7 @@
                 } catch(e) { Swal.fire('Error', e.message, 'error'); }
             },
             async eliminarLocal(id, username) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Acceso Denegado', 'Solo el administrador principal (joseprado049321@gmail.com) tiene permiso para eliminar usuarios o modificar accesos.', 'error'); return; }
                 const result = await Swal.fire({ title: `🗑️ ¿Eliminar a ${username}?`, text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
                 if (!result.isConfirmed) return;
                 LocalUsers.eliminar(id);
@@ -1781,6 +1793,7 @@
                 this.cargarLocales();
             },
             mostrarModalAgregarLocal() {
+                const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
                 Swal.fire({
                     title: '➕ Nuevo Usuario Local',
                     html: `
@@ -1792,7 +1805,7 @@
                             <label style="font-weight:600;display:block;margin-bottom:4px;">🎭 Rol del Usuario</label>
                             <select id="swal-new-rol" class="swal2-input" style="margin:0 0 12px 0;width:100%;" onchange="document.getElementById('modulos-container').style.display = this.value === 'empleado' ? 'block' : 'none';">
                                 <option value="empleado">Empleado / Vendedor</option>
-                                <option value="admin">Administrador</option>
+                                ${esSuperAdmin ? '<option value="admin">Administrador</option>' : ''}
                             </select>
                             <div id="modulos-container" style="border:1px solid #d5dce9; border-radius:8px; padding:12px; background:#f8f9fa;">
                                 <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos (Solo Empleado):</label>
