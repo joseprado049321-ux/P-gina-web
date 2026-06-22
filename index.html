@@ -1774,7 +1774,12 @@
                     const fecha = u.fechaCreacion ? new Date(u.fechaCreacion).toLocaleDateString('es-PE') : '-';
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
                         <div><div style="font-weight:700;">👤 ${u.nombre}</div><div style="font-size:0.85em;color:#666;">🔑 Usuario: <strong>${u.username}</strong></div><div style="font-size:0.8em;color:#aaa;">📅 Creado: ${fecha}</div></div>
-                        <div>${esSuperAdmin ? `<button onclick="GestionUsuarios.eliminarLocal('${u.id}','${u.username}')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🗑️ Eliminar</button>` : ''}</div>
+                        <div>${esSuperAdmin ? `
+                            <div style="display:flex; gap:5px; margin-top:8px;">
+                                <button onclick="GestionUsuarios.editarRol('${u.id || u.username}', true, '${u.username}', '${u.rol || 'empleado'}')" style="background:#ffc107; color:#000; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">✏️ Editar</button>
+                                <button onclick="GestionUsuarios.eliminarLocal('${u.id || u.username}', '${u.username}')" style="background:#dc3545; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">🗑️ Eliminar</button>
+                            </div>
+                        ` : ''}</div>
                     </div>`;
                 }).join('');
             },
@@ -1791,10 +1796,13 @@
                         else if (tipo === 'aprobado') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🚫 Revocar</button>`;
                         else botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button>`;
                     }
-                    const eliminarBtn = esSuperAdmin ? `<button onclick="GestionUsuarios.eliminarFirebase('${u.id}','${u.nombre||u.email}')" style="background:linear-gradient(135deg,#6c757d,#495057);color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;" title="Eliminar usuario">🗑️</button>` : '';
+                    const botonesAdmin = esSuperAdmin ? `
+                        <button onclick="GestionUsuarios.editarRol('${u.id}', false, '${u.email}', '${u.rol || 'empleado'}')" style="background:#ffc107; color:#000; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:5px;">✏️ Editar</button>
+                        <button onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email}')" style="background:#dc3545; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">🗑️ Eliminar</button>
+                    ` : '';
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
                         <div><div style="font-weight:700;">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:#666;">📧 ${u.email}</div><div style="font-size:0.8em;color:#aaa;">📅 ${fecha}</div></div>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${eliminarBtn}</div></div>`;
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${botonesAdmin}</div></div>`;
                 }).join('');
             },
             async cambiarEstado(uid, nuevoEstado) {
@@ -1824,6 +1832,54 @@
                 LocalUsers.eliminar(id);
                 Toastify({ text: `🗑️ Usuario local "${username}" eliminado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
                 this.cargarLocales();
+            },
+            async editarRol(id, esLocal, nombreUsuario, rolActual) {
+                if (localStorage.getItem('superAdmin') !== 'true') {
+                    Swal.fire('⛔ Acceso Denegado', 'Solo el Súper Administrador puede modificar roles.', 'error');
+                    return;
+                }
+
+                const { value: nuevoRol } = await Swal.fire({
+                    title: '✏️ Editar Rol',
+                    html: `<div style="text-align:left; font-size:14px; margin-bottom:15px;">
+                            Modificando acceso de: <strong style="color:#2B56A5;">${nombreUsuario}</strong>
+                           </div>
+                           <select id="swal-edit-rol" class="swal2-input" style="width:100%; margin:0;">
+                               <option value="empleado" ${rolActual === 'empleado' ? 'selected' : ''}>Empleado / Vendedor</option>
+                               <option value="admin" ${rolActual === 'admin' ? 'selected' : ''}>Administrador</option>
+                           </select>`,
+                    showCancelButton: true,
+                    confirmButtonText: '💾 Guardar Cambios',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#4472C4',
+                    cancelButtonColor: '#6c757d',
+                    preConfirm: () => document.getElementById('swal-edit-rol').value
+                });
+
+                if (!nuevoRol || nuevoRol === rolActual) return;
+
+                try {
+                    if (esLocal) {
+                        const lista = LocalUsers.getAll();
+                        // Soporte tanto para id generado (lu_123) como para username como id
+                        const idx = lista.findIndex(u => u.id === id || u.username === id);
+                        if (idx !== -1) {
+                            lista[idx].rol = nuevoRol;
+                            LocalUsers._save(lista);
+                            this.cargarLocales();
+                            Toastify({ text: `✅ Rol de ${nombreUsuario} actualizado a ${nuevoRol}`, duration: 3000, backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
+                        }
+                    } else {
+                        if (window.firebaseOK) {
+                            await db.collection('usuarios_acceso').doc(id).update({ rol: nuevoRol });
+                            Toastify({ text: `✅ Rol en nube actualizado`, duration: 3000, backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
+                            this.cargarTodos();
+                        }
+                    }
+                } catch(error) {
+                    console.error('Error al actualizar rol:', error);
+                    Swal.fire('❌ Error', 'Hubo un problema al actualizar el rol.', 'error');
+                }
             },
             mostrarModalAgregarLocal() {
                 const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
