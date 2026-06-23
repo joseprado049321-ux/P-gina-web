@@ -1414,7 +1414,7 @@
                 </div>
                 <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Aprueba o rechaza accesos al sistema.</p>
                 <div class="summary-cards" id="usuarios-cards"></div>
-                <div style="margin-bottom:30px;"><h3 style="color:#2B56A5;margin-bottom:15px;">🔑 Usuarios Locales</h3><div id="usuarios-locales-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
+
                 <div style="margin-bottom:30px;"><h3 style="color:#fd7e14;margin-bottom:15px;">⏳ Pendientes de Aprobación</h3><div id="usuarios-pendientes-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div style="margin-bottom:30px;"><h3 style="color:#28a745;margin-bottom:15px;">✅ Usuarios Aprobados</h3><div id="usuarios-aprobados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
                 <div><h3 style="color:#dc3545;margin-bottom:15px;">🚫 Usuarios Rechazados</h3><div id="usuarios-rechazados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
@@ -1552,36 +1552,6 @@
         // ════════════════════════════════════════════════════════════════
         // MÓDULO: AUTENTICACIÓN
         // ════════════════════════════════════════════════════════════════
-        /* ── Usuarios Locales (almacenados en localStorage) ─────────── */
-        const LocalUsers = {
-            _KEY: 'localUsersDB',
-            _defaults: [
-                { id: 'sebastian', username: 'Sebastian', password: 'S3b4sV3nt4s', nombre: 'Sebastian', fechaCreacion: new Date().toISOString() }
-            ],
-            async getAll() {
-                if (window.firebaseOK) {
-                    const data = await Firebase.leer(this._KEY);
-                    if (data) return data;
-                }
-                return this._defaults;
-            },
-            async verificar(username, password) {
-                const lista = await this.getAll();
-                return lista.find(u => u.username === username && u.password === password) || null;
-            },
-            async agregar(username, password) {
-                const lista = await this.getAll();
-                if (lista.find(u => u.username.toLowerCase() === username.toLowerCase())) return false;
-                lista.push({ id: 'lu_' + Date.now(), username, password, nombre: username, fechaCreacion: new Date().toISOString() });
-                if (window.firebaseOK) await await Firebase.guardar(this._KEY, lista);
-                return true;
-            },
-            async eliminar(id) {
-                let lista = await this.getAll();
-                lista = lista.filter(u => u.id !== id);
-                if (window.firebaseOK) await await Firebase.guardar(this._KEY, lista);
-            }
-        };
 
         const Auth = {
             ADMIN_EMAIL: "joseprado049321@gmail.com",
@@ -1618,16 +1588,29 @@
                     this.mostrarPantallaPrincipal();
                     this._notificar("✅ Bienvenido Administrador", "linear-gradient(to right,#4472C4,#2c5aa0)");
                 } else {
-                    let localUser = await LocalUsers.verificar(user, pass);
-
-                    if (localUser) {
-                        this.esAdmin = (localUser.rol === 'admin'); 
-                        this.modoInvitado = false;
-                        localStorage.removeItem('superAdmin');
-                        localStorage.setItem('sesionActiva', 'true');
-                        this.mostrarPantallaPrincipal();
-                        this._notificar(`✅ Bienvenido, ${localUser.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
-                    } else { this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d"); }
+                    try {
+                        const snapshot = await db.collection('usuarios_acceso').where('username', '==', user).where('password', '==', pass).get();
+                        if (!snapshot.empty) {
+                            const userData = snapshot.docs[0].data();
+                            if (userData.estado !== 'aprobado') {
+                                this._notificar("❌ Tu cuenta no está aprobada", "#ff5f6d");
+                                return;
+                            }
+                            this.esAdmin = (userData.rol === 'admin');
+                            this.modoInvitado = false;
+                            this.usuarioActual = userData; 
+                            localStorage.setItem('sesionActiva', 'true');
+                            // Si el Súper Admin le asignó un Tenant a este usuario, lo cargamos
+                            if (userData.tenantId) localStorage.setItem('tenantId', userData.tenantId);
+                            this.mostrarPantallaPrincipal();
+                            this._notificar(`✅ Bienvenido, ${userData.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
+                        } else {
+                            this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        this._notificar("❌ Error conectando a la base de datos", "#ff5f6d");
+                    }
                 }
                 
                 if (btnSubmit) { btnSubmit.innerHTML = btnOriginalText; btnSubmit.disabled = false; }
@@ -1731,7 +1714,7 @@
         const GestionUsuarios = {
             async cargarTodos() {
                 if (!Auth.esAdmin) return;
-                this.cargarLocales();
+
                 if (!window.firebaseOK || (typeof Auth !== 'undefined' && Auth.modoInvitado)) return;
                 try {
                     const snap = await db.collection('usuarios_acceso').get();
@@ -1748,25 +1731,7 @@
                     this._renderLista('usuarios-rechazados-lista', rechazados, 'rechazado');
                 } catch(e) { console.error("Error cargando usuarios:", e); }
             },
-            cargarLocales() {
-                const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
-                const c = document.getElementById('usuarios-locales-lista');
-                if (!c) return;
-                const lista = LocalUsers.getAll();
-                if (!lista.length) { c.innerHTML = '<p style="text-align:center;color:#aaa;padding:15px;">Sin usuarios locales</p>'; return; }
-                c.innerHTML = lista.map(u => {
-                    const fecha = u.fechaCreacion ? new Date(u.fechaCreacion).toLocaleDateString('es-PE') : '-';
-                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
-                        <div><div style="font-weight:700;">👤 ${u.nombre}</div><div style="font-size:0.85em;color:#666;">🔑 Usuario: <strong>${u.username}</strong></div><div style="font-size:0.8em;color:#aaa;">📅 Creado: ${fecha}</div></div>
-                        <div>${esSuperAdmin ? `
-                            <div style="display:flex; gap:5px; margin-top:8px;">
-                                <button onclick="GestionUsuarios.editarRol('${u.id || u.username}', true, '${u.username}', '${u.rol || 'empleado'}')" style="background:#ffc107; color:#000; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">✏️ Editar</button>
-                                <button onclick="GestionUsuarios.eliminarLocal('${u.id || u.username}', '${u.username}')" style="background:#dc3545; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">🗑️ Eliminar</button>
-                            </div>
-                        ` : ''}</div>
-                    </div>`;
-                }).join('');
-            },
+
             _renderLista(containerId, usuarios, tipo) {
                 const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
                 const c = document.getElementById(containerId);
@@ -1781,11 +1746,11 @@
                         else botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button>`;
                     }
                     const botonesAdmin = esSuperAdmin ? `
-                        <button onclick="GestionUsuarios.editarRol('${u.id}', false, '${u.email}', '${u.rol || 'empleado'}')" style="background:#ffc107; color:#000; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:5px;">✏️ Editar</button>
-                        <button onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email}')" style="background:#dc3545; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">🗑️ Eliminar</button>
+                        <button onclick="GestionUsuarios.editarRol('${u.id}')" style="background:#ffc107; color:#000; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:5px;">✏️ Editar</button>
+                        <button onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email || u.username}')" style="background:#dc3545; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">🗑️ Eliminar</button>
                     ` : '';
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
-                        <div><div style="font-weight:700;">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:#666;">📧 ${u.email}</div><div style="font-size:0.8em;color:#aaa;">📅 ${fecha}</div></div>
+                        <div><div style="font-weight:700;">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:#666;">📧 ${u.email || u.username || 'Sin email'}</div><div style="font-size:0.8em;color:#aaa;">📅 ${fecha}</div></div>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${botonesAdmin}</div></div>`;
                 }).join('');
             },
@@ -1809,61 +1774,49 @@
                     this.cargarTodos();
                 } catch(e) { Swal.fire('Error', e.message, 'error'); }
             },
-            async eliminarLocal(id, username) {
-                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Acceso Denegado', 'Solo el administrador principal (joseprado049321@gmail.com) tiene permiso para eliminar usuarios o modificar accesos.', 'error'); return; }
-                const result = await Swal.fire({ title: `🗑️ ¿Eliminar a ${username}?`, text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
-                if (!result.isConfirmed) return;
-                LocalUsers.eliminar(id);
-                Toastify({ text: `🗑️ Usuario local "${username}" eliminado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
-                this.cargarLocales();
-            },
-            async editarRol(id, esLocal, nombreUsuario, rolActual) {
-                if (localStorage.getItem('superAdmin') !== 'true') {
-                    Swal.fire('⛔ Acceso Denegado', 'Solo el Súper Administrador puede modificar roles.', 'error');
-                    return;
-                }
-
-                const { value: nuevoRol } = await Swal.fire({
-                    title: '✏️ Editar Rol',
-                    html: `<div style="text-align:left; font-size:14px; margin-bottom:15px;">
-                            Modificando acceso de: <strong style="color:#2B56A5;">${nombreUsuario}</strong>
-                           </div>
-                           <select id="swal-edit-rol" class="swal2-input" style="width:100%; margin:0;">
-                               <option value="empleado" ${rolActual === 'empleado' ? 'selected' : ''}>Empleado / Vendedor</option>
-                               <option value="admin" ${rolActual === 'admin' ? 'selected' : ''}>Administrador</option>
-                           </select>`,
-                    showCancelButton: true,
-                    confirmButtonText: '💾 Guardar Cambios',
-                    cancelButtonText: 'Cancelar',
-                    confirmButtonColor: '#4472C4',
-                    cancelButtonColor: '#6c757d',
-                    preConfirm: () => document.getElementById('swal-edit-rol').value
-                });
-
-                if (!nuevoRol || nuevoRol === rolActual) return;
-
+            async editarRol(id) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Denegado', 'Solo Súper Admin', 'error'); return; }
                 try {
-                    if (esLocal) {
-                        const lista = LocalUsers.getAll();
-                        // Soporte tanto para id generado (lu_123) como para username como id
-                        const idx = lista.findIndex(u => u.id === id || u.username === id);
-                        if (idx !== -1) {
-                            lista[idx].rol = nuevoRol;
-                            LocalUsers._save(lista);
-                            this.cargarLocales();
-                            Toastify({ text: `✅ Rol de ${nombreUsuario} actualizado a ${nuevoRol}`, duration: 3000, backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
+                    const docRef = db.collection('usuarios_acceso').doc(id);
+                    const docSnap = await docRef.get();
+                    if (!docSnap.exists) return;
+                    const data = docSnap.data();
+                    const rolActual = data.rol || 'empleado';
+                    const modulosGuardados = data.modulos || [];
+                    const isChecked = (mod) => modulosGuardados.includes(mod) ? 'checked' : '';
+                    
+                    const { value: formValues } = await Swal.fire({
+                        title: '✏️ Editar Acceso',
+                        html: `
+                            <select id="swal-edit-rol" class="swal2-input" style="width:100%; margin-bottom:15px;" onchange="document.getElementById('edit-modulos-container').style.display = this.value === 'empleado' ? 'block' : 'none';">
+                                <option value="empleado" ${rolActual === 'empleado' ? 'selected' : ''}>Empleado / Vendedor</option>
+                                <option value="admin" ${rolActual === 'admin' ? 'selected' : ''}>Administrador</option>
+                            </select>
+                            <div id="edit-modulos-container" style="display:${rolActual === 'empleado' ? 'block' : 'none'}; border:1px solid #d5dce9; border-radius:8px; padding:12px; background:#f8f9fa; text-align:left;">
+                                <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos:</label>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
+                                    <label><input type="checkbox" value="registro" class="swal-edit-modulos" ${isChecked('registro')}> 📝 Registro</label>
+                                    <label><input type="checkbox" value="historial" class="swal-edit-modulos" ${isChecked('historial')}> 📋 Historial</label>
+                                    <label><input type="checkbox" value="inventario" class="swal-edit-modulos" ${isChecked('inventario')}> 📦 Inventario</label>
+                                    <label><input type="checkbox" value="ordenes-servicio" class="swal-edit-modulos" ${isChecked('ordenes-servicio')}> 🔧 Órdenes Serv.</label>
+                                    <label><input type="checkbox" value="cuentas-cobrar" class="swal-edit-modulos" ${isChecked('cuentas-cobrar')}> 💰 Ctas. Cobrar</label>
+                                    <label><input type="checkbox" value="clientes" class="swal-edit-modulos" ${isChecked('clientes')}> 👥 Clientes</label>
+                                    <label><input type="checkbox" value="cierre-caja" class="swal-edit-modulos" ${isChecked('cierre-caja')}> 🏧 Cierre Caja</label>
+                                </div>
+                            </div>`,
+                        showCancelButton: true, confirmButtonText: '💾 Guardar Cambios',
+                        preConfirm: () => {
+                            const rol = document.getElementById('swal-edit-rol').value;
+                            const modulos = Array.from(document.querySelectorAll('.swal-edit-modulos:checked')).map(cb => cb.value);
+                            return { rol, modulos };
                         }
-                    } else {
-                        if (window.firebaseOK) {
-                            await db.collection('usuarios_acceso').doc(id).update({ rol: nuevoRol });
-                            Toastify({ text: `✅ Rol en nube actualizado`, duration: 3000, backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
-                            this.cargarTodos();
-                        }
-                    }
-                } catch(error) {
-                    console.error('Error al actualizar rol:', error);
-                    Swal.fire('❌ Error', 'Hubo un problema al actualizar el rol.', 'error');
-                }
+                    });
+
+                    if (!formValues) return;
+                    await docRef.update({ rol: formValues.rol, modulos: formValues.rol === 'empleado' ? formValues.modulos : [] });
+                    Toastify({ text: '✅ Accesos actualizados', duration: 3000, backgroundColor: '#28a745' }).showToast();
+                    this.cargarTodos();
+                } catch(e) { Swal.fire('❌ Error', 'Hubo un error de conexión.', 'error'); }
             },
             mostrarModalAgregarLocal() {
                 const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
@@ -1913,23 +1866,28 @@
 
                         return { username, password, rol, modulos };
                     }
-                }).then(result => {
+                }).then(async result => {
                     if (!result.isConfirmed) return;
                     const { username, password, rol, modulos } = result.value;
-                    
-                    if (LocalUsers.agregar(username, password)) {
-                        const lista = LocalUsers.getAll();
-                        const user = lista.find(u => u.username.toLowerCase() === username.toLowerCase());
-                        if (user) {
-                            user.rol = rol;
-                            if (rol === 'empleado') user.modulos = modulos;
-                            LocalUsers._save(lista);
-                        }
+                    try {
+                        // Verificar si ya existe en Firebase
+                        const existe = await db.collection('usuarios_acceso').where('username', '==', username).get();
+                        if (!existe.empty) { Swal.fire('❌ Error', 'El usuario ya existe.', 'error'); return; }
                         
-                        Toastify({ text: `✅ Usuario "${username}" creado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#28a745,#20c997)' }).showToast();
-                        this.cargarLocales();
-                    } else {
-                        Swal.fire('❌ Error', `El usuario "${username}" ya existe.`, 'error');
+                        await db.collection('usuarios_acceso').add({
+                            tipo: 'local',
+                            nombre: username,
+                            username: username,
+                            password: password,
+                            rol: rol,
+                            modulos: rol === 'empleado' ? modulos : [],
+                            estado: 'aprobado', // Los creados por el admin nacen aprobados
+                            fechaSolicitud: new Date().toISOString()
+                        });
+                        Toastify({ text: `✅ Usuario "${username}" guardado en la nube`, duration: 3000, backgroundColor: '#28a745' }).showToast();
+                        this.cargarTodos();
+                    } catch (error) {
+                        Swal.fire('❌ Error', 'No se pudo guardar en la nube', 'error');
                     }
                 });
 
@@ -1989,7 +1947,7 @@
                     Estado.estadoCaja = data[11] || null;
                     Estado.categoriasCustom = data[12] || [];
 
-                    if (typeof GestionUsuarios !== 'undefined') GestionUsuarios.cargarLocales();
+
                     if (typeof UI !== 'undefined') UI.actualizarVistas();
                     if (typeof Inventario !== 'undefined') Inventario.actualizarTabla();
                     
