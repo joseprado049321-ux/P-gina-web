@@ -1645,7 +1645,9 @@
                     } else {
                         const data = snap.data();
                         if (data.estado === 'aprobado') {
-                            this.esAdmin = false; this.modoInvitado = false;
+                            this.esAdmin = (data.rol === 'admin'); 
+                            this.modoInvitado = false;
+                            this.usuarioActual = data;
                             localStorage.removeItem('superAdmin');
                             localStorage.setItem('tenantId', user.uid); localStorage.removeItem('superAdminTenant');
                             localStorage.setItem('sesionActiva', 'true');
@@ -1674,7 +1676,28 @@
                 this.aplicarRestricciones();
             },
             aplicarRestricciones() {
-                document.querySelectorAll('.solo-admin').forEach(el => { el.style.display = this.esAdmin ? '' : 'none'; });
+                // Si es administrador (o Súper Admin), forzamos que todos los botones sean visibles
+                if (this.esAdmin) {
+                    document.querySelectorAll('.sidebar-item').forEach(el => el.style.display = 'flex');
+                    return;
+                }
+
+                // Si es empleado, recuperamos sus permisos
+                const modulos = (this.usuarioActual && this.usuarioActual.modulos) ? this.usuarioActual.modulos : [];
+                
+                // Pestañas críticas prohibidas por defecto para empleados
+                const prohibidosSiempre = ['configuracion', 'usuarios', 'rentabilidad', 'reportes', 'gastos', 'resumen', 'compras', 'proveedores', 'cotizaciones'];
+
+                document.querySelectorAll('.sidebar-item').forEach(el => {
+                    const tabId = el.id.replace('sidebarTab-', '');
+                    if (prohibidosSiempre.includes(tabId)) {
+                        el.style.display = 'none';
+                    } else if (modulos.includes(tabId)) {
+                        el.style.display = 'flex';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                });
             },
             async cerrarSesion() {
                 if (window.firebaseOK) await firebase.auth().signOut();
