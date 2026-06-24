@@ -1465,6 +1465,10 @@
                             <input type="text" id="conf-propietario" placeholder="Ej: Juan Pérez">
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label>🔑 Identificador de Tienda (Para vincular empleados)</label>
+                        <input type="text" id="conf-store-id" readonly style="background:var(--bg-body); font-weight:bold; color:var(--primary); letter-spacing:1.5px; cursor:copy; border:1px dashed var(--primary);" onclick="navigator.clipboard.writeText(this.value); Toastify({text:'Copiado al portapapeles', duration:2000, backgroundColor:'#28a745'}).showToast();" title="Haz clic para copiar">
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Dirección del Local</label>
@@ -1653,45 +1657,101 @@
                 if (!auto) this._notificar("👤 Modo Invitado: solo datos locales", "#6c757d");
             },
             async manejarAcceso(user) {
-                this.usuarioActual = user;
-                if (user.email === this.ADMIN_EMAIL) {
-                    this.esAdmin = true; this.modoInvitado = false;
-                    localStorage.setItem('superAdmin', 'true');
-                    localStorage.setItem('sesionActiva', 'true');
-                    this.cargarEmpresas();
-                    this.mostrarPantallaPrincipal();
-                    this._notificar(`👑 Bienvenido Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
-                    return;
-                }
-                if (!window.firebaseOK) { this._mostrarPantalla('denied-screen'); return; }
+                const isSuperAdminAccount = (user.email === this.ADMIN_EMAIL);
+                if (isSuperAdminAccount) localStorage.setItem('superAdmin', 'true');
+                
                 try {
                     const docRef = db.collection('usuarios_acceso').doc(user.uid);
-                    const snap = await docRef.get();
-                    if (!snap.exists) {
-                        await docRef.set({ uid: user.uid, email: user.email, nombre: user.displayName || '', foto: user.photoURL || '', estado: 'pendiente', fechaSolicitud: new Date().toISOString(), fechaRespuesta: null });
-                        this._mostrarPantalla('pending-screen');
-                        document.getElementById('pending-user-info').innerHTML = `<strong>📧 ${user.email}</strong><br>${user.displayName || ''}<br><br>Tu solicitud fue enviada al administrador.`;
-                        this._notificar("⏳ Solicitud enviada", "#fd7e14");
-                    } else {
-                        const data = snap.data();
-                        if (data.estado === 'aprobado') {
-                            this.esAdmin = (data.rol === 'admin'); 
-                            this.modoInvitado = false;
-                            this.usuarioActual = data;
-                            localStorage.removeItem('superAdmin');
-                            localStorage.setItem('tenantId', user.uid); localStorage.removeItem('superAdminTenant');
-                            localStorage.setItem('sesionActiva', 'true');
-                            this.mostrarPantallaPrincipal();
-                            this._notificar(`✅ Bienvenido, ${user.displayName || user.email}`, "linear-gradient(to right,#00b09b,#96c93d)");
-                        } else if (data.estado === 'rechazado') {
-                            this._mostrarPantalla('denied-screen');
-                            document.getElementById('denied-user-info').innerHTML = `<strong>📧 ${user.email}</strong><br>Tu acceso fue denegado.`;
-                        } else {
-                            this._mostrarPantalla('pending-screen');
-                            document.getElementById('pending-user-info').innerHTML = `<strong>📧 ${user.email}</strong><br>Tu solicitud sigue pendiente.`;
+                    const docSnap = await docRef.get();
+
+                    if (!docSnap.exists) {
+                        const { value: tipoUsuario } = await Swal.fire({
+                            title: '👋 ¡Bienvenido a NexPOS!',
+                            text: '¿Qué tipo de cuenta deseas crear?',
+                            icon: 'question',
+                            showDenyButton: true, showCancelButton: true,
+                            confirmButtonText: '🏢 Soy Dueño', denyButtonText: '👤 Soy Empleado', cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#2B56A5', denyButtonColor: '#10B981', allowOutsideClick: false
+                        });
+
+                        if (!tipoUsuario && tipoUsuario !== false) { await firebase.auth().signOut(); return; }
+
+                        if (tipoUsuario) { 
+                            // Es Dueño
+                            await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'admin', estado: 'pendiente', tenantId: user.uid, fechaCreacion: new Date().toISOString() });
+                            this._mostrarPantallaPendiente('pendiente', user.email);
+                        } else { 
+                            // Es Empleado
+                            const { value: codigoTienda } = await Swal.fire({
+                                title: '🔗 Conectar a Tienda',
+                                text: 'Ingresa el Identificador que te proporcionó el administrador:',
+                                input: 'text', inputPlaceholder: 'Ej: NEX-ABCD-1234',
+                                showCancelButton: true, confirmButtonText: 'Siguiente',
+                                preConfirm: async (codigo) => {
+                                    if(!codigo) { Swal.showValidationMessage('Ingresa un código'); return false; }
+                                    const snapshot = await db.collection('empresas').where('storeId', '==', codigo.trim().toUpperCase()).get();
+                                    if(snapshot.empty) { Swal.showValidationMessage('Identificador no válido'); return false; }
+                                    return snapshot.docs[0].id; // Retorna el tenantId del dueño
+                                }
+                            });
+
+                            if (codigoTienda) {
+                                await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'empleado', estado: 'pendiente', tenantId: codigoTienda, fechaCreacion: new Date().toISOString() });
+                                this._mostrarPantallaPendiente('pendiente', user.email);
+                            } else { await firebase.auth().signOut(); }
                         }
+                        return;
                     }
-                } catch(err) { this._mostrarPantalla('denied-screen'); }
+
+                    const data = docSnap.data();
+                    if (data.estado === 'pendiente' || data.estado === 'rechazado') { this._mostrarPantallaPendiente(data.estado, user.email); return; }
+
+                    if (data.estado === 'aprobado') {
+                        // Configuración inicial del Dueño aprobado
+                        if (data.rol === 'admin' && !data.storeId && !isSuperAdminAccount) {
+                            const { value: nombreTienda } = await Swal.fire({
+                                title: '🎉 ¡Cuenta Aprobada!',
+                                text: 'Ingresa el nombre de tu negocio para configurar tu espacio:',
+                                input: 'text', inputPlaceholder: 'Ej: Minimarket El Sol', allowOutsideClick: false, confirmButtonText: 'Comenzar 🚀',
+                                preConfirm: (val) => { if(!val) { Swal.showValidationMessage('Requerido'); return false; } return val.trim(); }
+                            });
+                            if (nombreTienda) {
+                                const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+                                const p1 = nombreTienda.replace(/[^A-Z]/ig, '').substring(0,4).toUpperCase().padEnd(4,'X');
+                                const storeId = `NEX-${p1}-${random}`;
+                                
+                                await docRef.update({ storeId: storeId, nombreTienda: nombreTienda });
+                                await db.collection('empresas').doc(user.uid).set({ storeId: storeId, nombreTienda: nombreTienda });
+                                data.storeId = storeId;
+                                
+                                await Swal.fire({ title: '🏢 Tu tienda está lista', html: `El identificador de tu tienda es:<br><b style="font-size:1.6em;color:#2B56A5;letter-spacing:2px;display:block;margin:15px 0;">${storeId}</b><span style="font-size:0.9em;color:#666;">Comparte este código con tus empleados para que se unan a tu tienda.</span>`, icon: 'success' });
+                            }
+                        }
+
+                        this.esAdmin = (data.rol === 'admin');
+                        this.usuarioActual = data;
+                        localStorage.setItem('sesionActiva', 'true');
+                        localStorage.setItem('tenantId', data.tenantId || user.uid);
+                        
+                        if (!isSuperAdminAccount) localStorage.removeItem('superAdminTenant');
+                        else if (typeof this.cargarEmpresas === 'function') this.cargarEmpresas();
+
+                        this.mostrarPantallaPrincipal();
+                        this._notificar(`✅ Bienvenido, ${data.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
+                        if (typeof Storage !== 'undefined') Storage.sincronizarDesdeFirebase();
+                    }
+                } catch (error) { console.error(error); Swal.fire('Error', 'Problema de conexión', 'error'); }
+            },
+            _mostrarPantallaPendiente(estado, email) {
+                if (estado === 'rechazado') {
+                    this._mostrarPantalla('denied-screen');
+                    const infoEl = document.getElementById('denied-user-info');
+                    if(infoEl) infoEl.innerHTML = `<strong>📧 ${email || ''}</strong><br>Tu acceso fue denegado.`;
+                } else {
+                    this._mostrarPantalla('pending-screen');
+                    const infoEl = document.getElementById('pending-user-info');
+                    if(infoEl) infoEl.innerHTML = `<strong>📧 ${email || ''}</strong><br>Tu solicitud sigue pendiente o fue enviada al administrador.`;
+                }
             },
             _mostrarPantalla(idVisible) {
                 ['login-screen','pending-screen','denied-screen','main-screen'].forEach(id => {
@@ -1770,8 +1830,24 @@
 
                 if (!window.firebaseOK || (typeof Auth !== 'undefined' && Auth.modoInvitado)) return;
                 try {
-                    const snap = await db.collection('usuarios_acceso').get();
-                    const todos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const isSuperAdmin = localStorage.getItem('superAdmin') === 'true';
+                    const curTenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId');
+                    let query;
+                    
+                    if (isSuperAdmin && (!curTenant || curTenant === 'super_admin')) {
+                        // Súper Admin ve a los Dueños para aprobarlos
+                        query = db.collection('usuarios_acceso').where('rol', '==', 'admin');
+                    } else {
+                        // Dueño normal ve a sus empleados
+                        query = db.collection('usuarios_acceso').where('tenantId', '==', curTenant);
+                    }
+                    const snap = await query.get();
+                    
+                    const todos = [];
+                    snap.docs.forEach(doc => {
+                        if (doc.id === curTenant || doc.id === Auth.usuarioActual?.uid) return;
+                        todos.push({ id: doc.id, ...doc.data() });
+                    });
                     const pendientes = todos.filter(u => u.estado === 'pendiente');
                     const aprobados = todos.filter(u => u.estado === 'aprobado');
                     const rechazados = todos.filter(u => u.estado === 'rechazado');
@@ -2466,6 +2542,11 @@
                 const colorInput = document.getElementById('conf-color'); if (colorInput) colorInput.value = data.colorPrincipal || '#2B56A5';
                 this.aplicarColor(data.colorPrincipal || '#2B56A5');
                 
+                if (Auth.usuarioActual && Auth.usuarioActual.storeId) { 
+                    const st = document.getElementById('conf-store-id'); 
+                    if (st) st.value = Auth.usuarioActual.storeId; 
+                }
+
                 return data;
             },
             
