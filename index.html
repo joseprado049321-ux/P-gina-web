@@ -1485,6 +1485,15 @@
                             <input type="text" id="conf-mensaje" placeholder="Ej: ¡Gracias por su compra, vuelva pronto!">
                         </div>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>🎨 Color Principal del Sistema</label>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <input type="color" id="conf-color" value="#2B56A5" oninput="ConfiguracionNegocio.aplicarColor(this.value)" style="width:55px; height:44px; padding:0; border:1px solid var(--border); border-radius:8px; cursor:pointer; background:transparent;">
+                                <button type="button" class="btn-secondary" onclick="document.getElementById('conf-color').value='#2B56A5'; ConfiguracionNegocio.aplicarColor('#2B56A5');" style="padding:10px 15px; font-size:13px; margin:0;">Restaurar Original</button>
+                            </div>
+                        </div>
+                    </div>
                     <div style="margin-top:15px;display:flex;gap:10px;">
                         <button onclick="ConfiguracionNegocio.guardar()" style="background:linear-gradient(135deg,#2B56A5,#1E3A6E);">💾 Guardar Configuración</button>
                     </div>
@@ -2338,6 +2347,38 @@
         // MÓDULO: CONFIGURACIÓN
         // ========================================
         const ConfiguracionNegocio = {
+            aplicarColor(hex) {
+                let styleEl = document.getElementById('custom-theme-style');
+                if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = 'custom-theme-style';
+                    document.head.appendChild(styleEl);
+                }
+                if (!hex || hex.toUpperCase() === '#2B56A5') {
+                    styleEl.innerHTML = '';
+                    return;
+                }
+                // Calcular una variante más oscura para los degradados
+                let c = hex.substring(1);
+                let r = Math.max(0, parseInt(c.substring(0,2), 16) - 35).toString(16).padStart(2,'0');
+                let g = Math.max(0, parseInt(c.substring(2,4), 16) - 35).toString(16).padStart(2,'0');
+                let b = Math.max(0, parseInt(c.substring(4,6), 16) - 35).toString(16).padStart(2,'0');
+                let dark = '#' + r + g + b;
+
+                styleEl.innerHTML = `
+                    :root {
+                        --primary: ${hex} !important;
+                        --primary-dark: ${dark} !important;
+                        --bg-header: linear-gradient(135deg, ${dark} 0%, ${hex} 100%) !important;
+                        --bg-sidebar-hd: linear-gradient(135deg, ${dark} 0%, ${hex} 100%) !important;
+                        --bg-thead: linear-gradient(135deg, ${dark} 0%, ${hex} 100%) !important;
+                    }
+                    [data-theme="dark"] {
+                        --primary: ${hex} !important;
+                        --primary-dark: ${dark} !important;
+                    }
+                `;
+            },
             adaptarRubro(rubro) {
                 // Guardar la preferencia en el almacenamiento
                 localStorage.setItem('giroNegocio', rubro);
@@ -2410,7 +2451,8 @@
                     direccion: 'Huanta, Ayacucho',
                     documento: '___________________',
                     telefono: '',
-                    mensaje: '¡Gracias por su preferencia!'
+                    mensaje: '¡Gracias por su preferencia!',
+                    colorPrincipal: '#2B56A5'
                 };
                 
                 // Llena los campos visuales con la información
@@ -2420,6 +2462,9 @@
                 document.getElementById('conf-documento').value = data.documento;
                 document.getElementById('conf-telefono').value = data.telefono || '';
                 document.getElementById('conf-mensaje').value = data.mensaje || '¡Gracias por su preferencia!';
+                
+                const colorInput = document.getElementById('conf-color'); if (colorInput) colorInput.value = data.colorPrincipal || '#2B56A5';
+                this.aplicarColor(data.colorPrincipal || '#2B56A5');
                 
                 return data;
             },
@@ -2437,7 +2482,8 @@
                     direccion: document.getElementById('conf-direccion').value.trim(),
                     documento: document.getElementById('conf-documento').value.trim(),
                     telefono: document.getElementById('conf-telefono').value.trim(),
-                    mensaje: document.getElementById('conf-mensaje').value.trim()
+                    mensaje: document.getElementById('conf-mensaje').value.trim(),
+                    colorPrincipal: document.getElementById('conf-color').value
                 };
 
                 localStorage.setItem('configuracionNegocio', JSON.stringify(data));
@@ -5207,6 +5253,7 @@ const CierreCaja = {
         document.addEventListener('DOMContentLoaded', () => {
             Auth.init();
             ConfiguracionNegocio.inicializarRubro();
+            ConfiguracionNegocio.cargar();
             
             
             
