@@ -878,16 +878,6 @@
             <div id="registro" class="tab-content active">
                 <div class="success-msg" id="success-msg">✅ Venta registrada correctamente</div>
                 <form id="ventaForm">
-                    <div class="form-row">
-                        <div class="form-group"><label for="fecha">Fecha *</label><input type="date" id="fecha" required></div>
-                        <div class="form-group">
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-                                <label for="categoria" style="margin-bottom:0;">Categoría *</label>
-                                <button type="button" onclick="CategoriaCustom.agregar()" style="font-size:12px;padding:4px 11px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;font-weight:600;box-shadow:0 2px 6px rgba(16,185,129,0.3);">➕ Nueva categoría</button>
-                            </div>
-                            <select id="categoria" required><option value="">Seleccionar...</option><option>Laptops</option><option>Desktops</option><option>Accesorios</option><option>Periféricos</option><option>Componentes</option><option>Servicios</option><option>Otros</option></select>
-                        </div>
-                    </div>
                     <div class="form-group">
                         <label for="sku">SKU (Código de Producto)</label>
                         <div style="display:flex;gap:8px;align-items:center;">
@@ -914,59 +904,74 @@
                         <div class="form-group"><label for="cantidad">Cantidad *</label><input type="number" id="cantidad" min="1" value="1" required></div>
                         <div class="form-group"><label for="precio">Precio Unitario (S/) *</label><input type="number" id="precio" step="0.01" min="0" placeholder="0.00" required></div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group"><label for="total-display">Total a Pagar</label><input type="text" id="total-display" readonly style="background:#f0f0f0;font-weight:bold;font-size:1.1em;color:#4472C4;"></div>
-                        <div class="form-group"><label for="adelanto">Adelanto (S/)</label><input type="number" id="adelanto" step="0.01" min="0" placeholder="0.00" value="0"><small>Monto pagado inicialmente.</small></div>
-                    </div>
+                    <div class="form-group"><label for="total-display">Total a Pagar</label><input type="text" id="total-display" readonly style="background:#f0f0f0;font-weight:bold;font-size:1.1em;color:#4472C4;"></div>
+                    
                     <div class="form-group">
                         <div id="saldo-pendiente-display" style="background:#fff3cd;padding:15px;border-radius:8px;border:2px solid #ffc107;display:none;margin-top:10px;">
                             <strong style="color:#856404;">Saldo Pendiente: <span id="saldo-valor">S/0.00</span></strong>
                         </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>DNI del Cliente</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="number" id="dniInput" placeholder="8 dígitos" style="flex: 1;">
-                                <button type="button" id="btnConsultarDNI" style="padding: 5px 15px; background: #4472C4; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                                    🔍 Consultar
-                                </button>
+
+                    <button type="button" id="btn-toggle-avanzado" class="btn-secondary" style="width:100%; margin-bottom:15px; text-align:left; background:var(--bg-surface2); color:var(--text-primary); border:1px dashed var(--primary);" onclick="const el=document.getElementById('pos-campos-avanzados'); el.style.display=el.style.display==='none'?'block':'none';">⚙️ Opciones Avanzadas (Boleta, DNI, Fecha...)</button>
+                    
+                    <div id="pos-campos-avanzados" style="display:none; padding:15px; background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; margin-bottom:20px;">
+                        <div class="form-row">
+                            <div class="form-group"><label for="fecha">Fecha</label><input type="date" id="fecha"></div>
+                            <div class="form-group">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                    <label for="categoria" style="margin-bottom:0;">Categoría</label>
+                                    <button type="button" onclick="CategoriaCustom.agregar()" style="font-size:12px;padding:4px 11px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;font-weight:600;box-shadow:0 2px 6px rgba(16,185,129,0.3);">➕ Nueva categoría</button>
+                                </div>
+                                <select id="categoria"><option value="">Seleccionar...</option><option>Laptops</option><option>Desktops</option><option>Accesorios</option><option>Periféricos</option><option>Componentes</option><option>Servicios</option><option>Otros</option></select>
                             </div>
-                            <!-- Enlace para ingresar manualmente -->
-                            <div style="margin-top:6px;">
-                                <a href="#" id="btnIngresarManual" style="font-size:12px;color:var(--text-link);text-decoration:none;">
-                                    ✏️ ¿Sin DNI? Ingresar nombre manualmente
-                                </a>
-                            </div>
-                            <!-- Panel de ingreso manual (oculto por defecto) -->
-                            <div id="campos-manuales-dni" style="display:none;margin-top:10px;padding:12px;background:var(--bg-surface);border:1.5px dashed var(--border-focus);border-radius:var(--radius-md);">
-                                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">📝 Ingresa los datos del cliente manualmente:</p>
-                                <div style="display:flex;flex-direction:column;gap:8px;">
-                                    <input type="text" id="manual-nombres" placeholder="Nombres (Ej: JOSE ENRIQUE)" style="font-size:13px;">
-                                    <div style="display:flex;gap:8px;">
-                                        <input type="text" id="manual-ap-paterno" placeholder="Apellido Paterno" style="font-size:13px;flex:1;">
-                                        <input type="text" id="manual-ap-materno" placeholder="Apellido Materno" style="font-size:13px;flex:1;">
-                                    </div>
-                                    <button type="button" id="btnAplicarManual" style="padding:8px;font-size:13px;background:linear-gradient(135deg,#10B981,#059669);color:white;border:none;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;">
-                                        ✅ Aplicar nombre
+                        </div>
+                        <div class="form-group"><label for="adelanto">Adelanto (S/)</label><input type="number" id="adelanto" step="0.01" min="0" placeholder="0.00" value="0"><small>Monto pagado inicialmente.</small></div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>DNI del Cliente</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="dniInput" placeholder="8 dígitos" style="flex: 1;">
+                                    <button type="button" id="btnConsultarDNI" style="padding: 5px 15px; background: #4472C4; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                        🔍 Consultar
                                     </button>
                                 </div>
+                                <!-- Enlace para ingresar manualmente -->
+                                <div style="margin-top:6px;">
+                                    <a href="#" id="btnIngresarManual" style="font-size:12px;color:var(--text-link);text-decoration:none;">
+                                        ✏️ ¿Sin DNI? Ingresar nombre manualmente
+                                    </a>
+                                </div>
+                                <!-- Panel de ingreso manual (oculto por defecto) -->
+                                <div id="campos-manuales-dni" style="display:none;margin-top:10px;padding:12px;background:var(--bg-surface);border:1.5px dashed var(--border-focus);border-radius:var(--radius-md);">
+                                    <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">📝 Ingresa los datos del cliente manualmente:</p>
+                                    <div style="display:flex;flex-direction:column;gap:8px;">
+                                        <input type="text" id="manual-nombres" placeholder="Nombres (Ej: JOSE ENRIQUE)" style="font-size:13px;">
+                                        <div style="display:flex;gap:8px;">
+                                            <input type="text" id="manual-ap-paterno" placeholder="Apellido Paterno" style="font-size:13px;flex:1;">
+                                            <input type="text" id="manual-ap-materno" placeholder="Apellido Materno" style="font-size:13px;flex:1;">
+                                        </div>
+                                        <button type="button" id="btnAplicarManual" style="padding:8px;font-size:13px;background:linear-gradient(135deg,#10B981,#059669);color:white;border:none;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;">
+                                            ✅ Aplicar nombre
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="cliente">Nombre del Cliente</label>
+                                <input type="text" id="cliente" placeholder="Se rellenará solo..." autocomplete="off">
+                            </div>
+                            <div class="form-group"><label for="metodo">Método de Pago</label>
+                                <select id="metodo"><option value="">Seleccionar...</option><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option><option>Plin</option><option>Yape</option><option>Otro</option></select>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label for="cliente">Nombre del Cliente</label>
-                            <input type="text" id="cliente" placeholder="Se rellenará solo..." autocomplete="off">
-                        </div>
-                        <div class="form-group"><label for="metodo">Método de Pago</label>
-                            <select id="metodo"><option value="">Seleccionar...</option><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option><option>Plin</option><option>Yape</option><option>Otro</option></select>
+                        <div class="form-row">
+                            <div class="form-group"><label for="vendedor">Vendedor</label><input type="text" id="vendedor" placeholder="Nombre del vendedor"></div>
+                            <div class="form-group"><label for="notas">Notas</label><input type="text" id="notas" placeholder="Información adicional"></div>
                         </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group"><label for="vendedor">Vendedor</label><input type="text" id="vendedor" placeholder="Nombre del vendedor"></div>
-                        <div class="form-group"><label for="notas">Notas</label><input type="text" id="notas" placeholder="Información adicional"></div>
-                    </div>
+
                     <div style="margin-top:30px;">
-                        <button type="submit">💾 Guardar Venta</button>
+                        <button type="submit"><span id="btn-submit-text">💾 Guardar Venta</span></button>
                         <button type="button" class="btn-secondary" onclick="Ventas.limpiarFormulario()">🔄 Limpiar</button>
                     </div>
                 </form>
@@ -2069,6 +2074,27 @@
         const Ventas = {
             init() {
                 document.getElementById('ventaForm').addEventListener('submit', (e) => this.registrarVenta(e));
+
+                document.getElementById('sku').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const sku = e.target.value.trim().toUpperCase();
+                        if (!sku) return;
+                        const item = Estado.inventario.find(i => i.sku === sku);
+                        if (item) {
+                            document.getElementById('producto').value = item.nombre;
+                            const costoInfo = Estado.costosProductos[sku];
+                            const precio = costoInfo ? costoInfo.precioVenta : 0;
+                            document.getElementById('precio').value = precio.toFixed(2);
+                            document.getElementById('cantidad').value = 1;
+                            document.getElementById('total-display').value = `S/${precio.toFixed(2)}`;
+                            document.querySelector('#ventaForm button[type="submit"]').focus();
+                        } else {
+                            Toastify({text: "⚠️ SKU no encontrado", backgroundColor: "#dc3545"}).showToast();
+                        }
+                    }
+                });
+
                 const calcularTotal = () => {
                     const cantidad = parseFloat(document.getElementById('cantidad').value) || 0;
                     const precio = parseFloat(document.getElementById('precio').value) || 0;
@@ -2091,6 +2117,43 @@
             },
             async registrarVenta(e) {
                 e.preventDefault();
+
+                if (!document.getElementById('fecha').value) document.getElementById('fecha').valueAsDate = new Date();
+                if (!document.getElementById('categoria').value) document.getElementById('categoria').value = 'Otros';
+                if (!document.getElementById('cliente').value) document.getElementById('cliente').value = 'Público General';
+
+                const giro = localStorage.getItem('giroNegocio') || 'tecnico';
+                if (giro === 'general') {
+                    const totalVenta = (parseFloat(document.getElementById('precio').value) || 0) * (parseInt(document.getElementById('cantidad').value) || 1);
+                    const { value: posData, isConfirmed } = await Swal.fire({
+                        title: '💵 Cobro Rápido',
+                        html: `
+                            <div style="font-size:2.2em; font-weight:800; color:#2B56A5; margin-bottom:15px; font-family:'Poppins',sans-serif;">Total: S/${totalVenta.toFixed(2)}</div>
+                            <label style="display:block;text-align:left;font-weight:600;margin-bottom:5px;">Método de Pago:</label>
+                            <select id="swal-pos-metodo" class="swal2-input" style="width:100%;margin:0;" onchange="const isEf = this.value==='Efectivo'; document.getElementById('swal-pos-efectivo-container').style.display = isEf ? 'block' : 'none';">
+                                <option value="Efectivo">💵 Efectivo</option>
+                                <option value="Yape">📱 Yape / Plin</option>
+                                <option value="Tarjeta">💳 Tarjeta</option>
+                            </select>
+                            <div id="swal-pos-efectivo-container" style="display:block; text-align:left; margin-top:15px; background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e9ecef;">
+                                <label style="display:block;font-weight:600;margin-bottom:5px;">¿Con cuánto paga? (S/)</label>
+                                <input type="number" id="swal-pos-paga" class="swal2-input" style="width:100%;margin:0;font-size:1.2em;font-weight:bold;color:#28a745;" step="0.01" min="${totalVenta}" placeholder="Ej: 50" oninput="const paga=parseFloat(this.value)||0; const vuelto=paga-${totalVenta}; const el=document.getElementById('swal-pos-vuelto'); el.textContent = vuelto>=0 ? 'S/'+vuelto.toFixed(2) : 'S/0.00'; el.style.color = vuelto>=0 ? '#28a745' : '#dc3545';">
+                                <div style="margin-top:10px; font-size:1.6em; font-weight:800;">VUELTO: <span id="swal-pos-vuelto" style="color:#dc3545;">S/0.00</span></div>
+                            </div>`,
+                        showCancelButton: true, confirmButtonText: '✅ Confirmar Pago (Enter)', cancelButtonText: 'Cancelar', confirmButtonColor: '#28a745',
+                        didOpen: () => { setTimeout(() => document.getElementById('swal-pos-paga').focus(), 100); },
+                        preConfirm: () => {
+                            const met = document.getElementById('swal-pos-metodo').value.replace('📱 ', '').replace('💳 ', '').replace('💵 ', '').trim();
+                            const paga = parseFloat(document.getElementById('swal-pos-paga').value) || 0;
+                            if (met === 'Efectivo' && paga < totalVenta) { Swal.showValidationMessage('El monto pagado es insuficiente'); return false; }
+                            return { metodo: met, paga: met === 'Efectivo' ? paga : totalVenta };
+                        }
+                    });
+                    
+                    if (!isConfirmed) return;
+                    document.getElementById('metodo').value = posData.metodo;
+                }
+
                 const metodoPago = document.getElementById('metodo').value;
                 let sku = document.getElementById('sku').value.trim();
                 const cantidad = parseInt(document.getElementById('cantidad').value);
@@ -2263,6 +2326,30 @@
                 // Guardar la preferencia en el almacenamiento
                 localStorage.setItem('giroNegocio', rubro);
                 
+                // ========================================
+                // Lógica del Modo Híbrido (Cobro Rápido)
+                // ========================================
+                const btnSubmitText = document.getElementById('btn-submit-text');
+                const btnToggleAdv = document.getElementById('btn-toggle-avanzado');
+                const camposAdv = document.getElementById('pos-campos-avanzados');
+                const panelSkuBotones = document.querySelector('#sku') ? document.querySelector('#sku').nextElementSibling : null;
+
+                if (btnSubmitText && btnToggleAdv && camposAdv) {
+                    if (rubro === 'general') {
+                        btnToggleAdv.style.display = 'block';
+                        camposAdv.style.display = 'none';
+                        btnSubmitText.textContent = '💵 COBRAR (Enter)';
+                        btnSubmitText.parentElement.style.background = 'linear-gradient(135deg, #28a745, #15803D)';
+                        if (panelSkuBotones) panelSkuBotones.style.display = 'none';
+                    } else {
+                        btnToggleAdv.style.display = 'none';
+                        camposAdv.style.display = 'block';
+                        btnSubmitText.textContent = '💾 Guardar Venta';
+                        btnSubmitText.parentElement.style.background = '';
+                        if (panelSkuBotones) panelSkuBotones.style.display = 'flex';
+                    }
+                }
+
                 // Buscar el botón o pestaña de Ordenes de Servicio en la barra lateral
                 const tabSoporte = document.getElementById('sidebarTab-ordenes-servicio');
                 
