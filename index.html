@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <link rel="icon" href="logo.png" type="image/png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232B56A5%22/><circle cx=%2250%22 cy=%2250%22 r=%2225%22 fill=%22white%22/></svg>" type="image/svg+xml">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Registro de Ventas - Tecnología (Integrado)</title>
+    <title>NexPOS | Punto de Venta Inteligente</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -787,8 +787,16 @@
 
     <div id="login-screen" class="login-container">
         <div class="login-box">
-            <h1>🔐 Iniciar Sesión</h1>
-            <p>Sistema de Registro de Ventas</p>
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; font-family:'Poppins', sans-serif; user-select:none; margin-bottom:20px;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="4" width="20" height="16" rx="4" fill="#2B56A5"/>
+                    <circle cx="12" cy="12" r="4" fill="#ffffff"/>
+                    <path d="M6 12H8M16 12H18" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <div style="font-size:28px; font-weight:800; letter-spacing:-1px;">
+                    <span style="color:var(--text-primary, #333);">Nex</span><span style="color:#2B56A5;">POS</span>
+                </div>
+            </div>
             <button onclick="Auth.loginConGoogle()" style="background:#4285F4;color:white;border:none;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:10px;">
                 <img src="https://cdn-icons-png.flaticon.com/512/2991/2991148.png" width="18"> Ingresar con Google
             </button>
@@ -823,8 +831,16 @@
         <div class="container">
             <header>
                 <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú">☰</button>
-                <h1>📊 Sistema de Registro de Ventas</h1>
-                <p>Gestión de Productos</p>
+                <div style="display:flex; align-items:center; justify-content:center; gap:10px; font-family:'Poppins', sans-serif; user-select:none; margin-bottom:10px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="2" y="4" width="20" height="16" rx="4" fill="#2B56A5"/>
+                        <circle cx="12" cy="12" r="4" fill="#ffffff"/>
+                        <path d="M6 12H8M16 12H18" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <div style="font-size:28px; font-weight:800; letter-spacing:-1px;">
+                        <span style="color:#ffffff;">Nex</span><span style="color:#8bb4f7;">POS</span>
+                    </div>
+                </div>
                 <div id="panel-superadmin" class="solo-admin" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.3);">
                     <span style="font-size:13px; font-weight:600; margin-right:8px;">🏢 Supervisar empresa:</span>
                     <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(0,0,0,0.2); color:white; border:1px solid rgba(255,255,255,0.4); font-family:'Poppins', sans-serif; cursor:pointer; outline:none; max-width:250px;">
@@ -2387,9 +2403,9 @@
                 this.adaptarRubro(rubroGuardado);
             },
             cargar() {
-                // Carga los datos guardados o pone tus datos de iNextTech por defecto
+                // Carga los datos guardados o pone tus datos de NexPOS por defecto
                 const data = JSON.parse(localStorage.getItem('configuracionNegocio')) || {
-                    nombre: 'iNextTech',
+                    nombre: 'NexPOS',
                     propietario: 'Jose A. Lisboa Prado',
                     direccion: 'Huanta, Ayacucho',
                     documento: '___________________',
