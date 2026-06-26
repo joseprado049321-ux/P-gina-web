@@ -2089,7 +2089,7 @@
 
                 claves.forEach(clave => {
                     tenantRef.doc(clave).onSnapshot(docSnap => {
-                        const data = docSnap.exists ? docSnap.data().data : null;
+                        const data = docSnap.exists ? docSnap.data().datos : null;
                         
                         // Mapeo dinámico al objeto Estado
                         if (clave === 'categoriasCustom') {
