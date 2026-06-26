@@ -842,10 +842,15 @@
                     </div>
                 </div>
                 <div id="panel-superadmin" class="solo-admin" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.3);">
-                    <span style="font-size:13px; font-weight:600; margin-right:8px;">🏢 Supervisar empresa:</span>
-                    <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(0,0,0,0.2); color:white; border:1px solid rgba(255,255,255,0.4); font-family:'Poppins', sans-serif; cursor:pointer; outline:none; max-width:250px;">
-                        <option value="">Cargando clientes...</option>
-                    </select>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;">
+                        <span style="font-size:13px; font-weight:600; margin-right:4px;">🏢 Supervisar:</span>
+                        <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(0,0,0,0.2); color:white; border:1px solid rgba(255,255,255,0.4); font-family:'Poppins', sans-serif; cursor:pointer; outline:none; max-width:220px;">
+                            <option value="">Cargando clientes...</option>
+                        </select>
+                        <button id="btn-respaldo-global" onclick="BackupManager.descargarRespaldoGlobal()" style="background:linear-gradient(135deg,#10B981,#059669); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.3);">📥 Respaldo Global</button>
+                        <button onclick="document.getElementById('fileRestoreTenant').click()" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">⚠️ Restaurar Tienda</button>
+                        <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
+                    </div>
                 </div>
                 <button class="logout-btn" onclick="Auth.cerrarSesion()">🚪 Cerrar Sesión</button>
                 <button id="theme-toggle-btn" onclick="ThemeManager.toggle()" title="Cambiar modo">
@@ -883,6 +888,7 @@
                     <button class="sidebar-item solo-admin" id="sidebarTab-cotizaciones" onclick="SidebarMenu.selectTab('cotizaciones')"><span class="item-left"><span class="item-icon">📄</span> Cotizaciones</span><span class="arrow">›</span></button>
                     <button class="sidebar-item" id="sidebarTab-cierre-caja" onclick="SidebarMenu.selectTab('cierre-caja')"><span class="item-left"><span class="item-icon">🏧</span> Cierre de Caja</span><span class="arrow">›</span></button>
                     <button class="sidebar-item solo-admin" id="sidebarTab-usuarios" onclick="SidebarMenu.selectTab('usuarios')"><span class="item-left"><span class="item-icon">👨‍💼</span> Gestión de Usuarios</span><span class="arrow">›</span></button>
+                    <button class="sidebar-item solo-admin" id="sidebarTab-papelera" onclick="SidebarMenu.selectTab('papelera')"><span class="item-left"><span class="item-icon">🗑️</span> Papelera</span><span class="arrow">›</span></button>
                 </div>
             </nav>
 
@@ -1457,12 +1463,24 @@
                 <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Estos datos aparecerán en los encabezados de las boletas y reportes generados por el sistema.</p>
                 
                 <div style="background:var(--bg-card);padding:25px;border-radius:12px;border:1px solid var(--border);max-width:800px;">
-                    <div style="margin-bottom:15px;">
-                        <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
-                        <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
-                            <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
-                            <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
-                        </select>
+                    <div class="form-row" style="margin-bottom:15px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
+                            <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
+                                <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
+                                <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">🛡️ Frecuencia de Respaldo</label>
+                            <select id="conf-backup-freq" class="swal2-input" style="margin:0;width:100%;">
+                                <option value="1">Diario</option>
+                                <option value="7">Semanal</option>
+                                <option value="15">Quincenal</option>
+                                <option value="30">Mensual</option>
+                                <option value="0">Nunca</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -2135,6 +2153,7 @@
                 setTimeout(() => {
                     const loader = document.getElementById('loading-overlay'); // Ajusta el ID si usas otro
                     if (loader) loader.style.display = 'none';
+                    if (typeof BackupManager !== 'undefined') BackupManager.verificarRespaldoDiario();
                 }, 1000);
             }
         };
@@ -2568,6 +2587,7 @@
                 f('config-giro-negocio', data.giro); f('conf-nombre', data.nombre); f('conf-propietario', data.propietario);
                 f('conf-direccion', data.direccion); f('conf-documento', data.documento); f('conf-telefono', data.telefono);
                 f('conf-mensaje', data.mensaje); f('conf-color', data.colorPrincipal);
+                f('conf-backup-freq', data.respaldoFrecuencia || '1');
 
                 const activeTenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId');
                 if (activeTenant && window.firebaseOK) {
@@ -2598,7 +2618,8 @@
                     direccion: document.getElementById('conf-direccion').value.trim(),
                     documento: document.getElementById('conf-documento').value.trim(),
                     telefono: document.getElementById('conf-telefono').value.trim(),
-                    mensaje: document.getElementById('conf-mensaje').value.trim()
+                    mensaje: document.getElementById('conf-mensaje').value.trim(),
+                    respaldoFrecuencia: document.getElementById('conf-backup-freq').value
                 };
                 await Firebase.guardar('configuracion', Estado.configuracion);
                 Toastify({ text: '✅ Configuración guardada en la nube', duration: 3000, backgroundColor: '#28a745' }).showToast();
@@ -3150,6 +3171,117 @@
 
 
 
+        const Papelera = {
+            cargar() { return Estado.papelera || []; },
+            async guardar(data) { Estado.papelera = data; await Firebase.guardar('papelera', data); },
+            async moverA(modulo, item, descripcion) {
+                const p = this.cargar();
+                p.unshift({ idPapelera: Date.now().toString(), modulo, descripcion, fechaBorrado: new Date().toISOString(), itemData: item });
+                await this.guardar(p);
+            },
+            async recuperar(idPapelera) {
+                const p = this.cargar();
+                const idx = p.findIndex(x => x.idPapelera === idPapelera);
+                if (idx === -1) return;
+                const registro = p[idx];
+                if (Array.isArray(Estado[registro.modulo])) {
+                    Estado[registro.modulo].unshift(registro.itemData);
+                    const capitalizado = registro.modulo.charAt(0).toUpperCase() + registro.modulo.slice(1);
+                    if (typeof Storage[`guardar${capitalizado}`] === 'function') await Storage[`guardar${capitalizado}`]();
+                    else await Firebase.guardar(registro.modulo, Estado[registro.modulo]);
+                }
+                p.splice(idx, 1); await this.guardar(p);
+                this.actualizarVista();
+                Toastify({ text: '✅ Elemento recuperado', duration: 3000, backgroundColor: '#28a745' }).showToast();
+                UI.actualizarVistas();
+            },
+            async borrarDefinitivo(idPapelera) {
+                const result = await Swal.fire({ title:'¿Borrar para siempre?', text:'Esta acción no tiene reversa.', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545' });
+                if (!result.isConfirmed) return;
+                const p = this.cargar().filter(x => x.idPapelera !== idPapelera);
+                await this.guardar(p); this.actualizarVista();
+            },
+            async vaciarTodo() {
+                const result = await Swal.fire({ title:'¿Vaciar papelera?', text:'Se perderán todos los elementos.', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545' });
+                if (!result.isConfirmed) return;
+                await this.guardar([]); this.actualizarVista();
+            },
+            actualizarVista() {
+                const c = document.getElementById('tabla-papelera'); if (!c) return;
+                const p = this.cargar();
+                if (!p.length) { c.innerHTML='<p style="text-align:center;color:#666;padding:40px;">La papelera está vacía.</p>'; return; }
+                c.innerHTML=`<table><thead><tr><th>Fecha Borrado</th><th>Módulo</th><th>Descripción del Elemento</th><th>Acciones</th></tr></thead><tbody>`+
+                    p.map(x=>{
+                        const [y,m,d] = x.fechaBorrado.slice(0,10).split('-');
+                        return `<tr><td>${d}/${m}/${y}</td><td><span class="badge badge-info">${x.modulo.toUpperCase()}</span></td>
+                            <td style="font-weight:600;">${x.descripcion}</td>
+                            <td><button class="small-btn" onclick="Papelera.recuperar('${x.idPapelera}')" style="background:#28a745;">♻️ Recuperar</button>
+                            <button class="delete-btn" onclick="Papelera.borrarDefinitivo('${x.idPapelera}')">🗑️</button></td></tr>`;
+                    }).join('')+`</tbody></table>`;
+            }
+        };
+
+        const BackupManager = {
+            verificarRespaldoDiario() {
+                if (Auth.esAdmin && localStorage.getItem('superAdmin') !== 'true') {
+                    const frec = parseInt((Estado.configuracion || {}).respaldoFrecuencia) || 1;
+                    if (frec === 0) return;
+                    const hoy = new Date().toISOString().slice(0, 10);
+                    const ultimo = localStorage.getItem('ultimoRespaldoDiario');
+                    if (!ultimo || Math.floor((new Date(hoy) - new Date(ultimo)) / (1000*60*60*24)) >= frec) {
+                        setTimeout(() => {
+                            Swal.fire({ title: '🛡️ Copia de Seguridad', text: 'Es momento de hacer un respaldo de seguridad de tu tienda.', icon: 'info', showCancelButton: true, confirmButtonText: '💾 Descargar', cancelButtonText: 'Saltar', confirmButtonColor: '#2B56A5' })
+                            .then(r => { localStorage.setItem('ultimoRespaldoDiario', hoy); if (r.isConfirmed) this.descargarRespaldoLocal(); });
+                        }, 3500);
+                    }
+                }
+            },
+            descargarRespaldoLocal() {
+                const nombre = (Estado.configuracion?.nombre || 'Tienda').replace(/[^a-z0-9]/gi, '_');
+                const datos = { metadata: { fecha: new Date().toISOString(), tipo: 'Local_Tenant' }, ventas: Estado.ventas, inventario: Estado.inventario, clientes: Estado.clientes, gastos: Estado.gastos, costos: Estado.costosProductos, ordenes: Estado.ordenesServicio, compras: Estado.compras, proveedores: Estado.proveedores, cotizaciones: Estado.cotizaciones, cierres: Estado.cierresCaja, devoluciones: Estado.devoluciones, configuracion: Estado.configuracion, papelera: Estado.papelera };
+                const blob = new Blob([JSON.stringify(datos, null, 2)], {type: 'application/json'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Respaldo_${nombre}_${new Date().toISOString().slice(0,10)}.json`; a.click();
+            },
+            async descargarRespaldoGlobal() {
+                if (localStorage.getItem('superAdmin') !== 'true') return;
+                const btn = document.getElementById('btn-respaldo-global');
+                const ot = btn.innerHTML; btn.innerHTML = '⏳ Extrayendo...'; btn.disabled = true;
+                try {
+                    const bk = { metadata: { fecha: new Date().toISOString(), version: "1.0" }, usuarios: [], empresas: {} };
+                    const users = await db.collection('usuarios_acceso').get();
+                    users.forEach(doc => bk.usuarios.push({id: doc.id, ...doc.data()}));
+                    const empresas = await db.collection('empresas').get();
+                    for (const doc of empresas.docs) {
+                        const tId = doc.id; bk.empresas[tId] = { info: doc.data(), colecciones: {} };
+                        for (const col of ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','configuracion','papelera']) {
+                            const cSnap = await db.collection('empresas').doc(tId).collection('datos').doc(col).get();
+                            if (cSnap.exists) bk.empresas[tId].colecciones[col] = cSnap.data().datos || cSnap.data().data;
+                        }
+                    }
+                    const blob = new Blob([JSON.stringify(bk, null, 2)], {type: 'application/json'});
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `NexPOS_MasterBackup_${new Date().toISOString().slice(0,10)}.json`; a.click();
+                    Swal.fire('✅ Respaldo Maestro Exitoso', 'Se extrajo la copia de todas las tiendas.', 'success');
+                } catch (e) { Swal.fire('Error', e.message, 'error'); } finally { btn.innerHTML = ot; btn.disabled = false; }
+            },
+            restaurarTenant(event) {
+                const file = event.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const datos = JSON.parse(e.target.result);
+                        if (datos.metadata?.tipo !== 'Local_Tenant') throw new Error('Archivo de respaldo inválido.');
+                        const r = await Swal.fire({ title:'⚠️ REEMPLAZAR DATOS', text:'Se sobrescribirá TODA la base de la tienda actual. ¿Seguro?', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545' });
+                        if (!r.isConfirmed) return;
+                        Swal.fire({ title:'Restaurando...', allowOutsideClick:false, didOpen:()=>{Swal.showLoading()} });
+                        for (const col of ['ventas','inventario','clientes','gastos','costos','ordenes','proveedores','compras','devoluciones','cotizaciones','cierres','configuracion','papelera']) {
+                            if (datos[col]) await Firebase.guardar(col==='ordenes'?'ordenesServicio':col==='costos'?'costos':col==='cierres'?'cierresCaja':col, datos[col]);
+                        }
+                        await Swal.fire('✅ Éxito', 'Tienda restaurada por completo.', 'success'); location.reload();
+                    } catch(err) { Swal.fire('Error', err.message, 'error'); }
+                }; reader.readAsText(file); event.target.value = '';
+            }
+        };
+
         // Alias para retrocompatibilidad
         const Facturas = {
             generar(id) { Boletas.generarDesdeVenta(id); }
@@ -3321,7 +3453,7 @@
 
         const SidebarMenu = {
             currentTab: 'registro',
-            tabNames: { registro:'Registro',historial:'Historial',reportes:'Reportes',resumen:'Resumen',inventario:'Inventario',clientes:'Clientes','cuentas-cobrar':'Cuentas por Cobrar',gastos:'Gastos',rentabilidad:'Rentabilidad','ordenes-servicio':'Órdenes de Servicio',proveedores:'Proveedores',compras:'Compras',devoluciones:'Devoluciones',cotizaciones:'Cotizaciones','cierre-caja':'Cierre de Caja',usuarios:'Gestión de Usuarios', configuracion:'Configuración' },
+            tabNames: { registro:'Registro',historial:'Historial',reportes:'Reportes',resumen:'Resumen',inventario:'Inventario',clientes:'Clientes','cuentas-cobrar':'Cuentas por Cobrar',gastos:'Gastos',rentabilidad:'Rentabilidad','ordenes-servicio':'Órdenes de Servicio',proveedores:'Proveedores',compras:'Compras',devoluciones:'Devoluciones',cotizaciones:'Cotizaciones','cierre-caja':'Cierre de Caja',usuarios:'Gestión de Usuarios', configuracion:'Configuración', papelera:'Papelera de Reciclaje' },
             open() { document.getElementById('sidebarMenu').classList.add('open'); document.getElementById('menuOverlay').classList.add('open'); document.body.style.overflow='hidden'; },
             close() { document.getElementById('sidebarMenu').classList.remove('open'); document.getElementById('menuOverlay').classList.remove('open'); document.body.style.overflow=''; },
             toggle() { if (document.getElementById('sidebarMenu').classList.contains('open')) this.close(); else this.open(); },
@@ -3408,6 +3540,7 @@
                 if (tabId==='cotizaciones') { Cotizaciones.actualizarVista(); }
                 if (tabId==='cierre-caja') { CierreCaja.actualizarVista(); }
                 if (tabId==='configuracion') ConfiguracionNegocio.cargar();
+                if (tabId==='papelera' && typeof Papelera !== 'undefined') Papelera.actualizarVista();
             },
             actualizarVistas() {
                 if (this.actualizarAlertasInventario) this.actualizarAlertasInventario();
