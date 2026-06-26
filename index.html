@@ -2553,7 +2553,14 @@
                 f('conf-direccion', data.direccion); f('conf-documento', data.documento); f('conf-telefono', data.telefono);
                 f('conf-mensaje', data.mensaje); f('conf-color', data.colorPrincipal);
 
-                if (Auth.usuarioActual && Auth.usuarioActual.storeId) f('conf-store-id', Auth.usuarioActual.storeId);
+                const activeTenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId');
+                if (activeTenant && window.firebaseOK) {
+                    db.collection('empresas').doc(activeTenant).get().then(docSnap => {
+                        if (docSnap.exists && docSnap.data().storeId) {
+                            f('conf-store-id', docSnap.data().storeId);
+                        }
+                    }).catch(e => console.error("Error obteniendo storeId:", e));
+                }
 
                 this.adaptarRubro(data.giro);
                 if (this.aplicarColor) this.aplicarColor(data.colorPrincipal);
