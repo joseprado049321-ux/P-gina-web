@@ -1580,7 +1580,7 @@
         const Estado = {
             ventas: [], ventasFiltradas: [], inventario: [], clientes: [], gastos: [], costosProductos: {},
             ordenesServicio: [], proveedores: [], compras: [], devoluciones: [], cotizaciones: [], cierresCaja: [], estadoCaja: null,
-            metodoChart: null, graficos: { linea: null, pastel: null, area: null, barras: null, dona: null }
+            metodoChart: null, graficos: { linea: null, pastel: null, area: null, barras: null, dona: null }, configuracion: null
         };
 
         // ════════════════════════════════════════════════════════════════
@@ -2069,7 +2069,7 @@
                 }
 
                 try {
-                    const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom'];
+                    const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion'];
                     const data = await Promise.all(claves.map(c => Firebase.leer(c)));
 
                     Estado.ventas = this._normalizarVentas(data[0] || []);
@@ -2085,9 +2085,10 @@
                     Estado.cierresCaja = data[10] || [];
                     Estado.estadoCaja = data[11] || null;
                     Estado.categoriasCustom = data[12] || [];
-
+                    Estado.configuracion = data[13] || null;
 
                     if (typeof UI !== 'undefined') UI.actualizarVistas();
+                    if (typeof ConfiguracionNegocio !== 'undefined') ConfiguracionNegocio.cargar();
                     if (typeof Inventario !== 'undefined') Inventario.actualizarTabla();
                     
                     if (typeof Swal !== 'undefined') Swal.close();
@@ -2233,7 +2234,7 @@
                 if (!document.getElementById('categoria').value) document.getElementById('categoria').value = 'Otros';
                 if (!document.getElementById('cliente').value) document.getElementById('cliente').value = 'Público General';
 
-                const giro = localStorage.getItem('giroNegocio') || 'tecnico';
+                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
                 if (giro === 'general') {
                     const totalVenta = (parseFloat(document.getElementById('precio').value) || 0) * (parseInt(document.getElementById('cantidad').value) || 1);
                     const { value: posData, isConfirmed } = await Swal.fire({
@@ -2466,8 +2467,6 @@
                 `;
             },
             adaptarRubro(rubro) {
-                // Guardar la preferencia en el almacenamiento
-                localStorage.setItem('giroNegocio', rubro);
                 
                 // ========================================
                 // Lógica del Modo Híbrido (Cobro Rápido)
@@ -2521,73 +2520,40 @@
                     CategoriaCustom.cargarEnSelect();
                 }
             },
-
-            // Ejecuta esto siempre que inicie la aplicación o se cambie de pestaña
-            inicializarRubro() {
-                const rubroGuardado = localStorage.getItem('giroNegocio') || 'tecnico';
-                const selectGiro = document.getElementById('config-giro-negocio');
-                if (selectGiro) selectGiro.value = rubroGuardado;
-                this.adaptarRubro(rubroGuardado);
-            },
             cargar() {
-                // Carga los datos guardados o pone tus datos de NexPOS por defecto
-                const data = JSON.parse(localStorage.getItem('configuracionNegocio')) || {
-                    nombre: 'NexPOS',
-                    propietario: 'Jose A. Lisboa Prado',
-                    direccion: 'Huanta, Ayacucho',
-                    documento: '___________________',
-                    telefono: '',
-                    mensaje: '¡Gracias por su preferencia!',
-                    colorPrincipal: '#2B56A5'
+                const data = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion : {
+                    giro: 'tecnico', colorPrincipal: '#2B56A5', nombre: 'Mi Negocio', propietario: '', direccion: '', documento: '', telefono: '', mensaje: '¡Gracias por su preferencia!'
                 };
-                
-                // Llena los campos visuales con la información
-                document.getElementById('conf-nombre').value = data.nombre;
-                document.getElementById('conf-propietario').value = data.propietario;
-                document.getElementById('conf-direccion').value = data.direccion;
-                document.getElementById('conf-documento').value = data.documento;
-                document.getElementById('conf-telefono').value = data.telefono || '';
-                document.getElementById('conf-mensaje').value = data.mensaje || '¡Gracias por su preferencia!';
-                
-                const colorInput = document.getElementById('conf-color'); if (colorInput) colorInput.value = data.colorPrincipal || '#2B56A5';
-                this.aplicarColor(data.colorPrincipal || '#2B56A5');
-                
-                if (Auth.usuarioActual && Auth.usuarioActual.storeId) { 
-                    const st = document.getElementById('conf-store-id'); 
-                    if (st) st.value = Auth.usuarioActual.storeId; 
-                }
+                const f = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+                f('config-giro-negocio', data.giro); f('conf-nombre', data.nombre); f('conf-propietario', data.propietario);
+                f('conf-direccion', data.direccion); f('conf-documento', data.documento); f('conf-telefono', data.telefono);
+                f('conf-mensaje', data.mensaje); f('conf-color', data.colorPrincipal);
 
+                if (Auth.usuarioActual && Auth.usuarioActual.storeId) f('conf-store-id', Auth.usuarioActual.storeId);
+
+                this.adaptarRubro(data.giro);
+                if (this.aplicarColor) this.aplicarColor(data.colorPrincipal);
                 return data;
             },
-            
-            guardar() {
+            async guardar() {
                 const nombre = document.getElementById('conf-nombre').value.trim();
-                if (!nombre) {
-                    Swal.fire('Error', 'El nombre del negocio es obligatorio', 'error');
-                    return;
-                }
-
-                const data = {
+                if (!nombre) { Swal.fire('Error', 'El nombre del negocio es obligatorio', 'error'); return; }
+                Estado.configuracion = {
+                    giro: document.getElementById('config-giro-negocio').value,
+                    colorPrincipal: document.getElementById('conf-color') ? document.getElementById('conf-color').value : '#2B56A5',
                     nombre: nombre,
                     propietario: document.getElementById('conf-propietario').value.trim(),
                     direccion: document.getElementById('conf-direccion').value.trim(),
                     documento: document.getElementById('conf-documento').value.trim(),
                     telefono: document.getElementById('conf-telefono').value.trim(),
-                    mensaje: document.getElementById('conf-mensaje').value.trim(),
-                    colorPrincipal: document.getElementById('conf-color').value
+                    mensaje: document.getElementById('conf-mensaje').value.trim()
                 };
-
-                localStorage.setItem('configuracionNegocio', JSON.stringify(data));
-                
-                Toastify({ 
-                    text: '✅ Configuración actualizada', 
-                    duration: 3000, 
-                    gravity: 'top', 
-                    position: 'right', 
-                    backgroundColor: 'linear-gradient(135deg,#28a745,#20c997)' 
-                }).showToast();
+                await Firebase.guardar('configuracion', Estado.configuracion);
+                Toastify({ text: '✅ Configuración guardada en la nube', duration: 3000, backgroundColor: '#28a745' }).showToast();
             }
         };
+
+
 
         // ════════════════════════════════════════════════════════════════
         // MÓDULO: BOLETAS ELECTRÓNICAS
@@ -5201,7 +5167,7 @@ const CierreCaja = {
             },
 
             renderCampos() {
-                const giro = localStorage.getItem('giroNegocio') || 'tecnologia';
+                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
                 const configElegida = giro === 'general' ? this.configCampos.general : this.configCampos.tecnico;
                 this._fields = configElegida.map(c => c.id);
 
@@ -5219,7 +5185,7 @@ const CierreCaja = {
             },
 
             actualizarSugerencias() {
-                const giro = localStorage.getItem('giroNegocio') || 'tecnologia';
+                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
                 if (giro === 'general') {
                     this.suggestions = this.suggestionsGeneral;
                 } else {
@@ -5343,8 +5309,6 @@ const CierreCaja = {
         // ════════════════════════════════════════════════════════════════
         document.addEventListener('DOMContentLoaded', () => {
             Auth.init();
-            ConfiguracionNegocio.inicializarRubro();
-            ConfiguracionNegocio.cargar();
             
             
             
@@ -5406,7 +5370,7 @@ const CierreCaja = {
         const STORAGE_KEY = 'categorias_custom';
 
         function getDefaultCats() {
-            const giro = localStorage.getItem('giroNegocio') || 'tecnico';
+            const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
             if (giro === 'general') {
                 return ['Abarrotes', 'Ropa', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'];
             }
