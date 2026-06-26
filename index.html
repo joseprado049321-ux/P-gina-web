@@ -1441,6 +1441,15 @@
                 <div><h3 style="color:#dc3545;margin-bottom:15px;">🚫 Usuarios Rechazados</h3><div id="usuarios-rechazados-lista"><p style="text-align:center;color:#666;padding:20px;">Cargando...</p></div></div>
             </div>
             <!-- ===== TAB: CONFIGURACIÓN ===== -->
+                        <div id="papelera" class="tab-content">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                    <h2 style="color:#333;margin:0;">🗑️ Papelera de Reciclaje</h2>
+                    <button onclick="Papelera.vaciarTodo()" style="background:linear-gradient(135deg,#dc3545,#c82333);">🔥 Vaciar Papelera</button>
+                </div>
+                <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Los elementos eliminados se guardan aquí. Puedes recuperarlos o borrarlos definitivamente.</p>
+                <div id="tabla-papelera"></div>
+            </div>
+            
             <div id="configuracion" class="tab-content">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
                     <h2 style="color:#333;margin:0;">⚙️ Configuración del Negocio</h2>
@@ -1580,7 +1589,7 @@
         const Estado = {
             ventas: [], ventasFiltradas: [], inventario: [], clientes: [], gastos: [], costosProductos: {},
             ordenesServicio: [], proveedores: [], compras: [], devoluciones: [], cotizaciones: [], cierresCaja: [], estadoCaja: null,
-            metodoChart: null, graficos: { linea: null, pastel: null, area: null, barras: null, dona: null }, configuracion: null
+            metodoChart: null, graficos: { linea: null, pastel: null, area: null, barras: null, dona: null }, configuracion: null, papelera: []
         };
 
         // ════════════════════════════════════════════════════════════════
@@ -2085,7 +2094,7 @@
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
-                const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion'];
+                const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion', 'papelera'];
 
                 claves.forEach(clave => {
                     tenantRef.doc(clave).onSnapshot(docSnap => {
@@ -2415,6 +2424,7 @@
                 const result = await Swal.fire({ title:'¿Eliminar venta?', text:"Esta acción no se puede deshacer", icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545', cancelButtonColor:'#6c757d', confirmButtonText:'Sí, eliminar', cancelButtonText:'Cancelar' });
                 if (!result.isConfirmed) return;
                 const venta = Estado.ventas.find(v => v.id === id);
+                if (venta) await Papelera.moverA('ventas', venta, `Venta - Total: S/ ${venta.total || 0}`);
                 if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.guardarInventario(); } }
                 Estado.ventas = Estado.ventas.filter(v => v.id !== id);
                 await Storage.guardarVentas();
@@ -3230,6 +3240,8 @@
             async eliminarItem(idx) {
                 const r = await Swal.fire({ title:'¿Eliminar del inventario?', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545', cancelButtonColor:'#6c757d', confirmButtonText:'Sí, eliminar', cancelButtonText:'Cancelar' });
                 if (!r.isConfirmed) return;
+                const itemABorrar = Estado.inventario[idx];
+                if (itemABorrar) await Papelera.moverA('inventario', itemABorrar, `Producto: ${itemABorrar.nombre || itemABorrar.producto}`);
                 Estado.inventario.splice(idx,1);
                 await Storage.guardarInventario();
             },
@@ -3641,6 +3653,8 @@
             async eliminar(id) {
                 const r = await Swal.fire({ title:'¿Eliminar cliente?', text:'Esta acción no se puede deshacer.', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545', cancelButtonColor:'#6c757d', confirmButtonText:'Sí, eliminar', cancelButtonText:'Cancelar' });
                 if (!r.isConfirmed) return;
+                const itemABorrar = Estado.clientes.find(c => c.id === id);
+                if (itemABorrar) await Papelera.moverA('clientes', itemABorrar, `Cliente: ${itemABorrar.nombre}`);
                 Estado.clientes = Estado.clientes.filter(c=>c.id!==id);
                 await Storage.guardarClientes();
                 this.renderizarLista();
@@ -3702,6 +3716,8 @@
             async eliminar(id) {
                 const r = await Swal.fire({ title:'¿Eliminar gasto?', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc3545', cancelButtonColor:'#6c757d', confirmButtonText:'Sí, eliminar', cancelButtonText:'Cancelar' });
                 if (!r.isConfirmed) return;
+                const itemABorrar = Estado.gastos.find(g => g.id === id);
+                if (itemABorrar) await Papelera.moverA('gastos', itemABorrar, `Gasto: ${itemABorrar.descripcion} (S/ ${itemABorrar.monto})`);
                 Estado.gastos = Estado.gastos.filter(g=>g.id!==id);
                 await Storage.guardarGastos();
                 this.renderizarLista();
@@ -4053,6 +4069,8 @@
             async eliminarOrden(id) {
                 const r=await Swal.fire({title:'¿Eliminar orden?',icon:'warning',showCancelButton:true,confirmButtonColor:'#dc3545',cancelButtonColor:'#6c757d',confirmButtonText:'Sí, eliminar',cancelButtonText:'Cancelar'});
                 if(!r.isConfirmed) return;
+                const itemABorrar = this.cargar().find(x => x.id === id);
+                if (itemABorrar) await Papelera.moverA('ordenesServicio', itemABorrar, `Orden: ${itemABorrar.cliente} - ${itemABorrar.tipoEquipo}`);
                 await this.guardar(this.cargar().filter(o=>o.id!==id));
                 this.cargarYRenderizar();
                 Toastify({text:'🗑️ Orden eliminada',duration:2500,gravity:'top',position:'right',backgroundColor:'linear-gradient(to right,#dc3545,#c82333)'}).showToast();
