@@ -2081,46 +2081,52 @@
             async guardarGastos() { await Firebase.guardar('gastos', Estado.gastos); },
             async guardarCostos() { await Firebase.guardar('costos', Estado.costosProductos); },
             async sincronizarDesdeFirebase() {
-                if (!window.firebaseOK || Auth.modoInvitado) return;
-                
-                if (typeof Swal !== 'undefined' && !Swal.isVisible()) {
-                    Swal.fire({
-                        title: '☁️ Conectando con la nube...',
-                        text: 'Descargando datos de la empresa',
-                        allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading(); }
+                if (!window.firebaseOK) return;
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+
+                const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion'];
+
+                claves.forEach(clave => {
+                    tenantRef.doc(clave).onSnapshot(docSnap => {
+                        const data = docSnap.exists ? docSnap.data().data : null;
+                        
+                        // Mapeo dinámico al objeto Estado
+                        if (clave === 'categoriasCustom') {
+                            Estado.categoriasCustom = data || [];
+                        } else if (clave === 'configuracion') {
+                            Estado.configuracion = data || null;
+                            if (typeof ConfiguracionNegocio !== 'undefined') ConfiguracionNegocio.cargar();
+                        } else if (clave === 'costos') {
+                            Estado.costosProductos = data || {};
+                        } else if (clave === 'estadoCaja') {
+                            if (data) {
+                                Estado.cajaAbierta = data.abierta;
+                                Estado.datosCaja = data.datos;
+                            } else {
+                                Estado.cajaAbierta = false;
+                                Estado.datosCaja = null;
+                            }
+                        } else {
+                            Estado[clave] = data || [];
+                        }
+
+                        // Actualización reactiva de la interfaz (Debounce de 150ms para evitar parpadeos)
+                        clearTimeout(this._uiUpdateTimer);
+                        this._uiUpdateTimer = setTimeout(() => {
+                            if (typeof UI !== 'undefined' && UI.actualizarVistas) UI.actualizarVistas();
+                        }, 150);
+                        
+                    }, error => {
+                        console.error(`Error escuchando en tiempo real ${clave}:`, error);
                     });
-                }
-
-                try {
-                    const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion'];
-                    const data = await Promise.all(claves.map(c => Firebase.leer(c)));
-
-                    Estado.ventas = this._normalizarVentas(data[0] || []);
-                    Estado.inventario = data[1] || [];
-                    Estado.clientes = data[2] || [];
-                    Estado.gastos = data[3] || [];
-                    Estado.costosProductos = data[4] || {};
-                    Estado.ordenesServicio = data[5] || [];
-                    Estado.proveedores = data[6] || [];
-                    Estado.compras = data[7] || [];
-                    Estado.devoluciones = data[8] || [];
-                    Estado.cotizaciones = data[9] || [];
-                    Estado.cierresCaja = data[10] || [];
-                    Estado.estadoCaja = data[11] || null;
-                    Estado.categoriasCustom = data[12] || [];
-                    Estado.configuracion = data[13] || null;
-
-                    if (typeof UI !== 'undefined') UI.actualizarVistas();
-                    if (typeof ConfiguracionNegocio !== 'undefined') ConfiguracionNegocio.cargar();
-                    if (typeof Inventario !== 'undefined') Inventario.actualizarTabla();
-                    
-                    if (typeof Swal !== 'undefined') Swal.close();
-                    Toastify({ text:'☁️ Datos sincronizados', duration:2500, gravity:'top', position:'right', backgroundColor:'linear-gradient(to right,#4472C4,#2c5aa0)' }).showToast();
-                } catch(e) { 
-                    console.warn('Error sync:', e);
-                    if (typeof Swal !== 'undefined') Swal.fire('Error', 'No se pudieron sincronizar los datos: ' + e.message, 'error');
-                }
+                });
+                
+                // Ocultar cualquier pantalla de carga que tengas activa tras 1 segundo
+                setTimeout(() => {
+                    const loader = document.getElementById('loading-overlay'); // Ajusta el ID si usas otro
+                    if (loader) loader.style.display = 'none';
+                }, 1000);
             }
         };
 
