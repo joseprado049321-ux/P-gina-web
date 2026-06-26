@@ -1691,6 +1691,7 @@
                         if (tipoUsuario) { 
                             await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'admin', estado: 'pendiente', tenantId: user.uid, fechaCreacion: new Date().toISOString() });
                             this._mostrarPantalla('pending-screen');
+                            this._escucharAprobacion(docRef);
                         } else { 
                             const { value: codigoTienda } = await Swal.fire({
                                 title: '🔗 Conectar a Tienda',
@@ -1708,13 +1709,14 @@
                             if (codigoTienda) {
                                 await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'empleado', estado: 'pendiente', tenantId: codigoTienda, fechaCreacion: new Date().toISOString() });
                                 this._mostrarPantalla('pending-screen');
+                                this._escucharAprobacion(docRef);
                             } else { await firebase.auth().signOut(); }
                         }
                         return;
                     }
 
                     const data = docSnap.data();
-                    if (data.estado === 'pendiente') { this._mostrarPantalla('pending-screen'); return; }
+                    if (data.estado === 'pendiente') { this._mostrarPantalla('pending-screen'); this._escucharAprobacion(docRef); return; }
                     if (data.estado === 'rechazado') { this._mostrarPantalla('denied-screen'); return; }
 
                     if (data.estado === 'aprobado') {
@@ -1751,6 +1753,28 @@
                         if (typeof Storage !== 'undefined') Storage.sincronizarDesdeFirebase();
                     }
                 } catch (error) { console.error(error); Swal.fire('Error', 'Problema de conexión', 'error'); }
+            },
+            _escucharAprobacion(docRef) {
+                // onSnapshot mantiene una conexión abierta en tiempo real con la nube
+                const unsubscribe = docRef.onSnapshot((doc) => {
+                    const data = doc.data();
+                    if (data && data.estado === 'aprobado') {
+                        unsubscribe(); // Dejamos de escuchar para no consumir memoria
+                        Swal.fire({
+                            icon: 'success',
+                            title: '🎉 ¡Aprobado!',
+                            text: 'El administrador ha autorizado tu acceso. Preparando tu espacio...',
+                            timer: 2500,
+                            showConfirmButton: false,
+                            allowOutsideClick: false
+                        }).then(() => {
+                            location.reload(); // Recarga automática que disparará el prompt del nombre de la tienda
+                        });
+                    } else if (data && data.estado === 'rechazado') {
+                        unsubscribe();
+                        this._mostrarPantalla('denied-screen');
+                    }
+                });
             },
             _mostrarPantallaPendiente(estado, email) {
                 if (estado === 'rechazado') {
