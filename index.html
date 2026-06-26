@@ -1658,7 +1658,19 @@
             },
             async manejarAcceso(user) {
                 const isSuperAdminAccount = (user.email === this.ADMIN_EMAIL);
-                if (isSuperAdminAccount) localStorage.setItem('superAdmin', 'true');
+                
+                // 1. EL PASE VIP DEL SÚPER ADMIN (Evita que quede en "Pendiente")
+                if (isSuperAdminAccount) {
+                    localStorage.setItem('superAdmin', 'true');
+                    localStorage.setItem('sesionActiva', 'true');
+                    this.esAdmin = true;
+                    this.modoInvitado = false;
+                    this.usuarioActual = { email: user.email, nombre: user.displayName || 'Súper Admin', rol: 'admin', uid: user.uid };
+                    if (typeof this.cargarEmpresas === 'function') this.cargarEmpresas();
+                    this.mostrarPantallaPrincipal();
+                    this._notificar(`👑 Bienvenido Súper Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
+                    return; 
+                }
                 
                 try {
                     const docRef = db.collection('usuarios_acceso').doc(user.uid);
@@ -1677,11 +1689,9 @@
                         if (!tipoUsuario && tipoUsuario !== false) { await firebase.auth().signOut(); return; }
 
                         if (tipoUsuario) { 
-                            // Es Dueño
                             await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'admin', estado: 'pendiente', tenantId: user.uid, fechaCreacion: new Date().toISOString() });
-                            this._mostrarPantallaPendiente('pendiente', user.email);
+                            this._mostrarPantalla('pending-screen');
                         } else { 
-                            // Es Empleado
                             const { value: codigoTienda } = await Swal.fire({
                                 title: '🔗 Conectar a Tienda',
                                 text: 'Ingresa el Identificador que te proporcionó el administrador:',
@@ -1691,23 +1701,23 @@
                                     if(!codigo) { Swal.showValidationMessage('Ingresa un código'); return false; }
                                     const snapshot = await db.collection('empresas').where('storeId', '==', codigo.trim().toUpperCase()).get();
                                     if(snapshot.empty) { Swal.showValidationMessage('Identificador no válido'); return false; }
-                                    return snapshot.docs[0].id; // Retorna el tenantId del dueño
+                                    return snapshot.docs[0].id;
                                 }
                             });
 
                             if (codigoTienda) {
                                 await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'empleado', estado: 'pendiente', tenantId: codigoTienda, fechaCreacion: new Date().toISOString() });
-                                this._mostrarPantallaPendiente('pendiente', user.email);
+                                this._mostrarPantalla('pending-screen');
                             } else { await firebase.auth().signOut(); }
                         }
                         return;
                     }
 
                     const data = docSnap.data();
-                    if (data.estado === 'pendiente' || data.estado === 'rechazado') { this._mostrarPantallaPendiente(data.estado, user.email); return; }
+                    if (data.estado === 'pendiente') { this._mostrarPantalla('pending-screen'); return; }
+                    if (data.estado === 'rechazado') { this._mostrarPantalla('denied-screen'); return; }
 
                     if (data.estado === 'aprobado') {
-                        // Configuración inicial del Dueño aprobado
                         if (data.rol === 'admin' && !data.storeId && !isSuperAdminAccount) {
                             const { value: nombreTienda } = await Swal.fire({
                                 title: '🎉 ¡Cuenta Aprobada!',
