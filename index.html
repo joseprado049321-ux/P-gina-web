@@ -1837,8 +1837,8 @@
                     const select = document.getElementById('select-empresas');
                     if (!select) return;
                     select.innerHTML = '<option value="super_admin">Mi Espacio Principal</option>' + 
-                        snap.docs.filter(d => d.data().estado === 'aprobado')
-                        .map(d => `<option value="${d.data().uid}">${d.data().email} (${d.data().nombre || 'Sin nombre'})</option>`).join('');
+                        snap.docs.filter(d => d.data().estado === 'aprobado' && d.data().rol === 'admin')
+                        .map(d => `<option value="${d.id}">${d.data().email} (${d.data().nombre || 'Sin nombre'})</option>`).join('');
                     
                     const actual = localStorage.getItem('superAdminTenant');
                     if (actual) select.value = actual;
@@ -2558,8 +2558,13 @@
                     db.collection('empresas').doc(activeTenant).get().then(docSnap => {
                         if (docSnap.exists && docSnap.data().storeId) {
                             f('conf-store-id', docSnap.data().storeId);
+                        } else {
+                            f('conf-store-id', 'No requiere ID (Súper Admin / Tienda sin configurar)');
                         }
-                    }).catch(e => console.error("Error obteniendo storeId:", e));
+                    }).catch(e => {
+                        console.error("Error obteniendo storeId:", e);
+                        f('conf-store-id', 'Error de conexión');
+                    });
                 }
 
                 this.adaptarRubro(data.giro);
