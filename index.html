@@ -1704,6 +1704,12 @@
                     const docSnap = await docRef.get();
 
                     if (!docSnap.exists) {
+                        // Ocultar interfaz gráfica para bloquear "Sesiones Fantasma" de cuentas eliminadas
+                        const appCont = document.getElementById('app-container');
+                        const logCont = document.getElementById('login-container');
+                        if (appCont) appCont.style.display = 'none';
+                        if (logCont) logCont.style.display = 'flex';
+
                         const { value: tipoUsuario } = await Swal.fire({
                             title: '👋 ¡Bienvenido a NexPOS!',
                             text: '¿Qué tipo de cuenta deseas crear?',
@@ -1747,7 +1753,8 @@
                     if (data.estado === 'rechazado') { this._mostrarPantalla('denied-screen'); return; }
 
                     if (data.estado === 'aprobado') {
-                        if (data.rol === 'admin' && !data.storeId && !isSuperAdminAccount) {
+                        // Solo pedir crear tienda si es el Dueño original (su tenantId es su propio UID)
+                        if (data.rol === 'admin' && data.tenantId === user.uid && !data.storeId && !isSuperAdminAccount) {
                             const { value: nombreTienda } = await Swal.fire({
                                 title: '🎉 ¡Cuenta Aprobada!',
                                 text: 'Ingresa el nombre de tu negocio para configurar tu espacio:',
@@ -1778,6 +1785,22 @@
                         this.mostrarPantallaPrincipal();
                         this._notificar(`✅ Bienvenido, ${data.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
                         if (typeof Storage !== 'undefined') Storage.sincronizarDesdeFirebase();
+
+                        // MOTOR DE SEGURIDAD: Expulsar al instante si es eliminado o actualizar menú si cambian permisos
+                        docRef.onSnapshot(snap => {
+                            if (!snap.exists) {
+                                Swal.fire('Cuenta Eliminada', 'Tu acceso ha sido revocado por el dueño de la tienda.', 'error').then(() => this.cerrarSesion());
+                            } else {
+                                const actualData = snap.data();
+                                if (actualData.estado !== 'aprobado') {
+                                    Swal.fire('Acceso Suspendido', 'Tu cuenta ha sido deshabilitada.', 'warning').then(() => this.cerrarSesion());
+                                } else if (this.usuarioActual && (JSON.stringify(this.usuarioActual.modulos) !== JSON.stringify(actualData.modulos) || this.usuarioActual.rol !== actualData.rol)) {
+                                    this.esAdmin = (actualData.rol === 'admin');
+                                    this.usuarioActual = actualData;
+                                    if (typeof this.aplicarRestricciones === 'function') this.aplicarRestricciones();
+                                }
+                            }
+                        });
                     }
                 } catch (error) { console.error(error); Swal.fire('Error', 'Problema de conexión', 'error'); }
             },
