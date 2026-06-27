@@ -987,7 +987,10 @@
                             </div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group"><label for="vendedor">Vendedor</label><input type="text" id="vendedor" placeholder="Nombre del vendedor"></div>
+                            <div class="form-group">
+                                <label for="vendedor">Vendedor (Automático)</label>
+                                <input type="text" id="vendedor" readonly style="background-color: var(--bg-body); cursor: not-allowed; font-weight: 600; color: var(--primary); border: 1px dashed var(--border);" title="El sistema registra automáticamente al usuario actual">
+                            </div>
                             <div class="form-group"><label for="notas">Notas</label><input type="text" id="notas" placeholder="Información adicional"></div>
                         </div>
                     </div>
@@ -2414,7 +2417,7 @@
                     total: Math.round(cantidad * parseFloat(document.getElementById('precio').value) * 100) / 100,
                     adelanto: adelantoInicial, saldoPendiente: 0, estadoPago: 'Pendiente',
                     cliente: document.getElementById('cliente').value, metodo: metodoPago,
-                    historialPagos: [], vendedor: document.getElementById('vendedor').value,
+                    historialPagos: [], vendedor: (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : document.getElementById('vendedor').value.trim(),
                     notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString()
                 };
                 venta.saldoPendiente = venta.total - venta.adelanto;
@@ -3566,6 +3569,11 @@
                 if (tabId==='papelera' && typeof Papelera !== 'undefined') Papelera.actualizarVista();
             },
             actualizarVistas() {
+                const inputVendedor = document.getElementById('vendedor');
+                if (inputVendedor && typeof Auth !== 'undefined' && Auth.usuarioActual) {
+                    inputVendedor.value = Auth.usuarioActual.nombre || Auth.usuarioActual.email || 'Desconocido';
+                }
+
                 if (this.actualizarAlertasInventario) this.actualizarAlertasInventario();
                 Dashboard.actualizar();
                 Filtros.aplicarFiltros();
