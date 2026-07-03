@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
@@ -785,6 +786,30 @@
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-sm) !important;
         }
+
+        /* Botones Secundarios (Sólidos, sin difuminado/glow) */
+        .btn-secondary {
+            background: var(--bg-surface-hover) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important; /* Elimina el resplandor difuminado */
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+        .btn-icon {
+            background: transparent !important;
+            color: var(--text-primary) !important;
+            border: none !important;
+            box-shadow: none !important;
+            font-size: 1.5rem;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        #topbar {
+            backdrop-filter: none !important; /* Elimina rastros de blur general */
+            -webkit-backdrop-filter: none !important;
+        }
     </style>
 </head>
 <body>
@@ -870,27 +895,27 @@
             <div class="main-content">
                 <!-- Barra Superior (Topbar) -->
                 <div id="topbar">
-                    <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú">☰</button>
-                    
-                    <div id="panel-superadmin" class="solo-admin" style="display:none; align-items:center; gap:10px;">
-                        <span style="font-size:13px; font-weight:600;">🏢 Supervisar:</span>
-                        <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)">
-                            <option value="">Cargando clientes...</option>
-                        </select>
-                        <button id="btn-respaldo-global" class="btn" onclick="BackupManager.descargarRespaldoGlobal()">📥 Backup</button>
-                        <button onclick="document.getElementById('fileRestoreTenant').click()" class="btn btn-secondary">⚠️ Restaurar</button>
-                        <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
-                    </div>
-
-                    <div class="user-info">
-                        <button id="theme-toggle-btn" class="btn btn-secondary" onclick="ThemeManager.toggle()" title="Cambiar modo">
-                            <span id="theme-icon">🌙</span> Modo
+                    <div style="display: flex; align-items: center; gap: 20px;">
+                        <button class="btn-icon" onclick="SidebarMenu.toggle()" title="Abrir Menú">
+                            <i class="fas fa-bars"></i>
                         </button>
+                        <div id="panel-superadmin" class="solo-admin" style="display:none; align-items: center; gap: 10px;">
+                            <span style="color: var(--text-secondary); font-weight: 600; font-size: 0.95rem;">Supervisar:</span>
+                            <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="width: auto; min-width: 200px; margin: 0;">
+                                <option value="">Cargando clientes...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <div id="firebase-sync-indicator" style="display:none; align-items:center; gap:6px; background:rgba(255,255,255,0.05); padding:6px 12px; border-radius:20px; font-size:12px;">
                             <span style="display:inline-block; width:8px; height:8px; background:#10B981; border-radius:50%; animation:pulse 1s infinite;"></span>
                             Sincronizando...
                         </div>
-                        <button class="logout-btn btn btn-danger" onclick="Auth.cerrarSesion()">🚪 Salir</button>
+                        <button class="btn btn-secondary" onclick="BackupManager.descargarRespaldoGlobal()"><i class="fas fa-download"></i> Backup</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('fileRestoreTenant').click()"><i class="fas fa-upload"></i> Restaurar</button>
+                        <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
+                        <button class="btn btn-secondary" onclick="toggleModo()"><i class="fas fa-moon" id="icono-modo"></i> Modo</button>
+                        <button class="btn btn-danger" onclick="Auth.cerrarSesion()"><i class="fas fa-sign-out-alt"></i> Salir</button>
                     </div>
                 </div>
 
@@ -898,7 +923,6 @@
                 <div class="view-container">
                     <div class="tab-indicator-bar" style="background:transparent; border:none; padding:0 0 20px 0;">
                 <span class="tab-breadcrumb">Sección actual: <span id="currentTabName">Registro</span></span>
-                <button class="open-menu-link" onclick="SidebarMenu.open()">☰ Cambiar sección</button>
             </div>
             <!-- TAB: REGISTRO -->
             <div id="registro" class="tab-content active">
@@ -5830,6 +5854,29 @@ const CierreCaja = {
         });
 
     }); // fin $(document).ready
+    </script>
+
+    <script>
+        // Función para alternar Modo Claro / Oscuro
+        function toggleModo() {
+            document.body.classList.toggle('light-mode');
+            const isLight = document.body.classList.contains('light-mode');
+            localStorage.setItem('lispro_theme', isLight ? 'light' : 'dark');
+            
+            const icono = document.getElementById('icono-modo');
+            if (icono) {
+                icono.className = isLight ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+
+        // Aplicar el tema guardado al cargar la página
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('lispro_theme') === 'light') {
+                document.body.classList.add('light-mode');
+                const icono = document.getElementById('icono-modo');
+                if (icono) icono.className = 'fas fa-sun';
+            }
+        });
     </script>
 </body>
 </html>
