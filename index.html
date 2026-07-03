@@ -3649,6 +3649,7 @@
                             ${p.nombre} (${p.sku})
                         </div>
                         <button onclick="UI.resolverFaltaInventario('${p.sku}')" style="background:#ffc107;color:#000;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;margin-left:auto;">Ingresar</button>
+                        <button onclick="UI.descartarFaltaInventario('${p.sku}')" style="background:transparent;color:#dc3545;border:1px solid #dc3545;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;margin-left:5px;" title="Descartar Producto">🗑️</button>
                     </div>
                 `).join('');
             },
@@ -3676,6 +3677,27 @@
                     this.actualizarAlertasInventario();
                     Toastify({ text: '✅ Inventario guardado', duration: 3000, backgroundColor: 'linear-gradient(135deg,#28a745,#20c997)' }).showToast();
                     if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
+                }
+            },
+            async descartarFaltaInventario(sku) {
+                const item = Estado.inventario.find(i => i.sku === sku);
+                if (!item) return;
+                const confirm = await Swal.fire({
+                    title: '¿Descartar Producto?',
+                    text: `El producto ${item.nombre} se eliminará del inventario porque no confirmaste su stock.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Sí, descartar',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (confirm.isConfirmed) {
+                    Estado.inventario = Estado.inventario.filter(i => i.sku !== sku);
+                    await Storage.guardarInventario();
+                    this.actualizarAlertasInventario();
+                    if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
+                    Toastify({ text: '🗑️ Producto descartado', duration: 3000, style: { background: '#dc3545' } }).showToast();
                 }
             },
             switchTab(tabId) {
