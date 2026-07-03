@@ -1040,7 +1040,7 @@
                             <span style="display:inline-block; width:8px; height:8px; background:#10B981; border-radius:50%; animation:pulse 1s infinite;"></span>
                             Sincronizando...
                         </div>
-                        <button class="btn btn-secondary" onclick="BackupManager.descargarRespaldoGlobal()"><i class="fas fa-download"></i> Backup</button>
+                        <button id="btn-respaldo-global" class="btn btn-secondary" onclick="BackupManager.descargarRespaldoGlobal()"><i class="fas fa-download"></i> Backup</button>
                         <button class="btn btn-secondary" onclick="document.getElementById('fileRestoreTenant').click()"><i class="fas fa-upload"></i> Restaurar</button>
                         <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
                         <button class="btn btn-secondary" onclick="toggleModo()"><i class="fas fa-moon" id="icono-modo"></i> Modo</button>
@@ -1836,6 +1836,16 @@
                 if (btnSubmit) { btnSubmit.innerHTML = btnOriginalText; btnSubmit.disabled = false; }
             },
             async manejarAccesoSeguro(user) {
+                this.usuarioActual = user;
+                if (user.email === 'joseprado049321@gmail.com') {
+                    this.esAdmin = true;
+                    localStorage.setItem('superAdmin', 'true');
+                    localStorage.setItem('sesionActiva', 'true');
+                    this.cargarEmpresas();
+                    this.mostrarPantallaPrincipal();
+                    this._notificar(`👑 Bienvenido Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
+                    return;
+                }
                 try {
                     const doc = await db.collection('usuarios_acceso').doc(user.uid).get();
                     if (doc.exists) {
