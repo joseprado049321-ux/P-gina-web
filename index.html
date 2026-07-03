@@ -622,6 +622,105 @@
             .logout-btn{position:static;display:block;margin:10px auto 0;width:150px;}
             #theme-toggle-btn{position:static;margin-top:10px;display:inline-flex;}
         }
+        /* ── FASE 3: COMPONENTES DE ALTA GAMA (TARJETAS, INPUTS, TABLAS) ── */
+        
+        /* Tarjetas y Paneles (Dashboard, Resúmenes) */
+        .card, .panel, .stat-card, .dashboard-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            padding: 24px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover, .stat-card:hover, .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Formularios: Inputs, Selects y Textareas */
+        input, select, textarea, .swal2-input, .swal2-select {
+            background-color: rgba(15, 23, 42, 0.6) !important; /* Slate muy oscuro/transparente */
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-sm) !important;
+            color: var(--text-primary) !important;
+            padding: 10px 14px;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            outline: none;
+            width: 100%;
+        }
+        input:focus, select:focus, textarea:focus, .swal2-input:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15) !important;
+        }
+        input::placeholder, textarea::placeholder {
+            color: var(--text-secondary);
+        }
+        /* Para selects con opciones oscuras */
+        select option { background-color: var(--bg-surface); color: var(--text-primary); }
+
+        /* Botones Premium */
+        button, .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 10px 18px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        button:hover, .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-glow);
+        }
+        button:active, .btn:active {
+            transform: translateY(1px);
+        }
+        /* Variantes de botones */
+        button.danger, .btn-danger { background: linear-gradient(135deg, var(--danger), #B91C1C); }
+        button.danger:hover, .btn-danger:hover { box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+        button.secondary, .btn-secondary { background: var(--bg-surface-hover); color: var(--text-primary); border: 1px solid var(--border); }
+        button.secondary:hover, .btn-secondary:hover { background: #475569; box-shadow: none; }
+
+        /* Tablas de Datos Elegantes */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 15px;
+        }
+        th {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th:first-child { border-top-left-radius: var(--radius-md); }
+        th:last-child { border-top-right-radius: var(--radius-md); }
+        td {
+            padding: 14px 16px;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+            transition: background-color 0.15s ease;
+        }
+        tbody tr:hover td {
+            background-color: var(--bg-surface-hover);
+        }
+        tbody tr:last-child td { border-bottom: none; }
     </style>
 </head>
 <body>
