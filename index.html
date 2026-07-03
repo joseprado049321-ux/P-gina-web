@@ -176,18 +176,22 @@
             cursor: pointer;
             gap: 12px;
             border: 1px solid transparent;
+            background: transparent !important; /* Fuerza color transparente, anula el gradiente del botón global */
+            box-shadow: none !important;
         }
 
         .menu-item:hover, .nav-item:hover {
-            background-color: var(--bg-surface-hover);
+            background-color: var(--bg-surface-hover) !important;
             color: var(--text-primary);
+            transform: none !important;
+            box-shadow: none !important;
         }
 
         /* Estado Activo del Menú */
         .menu-item.active, .nav-item.active {
-            background: linear-gradient(90deg, rgba(245,158,11,0.1) 0%, transparent 100%);
-            color: var(--primary);
-            border-left: 3px solid var(--primary);
+            background: rgba(255, 102, 0, 0.15) !important; /* Fondo sólido translúcido en lugar de degradado */
+            color: var(--primary) !important;
+            border-left: 3px solid var(--primary) !important;
             font-weight: 600;
         }
 
@@ -663,9 +667,9 @@
         /* Para selects con opciones oscuras */
         select option { background-color: var(--bg-surface); color: var(--text-primary); }
 
-        /* Botones Premium */
+        /* Botones Premium (Sólidos) */
         button, .btn {
-            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            background: var(--primary);
             color: #fff;
             border: none;
             border-radius: var(--radius-sm);
@@ -674,7 +678,7 @@
             font-size: 0.95rem;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -682,14 +686,15 @@
         }
         button:hover, .btn:hover {
             transform: translateY(-1px);
-            box-shadow: var(--shadow-glow);
+            background: var(--primary-hover);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         }
         button:active, .btn:active {
             transform: translateY(1px);
         }
         /* Variantes de botones */
-        button.danger, .btn-danger { background: linear-gradient(135deg, var(--danger), #B91C1C); }
-        button.danger:hover, .btn-danger:hover { box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+        button.danger, .btn-danger { background: var(--danger); }
+        button.danger:hover, .btn-danger:hover { background: #B91C1C; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
         button.secondary, .btn-secondary { background: var(--bg-surface-hover); color: var(--text-primary); border: 1px solid var(--border); }
         button.secondary:hover, .btn-secondary:hover { background: #475569; box-shadow: none; }
 
