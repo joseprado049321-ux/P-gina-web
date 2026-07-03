@@ -722,6 +722,44 @@
             background-color: var(--bg-surface-hover);
         }
         tbody tr:last-child td { border-bottom: none; }
+        .menu-toggle-btn {
+            background: transparent !important;
+            border: none !important;
+            color: var(--text-primary) !important;
+            font-size: 24px !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin-right: 15px;
+        }
+        .menu-toggle-btn:hover {
+            transform: scale(1.1) !important;
+            background: transparent !important;
+        }
+
+        /* Responsive Sidebar */
+        @media (max-width: 768px) {
+            #sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                transform: translateX(-100%);
+            }
+            #sidebar.open {
+                transform: translateX(0);
+            }
+            .menu-overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 9998;
+                backdrop-filter: blur(4px);
+            }
+            .menu-overlay.open {
+                display: block;
+            }
+        }
     </style>
 </head>
 <body>
@@ -807,27 +845,27 @@
             <div class="main-content">
                 <!-- Barra Superior (Topbar) -->
                 <div id="topbar">
-                    <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú" style="background:transparent; border:none; color:var(--text-primary); font-size:24px; cursor:pointer; padding:0;">☰</button>
+                    <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú">☰</button>
                     
                     <div id="panel-superadmin" class="solo-admin" style="display:none; align-items:center; gap:10px;">
                         <span style="font-size:13px; font-weight:600;">🏢 Supervisar:</span>
-                        <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid var(--border); outline:none; max-width:220px;">
+                        <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)">
                             <option value="">Cargando clientes...</option>
                         </select>
-                        <button id="btn-respaldo-global" onclick="BackupManager.descargarRespaldoGlobal()" style="background:linear-gradient(135deg,#10B981,#059669); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">📥 Backup</button>
-                        <button onclick="document.getElementById('fileRestoreTenant').click()" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">⚠️ Restaurar</button>
+                        <button id="btn-respaldo-global" class="btn" onclick="BackupManager.descargarRespaldoGlobal()">📥 Backup</button>
+                        <button onclick="document.getElementById('fileRestoreTenant').click()" class="btn btn-secondary">⚠️ Restaurar</button>
                         <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
                     </div>
 
                     <div class="user-info">
-                        <button id="theme-toggle-btn" onclick="ThemeManager.toggle()" title="Cambiar modo" style="background:transparent; border:1px solid var(--border); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-sm); cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                        <button id="theme-toggle-btn" class="btn btn-secondary" onclick="ThemeManager.toggle()" title="Cambiar modo">
                             <span id="theme-icon">🌙</span> Modo
                         </button>
                         <div id="firebase-sync-indicator" style="display:none; align-items:center; gap:6px; background:rgba(255,255,255,0.05); padding:6px 12px; border-radius:20px; font-size:12px;">
                             <span style="display:inline-block; width:8px; height:8px; background:#10B981; border-radius:50%; animation:pulse 1s infinite;"></span>
                             Sincronizando...
                         </div>
-                        <button class="logout-btn" onclick="Auth.cerrarSesion()" style="background:transparent; border:1px solid var(--border); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-sm); cursor:pointer; font-weight:600;">🚪 Salir</button>
+                        <button class="logout-btn btn btn-danger" onclick="Auth.cerrarSesion()">🚪 Salir</button>
                     </div>
                 </div>
 
@@ -3446,8 +3484,8 @@
         const SidebarMenu = {
             currentTab: 'registro',
             tabNames: { registro:'Registro',historial:'Historial',reportes:'Reportes',resumen:'Resumen',inventario:'Inventario',clientes:'Clientes','cuentas-cobrar':'Cuentas por Cobrar',gastos:'Gastos',rentabilidad:'Rentabilidad','ordenes-servicio':'Órdenes de Servicio',proveedores:'Proveedores',compras:'Compras',devoluciones:'Devoluciones',cotizaciones:'Cotizaciones','cierre-caja':'Cierre de Caja',usuarios:'Gestión de Usuarios', configuracion:'Configuración', papelera:'Papelera de Reciclaje' },
-            open() { document.getElementById('sidebar').classList.add('open'); document.getElementById('menuOverlay').classList.add('open'); document.body.style.overflow='hidden'; },
-            close() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('menuOverlay').classList.remove('open'); document.body.style.overflow=''; },
+            open() { document.getElementById('sidebar').classList.add('open'); const o = document.getElementById('menuOverlay'); if(o) o.classList.add('open'); document.body.style.overflow='hidden'; },
+            close() { document.getElementById('sidebar').classList.remove('open'); const o = document.getElementById('menuOverlay'); if(o) o.classList.remove('open'); document.body.style.overflow=''; },
             toggle() { if (document.getElementById('sidebar').classList.contains('open')) this.close(); else this.open(); },
             selectTab(tabId) {
                 this.close();
