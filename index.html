@@ -890,6 +890,50 @@
             animation: pulse-text 1.5s ease-in-out infinite;
         }
         @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* ── FASE 4: RESPONSIVE GLOBAL PARA MÓVILES (CELULARES) ── */
+        @media (max-width: 768px) {
+            /* Contenedores Principales */
+            .view-container { padding: 15px !important; height: calc(100vh - 60px) !important; }
+            #topbar { min-height: 60px !important; padding: 10px 15px !important; }
+            .tab-indicator-bar { padding: 10px 15px !important; font-size: 12px !important; }
+            .tab-content { padding: 15px 0 !important; }
+
+            /* Reajuste de Grillas Premium */
+            .dashboard-grid, .summary-cards, .filtros-grid, .form-row {
+                grid-template-columns: 1fr !important;
+                gap: 15px !important;
+            }
+
+            /* Reajuste de Tarjetas y Botones Flexibles */
+            .card, .panel, .stat-card { padding: 15px !important; }
+            .right-controls { width: 100%; justify-content: space-between; margin-top: 10px; }
+            .boleta-container { flex-direction: column !important; }
+            .boleta-lado { width: 100% !important; border-left: none !important; border-top: 1px solid var(--border) !important; margin-top: 15px !important; padding-top: 15px !important; }
+
+            /* Envolver tablas para que hagan Scroll Horizontal en Celular y no rompan la pantalla */
+            table { min-width: 600px !important; }
+            .tabla-container, .table-wrapper, #tabla-historial, #tabla-inventario, #tabla-gastos, #tabla-clientes, #tabla-reportes, #tabla-cierres, #tabla-papelera, #tabla-cotizaciones { 
+                overflow-x: auto !important; 
+                display: block !important; 
+                width: 100% !important; 
+                border-radius: var(--radius-sm) !important;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            /* Adaptar Alertas y Modales */
+            .swal2-popup { width: 95% !important; padding: 15px !important; }
+            #alertas-globales-inventario { left: 10px !important; right: 10px !important; top: 70px !important; width: auto !important; }
+            
+            /* Fuentes más legibles en móvil */
+            body { font-size: 13px !important; }
+            h2 { font-size: 1.4rem !important; }
+            h3 { font-size: 1.1rem !important; }
+            
+            /* Ajustes menores */
+            .dashboard-card button, .dashboard-card .btn { width: 100% !important; margin-bottom: 5px; }
+            .solo-admin { width: 100%; justify-content: space-between; }
+        }
     </style>
 </head>
 <body>
