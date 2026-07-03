@@ -18,182 +18,63 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
-        /* ============================================================
-           DESIGN SYSTEM — VARIABLES LIGHT/DARK
-           ============================================================ */
+        /* ── ADN VISUAL LISPRO POS (PREMIUM SAAS) ── */
         :root {
-            /* Light Mode (default) */
-            --bg-body:       #F0F4FA;
-            --bg-container:  #FFFFFF;
-            --bg-surface:    #F7F9FC;
-            --bg-surface2:   #EEF2F8;
-            --bg-header:     linear-gradient(135deg, #1E3A6E 0%, #2B56A5 100%);
-            --bg-sidebar:    #FFFFFF;
-            --bg-sidebar-hd: linear-gradient(135deg, #1E3A6E 0%, #2B56A5 100%);
-            --bg-thead:      linear-gradient(135deg, #1E3A6E 0%, #2B56A5 100%);
-            --bg-input:      #FFFFFF;
-            --bg-card:       linear-gradient(145deg,#EEF4FF,#DDEAFF);
-            --bg-tab-bar:    #F0F4FA;
-            --bg-search:     #F0F4FA;
-            --bg-autocomplete: #FFFFFF;
-            --bg-reporte:    #FFFFFF;
-            --bg-grafico:    #FFFFFF;
-            --bg-rentab:     #FFFFFF;
-            --bg-gasto-item: #FFFFFF;
-            --bg-prod-rent:  #FFFFFF;
-            --bg-cliente-card: #FFFFFF;
-            --bg-cliente-stat: #F0F4FA;
-            --bg-tag-bar:    #F0F4FA;
-            --bg-compra-form:#EEF4FF;
-            --bg-cot-tot:    linear-gradient(135deg,#F7F9FC,#EEF4FF);
-            --bg-os-card:    #FFFFFF;
-            --bg-btn-preset: #F0F4FA;
-            --bg-btn-preset-hover: #E2E8F5;
-
-            --border:        #D5DCE9;
-            --border-focus:  #2B56A5;
-            --border-table:  #E2E8F5;
-            --border-tab-bar:#D5DCE9;
-            --border-card:   rgba(43,86,165,0.12);
-
-            --text-primary:  #1A2340;
-            --text-secondary:#4A5878;
-            --text-muted:    #8A96B2;
-            --text-white:    #FFFFFF;
-            --text-on-card:  #1A2340;
-            --text-label:    #2C3A58;
-            --text-link:     #2B56A5;
-            --text-small:    #6B7897;
-
-            --primary:       #2B56A5;
-            --primary-dark:  #1E3A6E;
-            --primary-light: #EEF4FF;
-            --accent:        #3B82F6;
-            --success:       #16A34A;
-            --success-bg:    #DCFCE7;
-            --warning:       #CA8A04;
-            --warning-bg:    #FEF9C3;
-            --danger:        #DC2626;
-            --danger-bg:     #FEE2E2;
-            --info:          #0284C7;
-            --info-bg:       #E0F2FE;
-
-            --shadow-sm:     0 1px 4px rgba(30,58,110,0.08);
-            --shadow-md:     0 4px 16px rgba(30,58,110,0.12);
-            --shadow-lg:     0 8px 32px rgba(30,58,110,0.16);
-            --shadow-btn:    0 4px 12px rgba(43,86,165,0.30);
-            --shadow-card:   0 4px 18px rgba(30,58,110,0.10);
-
-            --radius-sm:     6px;
-            --radius-md:     10px;
-            --radius-lg:     14px;
-            --radius-xl:     18px;
-
-            --sidebar-item-hover-bg: #EEF4FF;
-            --sidebar-item-hover-c:  #2B56A5;
-            --sidebar-item-active-bg:#E0ECFF;
-            --sidebar-item-active-c: #1E3A6E;
-            --sidebar-item-active-bd:#2B56A5;
-
-            --tr-hover:      #F0F5FF;
-            --scroll-track:  #E8EDF6;
-            --scroll-thumb:  #AABCE0;
-            --toggle-bg:     #2B56A5;
+            /* Paleta Dark Corporativa */
+            --bg-body: #0F172A;        /* Slate 900 - Fondo principal profundo */
+            --bg-surface: #1E293B;     /* Slate 800 - Tarjetas y paneles flotantes */
+            --bg-surface-hover: #334155;/* Slate 700 - Hover de elementos */
+            
+            /* Acentos Corporativos (Pro Gold & Azure) */
+            --primary: #F59E0B;        /* Amber 500 - Botones principales y destellos */
+            --primary-hover: #D97706;  /* Amber 600 */
+            --secondary: #3B82F6;      /* Blue 500 - Elementos informativos */
+            
+            /* Tipografía y Textos */
+            --text-primary: #F8FAFC;   /* Slate 50 - Textos principales */
+            --text-secondary: #94A3B8; /* Slate 400 - Subtítulos y placeholders */
+            
+            /* Semántica de Estados */
+            --success: #10B981;        /* Emerald 500 */
+            --danger: #EF4444;         /* Red 500 */
+            --warning: #F59E0B;        /* Amber 500 */
+            
+            /* Estructura y Sombras */
+            --border: rgba(255, 255, 255, 0.08);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+            --shadow-glow: 0 0 15px rgba(245, 158, 11, 0.15); /* Resplandor premium */
+            
+            --radius-sm: 6px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
         }
 
-        [data-theme="dark"] {
-            --bg-body:       #0B0E17;
-            --bg-container:  #111827;
-            --bg-surface:    #161E2E;
-            --bg-surface2:   #1C2538;
-            --bg-header:     linear-gradient(135deg, #050810 0%, #0D1526 100%);
-            --bg-sidebar:    #111827;
-            --bg-sidebar-hd: linear-gradient(135deg, #050810 0%, #0D1526 100%);
-            --bg-thead:      linear-gradient(135deg, #0D1526 0%, #152040 100%);
-            --bg-input:      #1C2538;
-            --bg-card:       linear-gradient(145deg,#162036,#0F1829);
-            --bg-tab-bar:    #0D1120;
-            --bg-search:     #161E2E;
-            --bg-autocomplete:#1C2538;
-            --bg-reporte:    #161E2E;
-            --bg-grafico:    #161E2E;
-            --bg-rentab:     #161E2E;
-            --bg-gasto-item: #1C2538;
-            --bg-prod-rent:  #1C2538;
-            --bg-cliente-card:#161E2E;
-            --bg-cliente-stat:#1C2538;
-            --bg-tag-bar:    #0D1120;
-            --bg-compra-form:#1C2538;
-            --bg-cot-tot:    linear-gradient(135deg,#1C2538,#162036);
-            --bg-os-card:    #161E2E;
-            --bg-btn-preset: #1C2538;
-            --bg-btn-preset-hover: #232E45;
-
-            --border:        #253047;
-            --border-focus:  #4F8EF7;
-            --border-table:  #253047;
-            --border-tab-bar:#1E2D4A;
-            --border-card:   rgba(79,142,247,0.12);
-
-            --text-primary:  #E8EEF8;
-            --text-secondary:#9AAAC8;
-            --text-muted:    #5C6E90;
-            --text-white:    #FFFFFF;
-            --text-on-card:  #E8EEF8;
-            --text-label:    #A8B8D8;
-            --text-link:     #4F8EF7;
-            --text-small:    #6C7E9C;
-
-            --primary:       #4F8EF7;
-            --primary-dark:  #2563EB;
-            --primary-light: #162036;
-            --accent:        #60A5FA;
-            --success:       #22C55E;
-            --success-bg:    #052E16;
-            --warning:       #FBBF24;
-            --warning-bg:    #1C1200;
-            --danger:        #F87171;
-            --danger-bg:     #1C0505;
-            --info:          #38BDF8;
-            --info-bg:       #0C1F2E;
-
-            --shadow-sm:     0 1px 4px rgba(0,0,0,0.35);
-            --shadow-md:     0 4px 16px rgba(0,0,0,0.45);
-            --shadow-lg:     0 8px 40px rgba(0,0,0,0.55);
-            --shadow-btn:    0 4px 16px rgba(37,99,235,0.40);
-            --shadow-card:   0 4px 24px rgba(0,0,0,0.40);
-
-            --sidebar-item-hover-bg: #1C2D4A;
-            --sidebar-item-hover-c:  #4F8EF7;
-            --sidebar-item-active-bg:#162036;
-            --sidebar-item-active-c: #60A5FA;
-            --sidebar-item-active-bd:#4F8EF7;
-
-            --tr-hover:      #1A2540;
-            --scroll-track:  #1C2538;
-            --scroll-thumb:  #2E4070;
-            --toggle-bg:     #4F8EF7;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        /* ============================================================
-           RESET & BASE
-           ============================================================ */
-        *{margin:0;padding:0;box-sizing:border-box;}
-        html{scroll-behavior:smooth;}
-
-        body{
-            font-family:'Poppins','Segoe UI',Tahoma,sans-serif;
-            background:var(--bg-body);
-            min-height:100vh;
-            padding:20px;
-            color:var(--text-primary);
-            transition:background 0.35s ease, color 0.35s ease;
+        html, body {
+            width: 100%;
+            height: 100vh;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            overflow: hidden; /* Evita scroll doble, manejado por el main */
+            font-size: 14px; /* Base tipográfica más elegante */
+            line-height: 1.5;
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar{width:7px;height:7px;}
-        ::-webkit-scrollbar-track{background:var(--scroll-track);}
-        ::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:4px;}
+        /* Scrollbar Premium */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
         /* ============================================================
            THEME TOGGLE BUTTON
