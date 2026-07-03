@@ -4,7 +4,7 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232B56A5%22/><circle cx=%2250%22 cy=%2250%22 r=%2225%22 fill=%22white%22/></svg>" type="image/svg+xml">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexPOS | Punto de Venta Inteligente</title>
+    <title>LisPro POS | Punto de Venta Inteligente</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -838,7 +838,7 @@
                         <path d="M6 12H8M16 12H18" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
                     </svg>
                     <div style="font-size:28px; font-weight:800; letter-spacing:-1px;">
-                        <span style="color:#ffffff;">Nex</span><span style="color:#8bb4f7;">POS</span>
+                        <span style="color:#ffffff;">LisPro</span> <span style="color:#8bb4f7;">POS</span>
                     </div>
                 </div>
                 <div id="panel-superadmin" class="solo-admin" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.3);">
@@ -1721,7 +1721,7 @@
                         if (logCont) logCont.style.display = 'flex';
 
                         const { value: tipoUsuario } = await Swal.fire({
-                            title: '👋 ¡Bienvenido a NexPOS!',
+                            title: '👋 ¡Bienvenido a LisPro POS!',
                             text: '¿Qué tipo de cuenta deseas crear?',
                             icon: 'question',
                             showDenyButton: true, showCancelButton: true,
@@ -3284,7 +3284,7 @@
                 const btn = document.getElementById('btn-respaldo-global');
                 const ot = btn.innerHTML; btn.innerHTML = '⏳ Extrayendo...'; btn.disabled = true;
                 try {
-                    const bk = { metadata: { fecha: new Date().toISOString(), version: "1.0" }, usuarios: [], empresas: {} };
+                    const bk = { metadata: { fecha: new Date().toISOString(), version: "1.0", sistema: "LisPro POS" }, usuarios: [], empresas: {} };
                     const users = await db.collection('usuarios_acceso').get();
                     users.forEach(doc => bk.usuarios.push({id: doc.id, ...doc.data()}));
                     const empresas = await db.collection('empresas').get();
@@ -3296,7 +3296,7 @@
                         }
                     }
                     const blob = new Blob([JSON.stringify(bk, null, 2)], {type: 'application/json'});
-                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `NexPOS_MasterBackup_${new Date().toISOString().slice(0,10)}.json`; a.click();
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `LisProPOS_MasterBackup_${new Date().toISOString().slice(0,10)}.json`; a.click();
                     Swal.fire('✅ Respaldo Maestro Exitoso', 'Se extrajo la copia de todas las tiendas.', 'success');
                 } catch (e) { Swal.fire('Error', e.message, 'error'); } finally { btn.innerHTML = ot; btn.disabled = false; }
             },
