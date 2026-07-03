@@ -810,6 +810,42 @@
             backdrop-filter: none !important; /* Elimina rastros de blur general */
             -webkit-backdrop-filter: none !important;
         }
+        /* --- FIX: DESTRUIR DIFUMINADO EN TOPBAR --- */
+        #topbar .btn {
+            box-shadow: none !important;
+            text-shadow: none !important;
+        }
+        #topbar .btn:hover {
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        /* --- FIX: PALETA DE MODO CLARO --- */
+        body.light-mode {
+            --bg-body: #F3F4F6 !important;
+            --bg-surface: #FFFFFF !important;
+            --bg-surface-hover: #E5E7EB !important;
+            --text-primary: #111827 !important;
+            --text-secondary: #4B5563 !important;
+            --border: rgba(0, 0, 0, 0.15) !important;
+            background-color: var(--bg-body) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        body.light-mode #topbar, 
+        body.light-mode #sidebar, 
+        body.light-mode .card, 
+        body.light-mode .view-container {
+            background-color: var(--bg-surface) !important;
+        }
+
+        body.light-mode input, 
+        body.light-mode select, 
+        body.light-mode textarea {
+            background-color: #FFFFFF !important;
+            color: #111827 !important;
+            border-color: rgba(0, 0, 0, 0.2) !important;
+        }
     </style>
 </head>
 <body>
@@ -5857,10 +5893,12 @@ const CierreCaja = {
     </script>
 
     <script>
-        // Función para alternar Modo Claro / Oscuro
+        // Función central para cambiar de tema
         function toggleModo() {
-            document.body.classList.toggle('light-mode');
-            const isLight = document.body.classList.contains('light-mode');
+            const body = document.body;
+            body.classList.toggle('light-mode');
+            
+            const isLight = body.classList.contains('light-mode');
             localStorage.setItem('lispro_theme', isLight ? 'light' : 'dark');
             
             const icono = document.getElementById('icono-modo');
@@ -5869,7 +5907,7 @@ const CierreCaja = {
             }
         }
 
-        // Aplicar el tema guardado al cargar la página
+        // Cargar tema guardado automáticamente al abrir la app
         document.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('lispro_theme') === 'light') {
                 document.body.classList.add('light-mode');
