@@ -869,7 +869,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 99999;
+            z-index: 2147483647;
             transition: opacity 0.5s ease, visibility 0.5s ease;
         }
         .splash-spinner {
@@ -5964,7 +5964,7 @@ const CierreCaja = {
                 if (icono) icono.className = 'fas fa-sun';
             }
 
-            // --- SPLASH SCREEN 1 SEGUNDO ---
+            // --- SPLASH SCREEN 1.5 SEGUNDOS ---
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if (splash) {
@@ -5972,7 +5972,7 @@ const CierreCaja = {
                     splash.style.visibility = 'hidden';
                     setTimeout(() => splash.remove(), 500); // Remover del DOM luego de la transición
                 }
-            }, 1000);
+            }, 1500);
         });
     </script>
 </body>
