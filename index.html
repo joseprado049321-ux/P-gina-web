@@ -656,6 +656,14 @@
             transition: all 0.2s ease;
             outline: none;
             width: 100%;
+            max-width: 100%;
+            box-sizing: border-box !important;
+        }
+        .swal2-input, .swal2-select, .swal2-textarea {
+            width: 90% !important;
+            max-width: 90% !important;
+            margin: 1em auto !important;
+            display: block;
         }
         input:focus, select:focus, textarea:focus, .swal2-input:focus {
             border-color: var(--primary) !important;
