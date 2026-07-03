@@ -2035,16 +2035,16 @@
                     const fecha = u.fechaSolicitud ? new Date(u.fechaSolicitud).toLocaleDateString('es-PE') : '-';
                     let botonesHtml = '';
                     if (esSuperAdmin) {
-                        if (tipo === 'pendiente') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button><button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:8px;">🚫 Rechazar</button>`;
-                        else if (tipo === 'aprobado') botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')" style="background:linear-gradient(135deg,#dc3545,#c82333);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">🚫 Revocar</button>`;
-                        else botonesHtml = `<button onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')" style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">✅ Aprobar</button>`;
+                        if (tipo === 'pendiente') botonesHtml = `<button class="btn" style="background:var(--success);padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')">✅ Aprobar</button><button class="btn btn-danger" style="padding:6px 12px;font-size:13px;margin-left:8px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')">🚫 Rechazar</button>`;
+                        else if (tipo === 'aprobado') botonesHtml = `<button class="btn btn-danger" style="padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')">🚫 Revocar</button>`;
+                        else botonesHtml = `<button class="btn" style="background:var(--success);padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')">✅ Aprobar</button>`;
                     }
                     const botonesAdmin = esSuperAdmin ? `
-                        <button onclick="GestionUsuarios.editarRol('${u.id}')" style="background:#ffc107; color:#000; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:5px;">✏️ Editar</button>
-                        <button onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email || u.username}')" style="background:#dc3545; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">🗑️ Eliminar</button>
+                        <button class="btn" style="background:#F59E0B; color:#000; padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.editarRol('${u.id}')">✏️ Editar</button>
+                        <button class="btn btn-danger" style="padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email || u.username}')">🗑️ Eliminar</button>
                     ` : '';
-                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:white;border:2px solid #e9ecef;border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
-                        <div><div style="font-weight:700;">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:#666;">📧 ${u.email || u.username || 'Sin email'}</div><div style="font-size:0.8em;color:#aaa;">📅 ${fecha}</div></div>
+                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;color:var(--text-primary);">
+                        <div><div style="font-weight:700;color:var(--text-primary);">${u.nombre||'Sin nombre'}</div><div style="font-size:0.85em;color:var(--text-secondary);">📧 ${u.email || u.username || 'Sin email'}</div><div style="font-size:0.8em;color:var(--text-secondary);">📅 ${fecha}</div></div>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${botonesAdmin}</div></div>`;
                 }).join('');
             },
