@@ -199,28 +199,29 @@
             overflow-x: hidden;
         }
 
-        /* Barra Superior (Topbar) con Glassmorphism */
+        /* Barra Superior Sólida y Responsive */
         #topbar {
-            height: 70px;
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            min-height: 70px;
+            background-color: var(--bg-surface);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 32px;
+            padding: 10px 24px;
             position: sticky;
             top: 0;
             z-index: 90;
+            gap: 15px;
+            flex-wrap: wrap;
         }
 
-        #topbar .user-info {
+        #topbar .user-info, #topbar .right-controls {
             display: flex;
             align-items: center;
             gap: 12px;
             font-weight: 600;
             color: var(--text-primary);
+            flex-wrap: wrap;
         }
 
         /* Contenedor desplazable de las vistas (Dashboard, Inventario, etc.) */
@@ -641,7 +642,7 @@
 
         /* Formularios: Inputs, Selects y Textareas */
         input, select, textarea, .swal2-input, .swal2-select {
-            background-color: rgba(15, 23, 42, 0.6) !important; /* Slate muy oscuro/transparente */
+            background-color: var(--bg-body) !important;
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-sm) !important;
             color: var(--text-primary) !important;
@@ -759,6 +760,30 @@
             .menu-overlay.open {
                 display: block;
             }
+        }
+
+        /* ── OVERRIDE SWEETALERT2 PARA LISPRO POS ── */
+        .swal2-popup {
+            background-color: var(--bg-surface) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md) !important;
+            box-shadow: var(--shadow-lg) !important;
+        }
+        .swal2-title, .swal2-html-container {
+            color: var(--text-primary) !important;
+        }
+        .swal2-confirm {
+            background-color: var(--primary) !important;
+            color: #fff !important;
+            border-radius: var(--radius-sm) !important;
+            box-shadow: var(--shadow-md) !important;
+        }
+        .swal2-cancel {
+            background-color: transparent !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-sm) !important;
         }
     </style>
 </head>
