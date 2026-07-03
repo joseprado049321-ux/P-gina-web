@@ -110,165 +110,125 @@
         }
         [data-theme="dark"] .toggle-thumb{left:18px;}
 
-        /* ============================================================
-           CONTAINER & HEADER
-           ============================================================ */
-        .container{
-            max-width:1600px;margin:0 auto;
-            background:var(--bg-container);
-            border-radius:var(--radius-xl);
-            box-shadow:var(--shadow-lg);
-            overflow:hidden;
-            transition:background 0.35s ease;
-            border:1px solid var(--border);
-        }
-        header{
-            background:var(--bg-header);
-            color:var(--text-white);
-            padding:30px;
-            text-align:center;
-            position:relative;
-        }
-        header::after{
-            content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
-            background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
-        }
-        header h1{
-            margin-bottom:5px;font-family:'Poppins',sans-serif;font-weight:700;
-            font-size:1.8em;letter-spacing:-0.01em;
-        }
-        header p{opacity:0.8;font-size:0.95em;}
-        .logo-superior{position:absolute;top:35px;left:110px;z-index:80;width:100px;height:100px;border-radius:50%;border:3px solid rgba(255,255,255,0.4);}
-
-        /* ============================================================
-           BUTTONS
-           ============================================================ */
-        button{
-            background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color:var(--text-white);
-            padding:11px 28px;border:none;
-            border-radius:var(--radius-md);
-            font-size:15px;font-weight:600;
-            font-family:'Poppins',sans-serif;
-            cursor:pointer;
-            transition:transform 0.2s, box-shadow 0.2s, filter 0.2s;
-            box-shadow:var(--shadow-btn);
-            letter-spacing:0.01em;
-        }
-        button:hover{transform:translateY(-2px);filter:brightness(1.1);box-shadow:0 6px 20px rgba(43,86,165,0.38);}
-        button:active{transform:translateY(0);filter:brightness(0.97);}
-
-        .btn-secondary{
-            background:linear-gradient(135deg,#6B7897 0%,#4A5878 100%);
-            margin-left:10px;
-            box-shadow:0 4px 12px rgba(74,88,120,0.25);
-        }
-        .btn-secondary:hover{box-shadow:0 6px 18px rgba(74,88,120,0.38);}
-
-        .logout-btn{
-            position:absolute;top:20px;right:20px;
-            background:rgba(255,255,255,0.15);color:white;
-            border:2px solid rgba(255,255,255,0.5);padding:8px 20px;
-            border-radius:var(--radius-md);cursor:pointer;font-size:14px;font-weight:600;
-            transition:all 0.3s;box-shadow:none;
-        }
-        .logout-btn:hover{background:white;color:var(--primary-dark);transform:none;box-shadow:var(--shadow-md);}
-
-        .small-btn{
-            background:linear-gradient(135deg,var(--success) 0%,#15803D 100%);
-            padding:6px 10px;border-radius:var(--radius-sm);
-            font-size:12px;margin-left:6px;
-            box-shadow:0 2px 8px rgba(22,163,74,0.25);
-        }
-        .small-btn:hover{box-shadow:0 4px 12px rgba(22,163,74,0.38);}
-        .small-btn.gray{
-            background:linear-gradient(135deg,#6B7897 0%,#4A5878 100%);
-            box-shadow:0 2px 8px rgba(74,88,120,0.20);
+                /* ── FASE 2: ESQUELETO MODERNO (LAYOUT, SIDEBAR, TOPBAR) ── */
+        
+        /* Contenedor Maestro */
+        #app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            background-color: var(--bg-body);
+            overflow: hidden;
         }
 
-        .delete-btn{
-            background:linear-gradient(135deg,var(--danger) 0%,#B91C1C 100%);
-            color:white;border:none;padding:6px 12px;
-            border-radius:var(--radius-sm);cursor:pointer;font-size:12px;
-            box-shadow:0 2px 8px rgba(220,38,38,0.25);
-            transition:transform 0.15s,box-shadow 0.15s,filter 0.15s;
+        /* Panel Lateral (Sidebar) */
+        #sidebar {
+            width: 260px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.2);
         }
-        .delete-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
 
-        .btn-pago{
-            background:linear-gradient(135deg,var(--info) 0%,#0369A1 100%);
-            color:white;padding:6px 12px;border:none;
-            border-radius:var(--radius-sm);cursor:pointer;font-size:12px;margin-left:6px;
-            box-shadow:0 2px 8px rgba(2,132,199,0.25);
+        #sidebar .logo-container {
+            height: 70px;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border);
         }
-        .btn-pago:hover{filter:brightness(1.1);}
 
-        /* ============================================================
-           SIDEBAR
-           ============================================================ */
-        .menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;animation:fadeIn 0.2s ease;backdrop-filter:blur(2px);}
-        .menu-overlay.open{display:block;}
+        #sidebar .logo-container h2 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-        .sidebar-menu{
-            position:fixed;top:0;left:0;height:100%;width:300px;
-            background:var(--bg-sidebar);
-            z-index:1000;
-            transform:translateX(-100%);
-            transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);
-            display:flex;flex-direction:column;
-            box-shadow:4px 0 30px rgba(0,0,0,0.3);
-            font-family:'Poppins',sans-serif;
-            border-right:1px solid var(--border);
+        #sidebar .menu-list {
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-grow: 1;
+            overflow-y: auto;
         }
-        .sidebar-menu.open{transform:translateX(0);}
 
-        .sidebar-header{
-            background:var(--bg-sidebar-hd);color:white;
-            padding:22px 20px 20px;
-            display:flex;align-items:center;justify-content:space-between;
+        /* Botones del Menú (Nav Items) */
+        .menu-item, .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            gap: 12px;
+            border: 1px solid transparent;
         }
-        .sidebar-header span{font-weight:700;font-size:1.05em;letter-spacing:0.01em;}
 
-        .sidebar-close-btn{
-            background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.5);
-            color:white;width:32px;height:32px;border-radius:8px;cursor:pointer;
-            font-size:16px;padding:0;display:flex;align-items:center;justify-content:center;
-            transition:background 0.2s;box-shadow:none;
+        .menu-item:hover, .nav-item:hover {
+            background-color: var(--bg-surface-hover);
+            color: var(--text-primary);
         }
-        .sidebar-close-btn:hover{background:rgba(255,255,255,0.30);transform:none;box-shadow:none;}
 
-        .sidebar-nav{overflow-y:auto;flex:1;padding:10px 0;}
+        /* Estado Activo del Menú */
+        .menu-item.active, .nav-item.active {
+            background: linear-gradient(90deg, rgba(245,158,11,0.1) 0%, transparent 100%);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+            font-weight: 600;
+        }
 
-        .sidebar-item{
-            display:flex;align-items:center;justify-content:space-between;
-            padding:13px 22px;cursor:pointer;font-size:14px;font-weight:500;
-            color:var(--text-secondary);border:none;background:transparent;width:100%;text-align:left;
-            transition:background 0.15s,color 0.15s;
-            border-left:3px solid transparent;
+        /* Área Principal de Contenido */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow-x: hidden;
         }
-        .sidebar-item:hover{
-            background:var(--sidebar-item-hover-bg);
-            color:var(--sidebar-item-hover-c);
-            transform:none;box-shadow:none;
-        }
-        .sidebar-item.active{
-            background:var(--sidebar-item-active-bg);
-            color:var(--sidebar-item-active-c);
-            border-left:3px solid var(--sidebar-item-active-bd);
-            font-weight:700;
-        }
-        .sidebar-item .item-left{display:flex;align-items:center;gap:12px;}
-        .sidebar-item .item-icon{font-size:1.1em;width:24px;text-align:center;}
-        .sidebar-item .arrow{font-size:12px;color:var(--text-muted);}
-        .sidebar-item.active .arrow{color:var(--sidebar-item-active-bd);}
 
-        .menu-toggle-btn{
-            position:absolute;top:20px;left:20px;
-            background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.5);
-            color:white;padding:8px 14px;border-radius:var(--radius-md);cursor:pointer;
-            font-size:20px;font-weight:600;transition:background 0.2s;
+        /* Barra Superior (Topbar) con Glassmorphism */
+        #topbar {
+            height: 70px;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            position: sticky;
+            top: 0;
+            z-index: 90;
         }
-        .menu-toggle-btn:hover{background:rgba(255,255,255,0.28);transform:none;box-shadow:none;}
+
+        #topbar .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Contenedor desplazable de las vistas (Dashboard, Inventario, etc.) */
+        .view-container {
+            padding: 32px;
+            overflow-y: auto;
+            flex: 1;
+            height: calc(100vh - 70px);
+        }
 
         /* ============================================================
            TAB INDICATOR BAR
@@ -709,71 +669,71 @@
         </div>
     </div>
     <div id="main-screen" class="hidden">
-        <div class="container">
-            <header>
-                <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú">☰</button>
-                <div style="display:flex; align-items:center; justify-content:center; gap:10px; font-family:'Poppins', sans-serif; user-select:none; margin-bottom:10px;">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="2" y="4" width="20" height="16" rx="4" fill="#2B56A5"/>
-                        <circle cx="12" cy="12" r="4" fill="#ffffff"/>
-                        <path d="M6 12H8M16 12H18" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    <div style="font-size:28px; font-weight:800; letter-spacing:-1px;">
-                        <span style="color:#ffffff;">LisPro</span> <span style="color:#8bb4f7;">POS</span>
-                    </div>
+        <div id="app-container">
+            <!-- Panel Lateral (Sidebar) -->
+            <nav id="sidebar">
+                <div class="logo-container">
+                    <h2>
+                        <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="100" height="100" rx="22" fill="#0F172A"/>
+                            <text x="48" y="68" font-family="system-ui, -apple-system, sans-serif" font-size="46" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="-2">L<tspan fill="#F59E0B">P</tspan></text>
+                        </svg>
+                        LisPro POS
+                    </h2>
                 </div>
-                <div id="panel-superadmin" class="solo-admin" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.3);">
-                    <div style="display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;">
-                        <span style="font-size:13px; font-weight:600; margin-right:4px;">🏢 Supervisar:</span>
-                        <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(0,0,0,0.2); color:white; border:1px solid rgba(255,255,255,0.4); font-family:'Poppins', sans-serif; cursor:pointer; outline:none; max-width:220px;">
-                            <option value="">Cargando clientes...</option>
-                        </select>
-                        <button id="btn-respaldo-global" onclick="BackupManager.descargarRespaldoGlobal()" style="background:linear-gradient(135deg,#10B981,#059669); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.3);">📥 Respaldo Global</button>
-                        <button onclick="document.getElementById('fileRestoreTenant').click()" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">⚠️ Restaurar Tienda</button>
-                        <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
-                    </div>
-                </div>
-                <button class="logout-btn" onclick="Auth.cerrarSesion()">🚪 Cerrar Sesión</button>
-                <button id="theme-toggle-btn" onclick="ThemeManager.toggle()" title="Cambiar modo">
-                    <span id="theme-icon">🌙</span>
-                    <span id="theme-label">Modo Oscuro</span>
-                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                </button>
-                <div id="firebase-sync-indicator" style="display:none;position:absolute;bottom:10px;right:20px;background:rgba(255,255,255,0.2);color:white;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;align-items:center;gap:6px;">
-                    <span style="display:inline-block;width:8px;height:8px;background:#7df;border-radius:50%;animation:pulse 1s infinite;"></span>
-                    Sincronizando...
-                </div>
-            </header>
-
-            <div class="menu-overlay" id="menuOverlay" onclick="SidebarMenu.close()"></div>
-            <nav class="sidebar-menu" id="sidebarMenu">
-                <div class="sidebar-header">
-                    <span>📊 Menú Principal</span>
-                    <button class="sidebar-close-btn" onclick="SidebarMenu.close()">✕</button>
-                </div>
-                <div class="sidebar-nav">
-                    <button class="sidebar-item solo-admin" id="sidebarTab-configuracion" onclick="SidebarMenu.selectTab('configuracion')"><span class="item-left"><span class="item-icon">⚙️</span> Configuración</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item active" id="sidebarTab-registro" onclick="SidebarMenu.selectTab('registro')"><span class="item-left"><span class="item-icon">📝</span> Registro</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item" id="sidebarTab-historial" onclick="SidebarMenu.selectTab('historial')"><span class="item-left"><span class="item-icon">📋</span> Historial</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item" id="sidebarTab-cuentas-cobrar" onclick="SidebarMenu.selectTab('cuentas-cobrar')"><span class="item-left"><span class="item-icon">💰</span> Cuentas por Cobrar</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-clientes" onclick="SidebarMenu.selectTab('clientes')"><span class="item-left"><span class="item-icon">👥</span> Clientes</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-reportes" onclick="SidebarMenu.selectTab('reportes')"><span class="item-left"><span class="item-icon">📊</span> Reportes</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-gastos" onclick="SidebarMenu.selectTab('gastos')"><span class="item-left"><span class="item-icon">💸</span> Gastos</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-rentabilidad" onclick="SidebarMenu.selectTab('rentabilidad')"><span class="item-left"><span class="item-icon">📈</span> Rentabilidad</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-resumen" onclick="SidebarMenu.selectTab('resumen')"><span class="item-left"><span class="item-icon">📊</span> Resumen</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item" id="sidebarTab-inventario" onclick="SidebarMenu.selectTab('inventario')"><span class="item-left"><span class="item-icon">📦</span> Inventario</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item" id="sidebarTab-ordenes-servicio" onclick="SidebarMenu.selectTab('ordenes-servicio')"><span class="item-left"><span class="item-icon">🔧</span> Órdenes de Servicio</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-proveedores" onclick="SidebarMenu.selectTab('proveedores')"><span class="item-left"><span class="item-icon">🏭</span> Proveedores</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-compras" onclick="SidebarMenu.selectTab('compras')"><span class="item-left"><span class="item-icon">🛒</span> Compras</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item" id="sidebarTab-devoluciones" onclick="SidebarMenu.selectTab('devoluciones')"><span class="item-left"><span class="item-icon">↩️</span> Devoluciones</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-cotizaciones" onclick="SidebarMenu.selectTab('cotizaciones')"><span class="item-left"><span class="item-icon">📄</span> Cotizaciones</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item" id="sidebarTab-cierre-caja" onclick="SidebarMenu.selectTab('cierre-caja')"><span class="item-left"><span class="item-icon">🏧</span> Cierre de Caja</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-usuarios" onclick="SidebarMenu.selectTab('usuarios')"><span class="item-left"><span class="item-icon">👨‍💼</span> Gestión de Usuarios</span><span class="arrow">›</span></button>
-                    <button class="sidebar-item solo-admin" id="sidebarTab-papelera" onclick="SidebarMenu.selectTab('papelera')"><span class="item-left"><span class="item-icon">🗑️</span> Papelera</span><span class="arrow">›</span></button>
-                </div>
+                <div class="menu-list">
+                    <button class="menu-item solo-admin" id="sidebarTab-configuracion" onclick="SidebarMenu.selectTab('configuracion')"><span class="item-left"><span class="item-icon">⚙️</span> Configuración</span><span class="arrow">›</span></button>
+                    <button class="menu-item active" id="sidebarTab-registro" onclick="SidebarMenu.selectTab('registro')"><span class="item-left"><span class="item-icon">📝</span> Registro</span><span class="arrow">›</span></button>
+                    <button class="menu-item" id="sidebarTab-historial" onclick="SidebarMenu.selectTab('historial')"><span class="item-left"><span class="item-icon">📋</span> Historial</span><span class="arrow">›</span></button>
+                    <button class="menu-item" id="sidebarTab-cuentas-cobrar" onclick="SidebarMenu.selectTab('cuentas-cobrar')"><span class="item-left"><span class="item-icon">💰</span> Cuentas por Cobrar</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-clientes" onclick="SidebarMenu.selectTab('clientes')"><span class="item-left"><span class="item-icon">👥</span> Clientes</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-reportes" onclick="SidebarMenu.selectTab('reportes')"><span class="item-left"><span class="item-icon">📊</span> Reportes</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-gastos" onclick="SidebarMenu.selectTab('gastos')"><span class="item-left"><span class="item-icon">💸</span> Gastos</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-rentabilidad" onclick="SidebarMenu.selectTab('rentabilidad')"><span class="item-left"><span class="item-icon">📈</span> Rentabilidad</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-resumen" onclick="SidebarMenu.selectTab('resumen')"><span class="item-left"><span class="item-icon">📊</span> Resumen</span><span class="arrow">›</span></button>
+                    <button class="menu-item" id="sidebarTab-inventario" onclick="SidebarMenu.selectTab('inventario')"><span class="item-left"><span class="item-icon">📦</span> Inventario</span><span class="arrow">›</span></button>
+                    <button class="menu-item" id="sidebarTab-ordenes-servicio" onclick="SidebarMenu.selectTab('ordenes-servicio')"><span class="item-left"><span class="item-icon">🔧</span> Órdenes de Servicio</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-proveedores" onclick="SidebarMenu.selectTab('proveedores')"><span class="item-left"><span class="item-icon">🏭</span> Proveedores</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-compras" onclick="SidebarMenu.selectTab('compras')"><span class="item-left"><span class="item-icon">🛒</span> Compras</span><span class="arrow">›</span></button>
+                    <button class="menu-item" id="sidebarTab-devoluciones" onclick="SidebarMenu.selectTab('devoluciones')"><span class="item-left"><span class="item-icon">↩️</span> Devoluciones</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-cotizaciones" onclick="SidebarMenu.selectTab('cotizaciones')"><span class="item-left"><span class="item-icon">📄</span> Cotizaciones</span><span class="arrow">›</span></button>
+                    <button class="menu-item" id="sidebarTab-cierre-caja" onclick="SidebarMenu.selectTab('cierre-caja')"><span class="item-left"><span class="item-icon">🏧</span> Cierre de Caja</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-usuarios" onclick="SidebarMenu.selectTab('usuarios')"><span class="item-left"><span class="item-icon">👨‍💼</span> Gestión de Usuarios</span><span class="arrow">›</span></button>
+                    <button class="menu-item solo-admin" id="sidebarTab-papelera" onclick="SidebarMenu.selectTab('papelera')"><span class="item-left"><span class="item-icon">🗑️</span> Papelera</span><span class="arrow">›</span></button>
+                                </div>
             </nav>
 
-            <div class="tab-indicator-bar">
+            <!-- Área Principal de Contenido -->
+            <div class="main-content">
+                <!-- Barra Superior (Topbar) -->
+                <div id="topbar">
+                    <button class="menu-toggle-btn" onclick="SidebarMenu.toggle()" title="Menú" style="background:transparent; border:none; color:var(--text-primary); font-size:24px; cursor:pointer; padding:0;">☰</button>
+                    
+                    <div id="panel-superadmin" class="solo-admin" style="display:none; align-items:center; gap:10px;">
+                        <span style="font-size:13px; font-weight:600;">🏢 Supervisar:</span>
+                        <select id="select-empresas" onchange="Auth.cambiarTenant(this.value)" style="padding:6px 12px; border-radius:6px; background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid var(--border); outline:none; max-width:220px;">
+                            <option value="">Cargando clientes...</option>
+                        </select>
+                        <button id="btn-respaldo-global" onclick="BackupManager.descargarRespaldoGlobal()" style="background:linear-gradient(135deg,#10B981,#059669); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">📥 Backup</button>
+                        <button onclick="document.getElementById('fileRestoreTenant').click()" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">⚠️ Restaurar</button>
+                        <input type="file" id="fileRestoreTenant" accept=".json" style="display:none;" onchange="BackupManager.restaurarTenant(event)">
+                    </div>
+
+                    <div class="user-info">
+                        <button id="theme-toggle-btn" onclick="ThemeManager.toggle()" title="Cambiar modo" style="background:transparent; border:1px solid var(--border); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-sm); cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                            <span id="theme-icon">🌙</span> Modo
+                        </button>
+                        <div id="firebase-sync-indicator" style="display:none; align-items:center; gap:6px; background:rgba(255,255,255,0.05); padding:6px 12px; border-radius:20px; font-size:12px;">
+                            <span style="display:inline-block; width:8px; height:8px; background:#10B981; border-radius:50%; animation:pulse 1s infinite;"></span>
+                            Sincronizando...
+                        </div>
+                        <button class="logout-btn" onclick="Auth.cerrarSesion()" style="background:transparent; border:1px solid var(--border); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-sm); cursor:pointer; font-weight:600;">🚪 Salir</button>
+                    </div>
+                </div>
+
+                <!-- Contenedor Desplazable de Vistas -->
+                <div class="view-container">
+                    <div class="tab-indicator-bar" style="background:transparent; border:none; padding:0 0 20px 0;">
                 <span class="tab-breadcrumb">Sección actual: <span id="currentTabName">Registro</span></span>
                 <button class="open-menu-link" onclick="SidebarMenu.open()">☰ Cambiar sección</button>
             </div>
@@ -1422,9 +1382,12 @@
                 </div>
             </div>
 
-        </div>
-    </div>
-
+                    </div>
+                </div> <!-- End .view-container -->
+            </div> <!-- End .main-content -->
+        </div> <!-- End #app-container -->
+    </div> <!-- End #main-screen -->
+    
     <div id="os-lightbox" onclick="if(event.target===this)OrdenesServicio.cerrarLightbox()">
         <button id="os-lightbox-close" onclick="OrdenesServicio.cerrarLightbox()">✕</button>
         <img id="os-lightbox-img" src="" alt="Foto del equipo">
@@ -1743,7 +1706,7 @@
             aplicarRestricciones() {
                 // Si es administrador (o Súper Admin), forzamos que todos los botones sean visibles
                 if (this.esAdmin) {
-                    document.querySelectorAll('.sidebar-item').forEach(el => el.style.display = 'flex');
+                    document.querySelectorAll('.menu-item').forEach(el => el.style.display = 'flex');
                     return;
                 }
 
@@ -1753,7 +1716,7 @@
                 // Pestañas críticas prohibidas por defecto para empleados
                 const prohibidosSiempre = ['configuracion', 'usuarios', 'rentabilidad', 'reportes', 'gastos', 'resumen', 'compras', 'proveedores', 'cotizaciones'];
 
-                document.querySelectorAll('.sidebar-item').forEach(el => {
+                document.querySelectorAll('.menu-item').forEach(el => {
                     const tabId = el.id.replace('sidebarTab-', '');
                     if (prohibidosSiempre.includes(tabId)) {
                         el.style.display = 'none';
@@ -3383,9 +3346,9 @@
         const SidebarMenu = {
             currentTab: 'registro',
             tabNames: { registro:'Registro',historial:'Historial',reportes:'Reportes',resumen:'Resumen',inventario:'Inventario',clientes:'Clientes','cuentas-cobrar':'Cuentas por Cobrar',gastos:'Gastos',rentabilidad:'Rentabilidad','ordenes-servicio':'Órdenes de Servicio',proveedores:'Proveedores',compras:'Compras',devoluciones:'Devoluciones',cotizaciones:'Cotizaciones','cierre-caja':'Cierre de Caja',usuarios:'Gestión de Usuarios', configuracion:'Configuración', papelera:'Papelera de Reciclaje' },
-            open() { document.getElementById('sidebarMenu').classList.add('open'); document.getElementById('menuOverlay').classList.add('open'); document.body.style.overflow='hidden'; },
-            close() { document.getElementById('sidebarMenu').classList.remove('open'); document.getElementById('menuOverlay').classList.remove('open'); document.body.style.overflow=''; },
-            toggle() { if (document.getElementById('sidebarMenu').classList.contains('open')) this.close(); else this.open(); },
+            open() { document.getElementById('sidebar').classList.add('open'); document.getElementById('menuOverlay').classList.add('open'); document.body.style.overflow='hidden'; },
+            close() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('menuOverlay').classList.remove('open'); document.body.style.overflow=''; },
+            toggle() { if (document.getElementById('sidebar').classList.contains('open')) this.close(); else this.open(); },
             selectTab(tabId) {
                 this.close();
                 UI.switchTab(tabId);
@@ -3445,7 +3408,7 @@
             },
             switchTab(tabId) {
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.menu-item').forEach(b => b.classList.remove('active'));
                 const tab = document.getElementById(tabId);
                 if (tab) tab.classList.add('active');
                 const btn = document.getElementById('sidebarTab-'+tabId);
