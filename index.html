@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230F172A%22/><text x=%2248%22 y=%2268%22 font-family=%22system-ui, -apple-system, sans-serif%22 font-size=%2246%22 font-weight=%22900%22 fill=%22%23FFFFFF%22 text-anchor=%22middle%22 letter-spacing=%22-2%22>L<tspan fill=%22%23F59E0B%22>P</tspan></text></svg>" type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%23000000%22/><text x=%2248%22 y=%2268%22 font-family=%22system-ui, -apple-system, sans-serif%22 font-size=%2246%22 font-weight=%22900%22 fill=%22%23FFFFFF%22 text-anchor=%22middle%22 letter-spacing=%22-2%22>L<tspan fill=%22%23FF6600%22>P</tspan></text></svg>" type="image/svg+xml">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LisPro POS | Punto de Venta Inteligente</title>
@@ -20,31 +20,31 @@
     <style>
         /* ── ADN VISUAL LISPRO POS (PREMIUM SAAS) ── */
         :root {
-            /* Paleta Dark Corporativa */
-            --bg-body: #0F172A;        /* Slate 900 - Fondo principal profundo */
-            --bg-surface: #1E293B;     /* Slate 800 - Tarjetas y paneles flotantes */
-            --bg-surface-hover: #334155;/* Slate 700 - Hover de elementos */
+            /* Paleta Negro Puro */
+            --bg-body: #000000;
+            --bg-surface: #0a0a0a;
+            --bg-surface-hover: #171717;
             
-            /* Acentos Corporativos (Pro Gold & Azure) */
-            --primary: #F59E0B;        /* Amber 500 - Botones principales y destellos */
-            --primary-hover: #D97706;  /* Amber 600 */
-            --secondary: #3B82F6;      /* Blue 500 - Elementos informativos */
+            /* Acento: Naranja Vibrante */
+            --primary: #FF6600;
+            --primary-hover: #FF8533;
+            --secondary: #3B82F6;
             
-            /* Tipografía y Textos */
-            --text-primary: #F8FAFC;   /* Slate 50 - Textos principales */
-            --text-secondary: #94A3B8; /* Slate 400 - Subtítulos y placeholders */
+            /* Textos */
+            --text-primary: #FFFFFF;
+            --text-secondary: #9CA3AF;
             
             /* Semántica de Estados */
-            --success: #10B981;        /* Emerald 500 */
-            --danger: #EF4444;         /* Red 500 */
-            --warning: #F59E0B;        /* Amber 500 */
+            --success: #10B981;
+            --danger: #EF4444;
+            --warning: #FF6600;
             
-            /* Estructura y Sombras */
-            --border: rgba(255, 255, 255, 0.08);
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-            --shadow-glow: 0 0 15px rgba(245, 158, 11, 0.15); /* Resplandor premium */
+            /* Estructura y Sombras Duras */
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.8);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.9);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 1);
+            --shadow-glow: 0 0 15px rgba(255, 102, 0, 0.25);
             
             --radius-sm: 6px;
             --radius-md: 12px;
@@ -129,8 +129,9 @@
             display: flex;
             flex-direction: column;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 100;
-            box-shadow: 4px 0 24px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 9999; /* Fuerza el menú por encima del cristal invisible */
+            box-shadow: 4px 0 24px rgba(0,0,0,0.8);
         }
 
         #sidebar .logo-container {
