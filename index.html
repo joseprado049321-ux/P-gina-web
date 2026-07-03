@@ -1632,6 +1632,16 @@
                 <div style="background:var(--bg-card);padding:25px;border-radius:12px;border:1px solid var(--border);max-width:800px;">
                     <div class="form-row" style="margin-bottom:15px;">
                         <div class="form-group" style="margin:0;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">🔍 Escala del Sistema (Zoom)</label>
+                            <select id="config-escala" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.cambiarEscala(this.value)">
+                                <option value="80%">80% - Más Espacio</option>
+                                <option value="90%">90% - Compacto</option>
+                                <option value="100%">100% - Normal</option>
+                                <option value="110%">110% - Ampliado</option>
+                                <option value="120%">120% - Letras Grandes</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
                             <label style="font-weight:600;display:block;margin-bottom:4px;">💼 Giro / Tipo de Negocio</label>
                             <select id="config-giro-negocio" class="swal2-input" style="margin:0;width:100%;" onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
                                 <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
@@ -2690,6 +2700,11 @@
         // MÓDULO: CONFIGURACIÓN
         // ========================================
         const ConfiguracionNegocio = {
+            cambiarEscala(escala) {
+                document.body.style.zoom = escala;
+                localStorage.setItem('lispro_escala', escala);
+                Toastify({ text: `🔍 Escala cambiada a ${escala}`, duration: 2000, style: { background: 'linear-gradient(135deg,#3B82F6,#2563EB)' } }).showToast();
+            },
             aplicarColor(hex) {
                 let styleEl = document.getElementById('custom-theme-style');
                 if (!styleEl) {
@@ -6028,6 +6043,17 @@ const CierreCaja = {
                 document.body.classList.add('light-mode');
                 const icono = document.getElementById('icono-modo');
                 if (icono) icono.className = 'fas fa-sun';
+            }
+
+            // --- CARGAR ESCALA ---
+            const escalaGuardada = localStorage.getItem('lispro_escala');
+            if (escalaGuardada) {
+                document.body.style.zoom = escalaGuardada;
+                const selectEscala = document.getElementById('config-escala');
+                if (selectEscala) selectEscala.value = escalaGuardada;
+            } else {
+                const selectEscala = document.getElementById('config-escala');
+                if (selectEscala) selectEscala.value = "100%";
             }
 
             // --- SPLASH SCREEN 1.5 SEGUNDOS ---
