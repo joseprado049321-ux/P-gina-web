@@ -1181,7 +1181,14 @@
                             </div>
                             <select id="nuevo-categoria-inv" onchange="typeof calcularSKUDinamico === 'function' && calcularSKUDinamico()"><option value="">Seleccionar...</option></select>
                         </div>
-                        <div class="form-group"><label>🏷️ Marca</label><input id="nuevo-marca-inv" type="text" placeholder="Ej: Gloria, Nike" oninput="calcularSKUDinamico()"></div>
+                        <div class="form-group">
+                            <label>🏷️ Marca</label>
+                            <select id="nuevo-marca-inv" onchange="typeof calcularSKUDinamico === 'function' && calcularSKUDinamico(); MarcasCustom.manejarSeleccion(this);"><option value="">Seleccionar...</option></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>💰 Precio de Venta (S/) *</label><input id="nuevo-precio-inv" type="number" step="0.01" min="0" placeholder="Ej: 50.00" required></div>
+                        <div class="form-group"></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -2138,11 +2145,15 @@
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
-                const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion', 'papelera'];
+                const claves = ['ventas','inventario','clientes','gastos','costos','ordenesServicio','proveedores','compras','devoluciones','cotizaciones','cierresCaja','estadoCaja','categoriasCustom', 'configuracion', 'papelera', 'marcasCustom'];
 
                 claves.forEach(clave => {
                     tenantRef.doc(clave).onSnapshot(docSnap => {
                         const data = docSnap.exists ? docSnap.data().datos : null;
+
+                        // (Dentro del onSnapshot, antes de la actualización reactiva)
+                        if (typeof CategoriaCustom !== 'undefined') CategoriaCustom.cargarEnSelect();
+                        if (typeof MarcasCustom !== 'undefined') MarcasCustom.cargarEnSelect();
                         
                         // Mapeo dinámico al objeto Estado
                         if (clave === 'categoriasCustom') {
@@ -3339,7 +3350,18 @@
                 const nombre = document.getElementById('nuevo-nombre').value.trim();
                 const stock = parseInt(document.getElementById('nuevo-stock').value) || 0;
                 const reorder = parseInt(document.getElementById('nuevo-reorder').value) || 5;
+                const marca = document.getElementById('nuevo-marca-inv').value;
+                const precio = parseFloat(document.getElementById('nuevo-precio-inv').value) || 0;
                 if (!sku || !nombre) { Swal.fire('Error','SKU y Nombre son obligatorios','error'); return; }
+
+                // Sincronización automática de Precio y Costo
+                if (precio > 0) {
+                    if (!Estado.costosProductos) Estado.costosProductos = {};
+                    const costoActual = Estado.costosProductos[sku] ? Estado.costosProductos[sku].costo : 0;
+                    const margen = precio - costoActual;
+                    Estado.costosProductos[sku] = { costo: costoActual, precioVenta: precio, margen: margen, porcentajeMargen: precio > 0 ? (margen/precio*100) : 0 };
+                    Firebase.guardar('costos', Estado.costosProductos); // Guardado en segundo plano
+                }
                 const existente = Estado.inventario.find(x => x.sku === sku);
                 if (existente) {
                     existente.stock += stock; existente.nombre = nombre; existente.reorderThreshold = reorder;
@@ -3350,7 +3372,7 @@
                 }
                 await Storage.guardarInventario();
                 this.cancelarNuevoItem();
-                ['nuevo-sku','nuevo-nombre','nuevo-stock','nuevo-reorder'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+                ['nuevo-sku','nuevo-nombre','nuevo-precio-inv','nuevo-stock','nuevo-reorder'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
                 document.getElementById('nuevo-stock').value='0';
                 document.getElementById('nuevo-reorder').value='5';
             },
@@ -5588,145 +5610,75 @@ const CierreCaja = {
 
     </script>
 
-    <!-- ── CATEGORÍAS PERSONALIZADAS ── -->
+    <!-- ── MOTORES DINÁMICOS CLOUD (CATEGORÍAS Y MARCAS) ── -->
     <script>
-    const CategoriaCustom = (() => {
-        const STORAGE_KEY = 'categorias_custom';
-
-        function getDefaultCats() {
+    const CategoriaCustom = {
+        getDefaultCats() {
             const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
-            if (giro === 'general') {
-                return ['Abarrotes', 'Ropa', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'];
-            }
-            return ['Laptops', 'Desktops', 'Accesorios', 'Periféricos', 'Componentes', 'Servicios', 'Otros'];
-        }
-
-        function getCustom() {
-            try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
-        }
-        function saveCustom(arr) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-        }
-        function cargarEnSelect() {
-            const defaults = getDefaultCats();
-            let customCats = [];
-            try { 
-                const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
-                customCats = Array.isArray(parsed) ? parsed : [];
-            } catch(e) { }
-
-            customCats = customCats.filter(c => {
-                if (!c || typeof c !== 'string') return false;
-                const clean = c.trim().toLowerCase();
-                return clean !== 'seleccionar...' && clean !== 'todas' && clean !== 'seleccionar';
-            });
-            const combined = [...new Set([...defaults, ...customCats])];
-
-            const sel = document.getElementById('categoria');
-            if (sel) {
-                const val = sel.value;
-                sel.options.length = 0; // Limpiar opciones de manera segura
-                const optDef = document.createElement('option');
-                optDef.value = '';
-                optDef.textContent = 'Seleccionar...';
-                sel.appendChild(optDef);
-                
-                combined.forEach(cat => {
-                    const opt = document.createElement('option');
-                    opt.value = cat;
-                    opt.textContent = cat;
-                    sel.appendChild(opt);
-                });
-                if (val) sel.value = val;
-            }
-
-            const selFiltro = document.getElementById('filtro-categoria');
-            if (selFiltro) {
-                const valFiltro = selFiltro.value;
-                selFiltro.options.length = 0;
-                const optDefFiltro = document.createElement('option');
-                optDefFiltro.value = '';
-                optDefFiltro.textContent = 'Todas';
-                selFiltro.appendChild(optDefFiltro);
-
-                combined.forEach(cat => {
-                    const opt = document.createElement('option');
-                    opt.value = cat;
-                    opt.textContent = cat;
-                    selFiltro.appendChild(opt);
-                });
-                if (valFiltro) selFiltro.value = valFiltro;
-            }
-
-            const selInv = document.getElementById('nuevo-categoria-inv');
-            if (selInv) {
-                const valInv = selInv.value;
-                selInv.options.length = 0;
-                const optDefInv = document.createElement('option');
-                optDefInv.value = '';
-                optDefInv.textContent = 'Seleccionar...';
-                selInv.appendChild(optDefInv);
-                
-                combined.forEach(cat => {
-                    const opt = document.createElement('option');
-                    opt.value = cat;
-                    opt.textContent = cat;
-                    selInv.appendChild(opt);
-                });
-                if (valInv) selInv.value = valInv;
-            }
-        }
-
-        async function agregar() {
-            const { value: nombre } = await Swal.fire({
-                title: 'Nueva Categoría',
-                input: 'text',
-                inputPlaceholder: 'Ej: Abarrotes',
-                showCancelButton: true,
-                confirmButtonColor: '#10B981',
-                confirmButtonText: 'Guardar',
-                cancelButtonText: 'Cancelar'
-            });
-
-            if (!nombre || !nombre.trim()) return;
-
-            const cleanNombre = nombre.trim();
-            const defaults = getDefaultCats();
-            const all = [...defaults, ...getCustom()].map(c => c.toLowerCase());
+            return giro === 'general' ? ['Abarrotes', 'Ropa', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'] : ['Laptops', 'Desktops', 'Accesorios', 'Periféricos', 'Componentes', 'Servicios', 'Otros'];
+        },
+        cargarEnSelect() {
+            const defaults = this.getDefaultCats();
+            const custom = Estado.categoriasCustom || [];
+            const combined = [...new Set([...defaults, ...custom])].filter(c => c && c.toLowerCase() !== 'seleccionar...' && c.toLowerCase() !== 'todas');
             
-            if (all.includes(cleanNombre.toLowerCase())) {
-                const sel = document.getElementById('categoria');
-                if (sel) [...sel.options].forEach(o => { if (o.text.toLowerCase() === cleanNombre.toLowerCase()) sel.value = o.text; });
-                const selInv = document.getElementById('nuevo-categoria-inv');
-                if (selInv) [...selInv.options].forEach(o => { if (o.text.toLowerCase() === cleanNombre.toLowerCase()) selInv.value = o.text; });
-                return;
+            const updateSelect = (id, firstOpt) => {
+                const sel = document.getElementById(id); if (!sel) return;
+                const val = sel.value;
+                sel.innerHTML = `<option value="">${firstOpt}</option>` + combined.map(c => `<option value="${c}">${c}</option>`).join('');
+                if (val) sel.value = val;
+            };
+            updateSelect('categoria', 'Seleccionar...'); updateSelect('filtro-categoria', 'Todas'); updateSelect('nuevo-categoria-inv', 'Seleccionar...');
+        },
+        async agregar() {
+            const { value: nombre } = await Swal.fire({ title: 'Nueva Categoría', input: 'text', inputPlaceholder: 'Ej: Abarrotes', showCancelButton: true, confirmButtonColor: '#10B981', confirmButtonText: 'Guardar' });
+            if (!nombre || !nombre.trim()) return;
+            const cleanNombre = nombre.trim();
+            if (!Estado.categoriasCustom) Estado.categoriasCustom = [];
+            const all = [...this.getDefaultCats(), ...Estado.categoriasCustom].map(c => c.toLowerCase());
+            
+            if (!all.includes(cleanNombre.toLowerCase())) {
+                Estado.categoriasCustom.push(cleanNombre);
+                await Firebase.guardar('categoriasCustom', Estado.categoriasCustom);
+                Toastify({ text: `✅ Categoría en la nube`, duration: 2500, backgroundColor: '#10B981' }).showToast();
             }
+            this.cargarEnSelect();
+            ['categoria', 'nuevo-categoria-inv'].forEach(id => { const el = document.getElementById(id); if (el) el.value = cleanNombre; });
+        }
+    };
 
-            const custom = getCustom();
-            custom.push(cleanNombre);
-            saveCustom(custom);
-            cargarEnSelect();
-
-            const sel = document.getElementById('categoria');
-            if (sel) sel.value = cleanNombre;
-            const selInv = document.getElementById('nuevo-categoria-inv');
-            if (selInv) selInv.value = cleanNombre;
-
-            if (typeof Toastify !== 'undefined') {
-                Toastify({
-                    text: '✅ Categoría "' + cleanNombre + '" añadida',
-                    duration: 2500, gravity: 'bottom', position: 'right',
-                    style: { background: 'linear-gradient(135deg,#10B981,#059669)', borderRadius: '10px', fontWeight: '600' }
-                }).showToast();
+    const MarcasCustom = {
+        getDefaultMarcas() {
+            const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
+            return giro === 'general' ? ['Genérico', 'Gloria', 'Coca-Cola', 'Inca Kola', 'Nestlé', 'Alicorp', 'Bimbo'] : ['Genérico', 'HP', 'Lenovo', 'Asus', 'Logitech', 'Kingston', 'Samsung', 'AMD', 'Intel'];
+        },
+        cargarEnSelect() {
+            const defaults = this.getDefaultMarcas();
+            const custom = Estado.marcasCustom || [];
+            const combined = [...new Set([...defaults, ...custom])].sort();
+            
+            const sel = document.getElementById('nuevo-marca-inv'); if (!sel) return;
+            const val = sel.value;
+            sel.innerHTML = combined.map(m => `<option value="${m}">${m}</option>`).join('') + `<option value="nueva_marca" style="font-weight:bold;color:#2B56A5;">➕ Añadir nueva marca...</option>`;
+            if (val && combined.includes(val)) sel.value = val;
+        },
+        async manejarSeleccion(selectEl) {
+            if (selectEl.value === 'nueva_marca') {
+                const { value: nuevaMarca } = await Swal.fire({ title: 'Añadir Nueva Marca', input: 'text', inputPlaceholder: 'Ej: Redragon', showCancelButton: true, confirmButtonColor: '#2B56A5' });
+                if (nuevaMarca && nuevaMarca.trim()) {
+                    const cleanMarca = nuevaMarca.trim().toUpperCase();
+                    if (!Estado.marcasCustom) Estado.marcasCustom = [];
+                    if (![...this.getDefaultMarcas(), ...Estado.marcasCustom].map(m=>m.toUpperCase()).includes(cleanMarca)) {
+                        Estado.marcasCustom.push(cleanMarca);
+                        await Firebase.guardar('marcasCustom', Estado.marcasCustom);
+                        Toastify({ text: `✅ Marca añadida a la nube`, duration: 2500, backgroundColor: '#2B56A5' }).showToast();
+                    }
+                    this.cargarEnSelect();
+                    selectEl.value = cleanMarca;
+                } else { selectEl.selectedIndex = 0; }
             }
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            cargarEnSelect();
-        });
-
-        return { agregar, cargarEnSelect };
-    })();
+    };
     </script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
