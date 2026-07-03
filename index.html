@@ -1795,17 +1795,22 @@
         // ════════════════════════════════════════════════════════════════
 
         const Auth = {
-            ADMIN_EMAIL: "joseprado049321@gmail.com",
             esAdmin: false,
             modoInvitado: false,
             usuarioActual: null,
             init() {
                 if (window.firebaseOK) {
-                    firebase.auth().onAuthStateChanged((user) => { if (user) this.manejarAcceso(user); });
+                    firebase.auth().onAuthStateChanged(async (user) => {
+                        if (user) {
+                            await this.manejarAccesoSeguro(user);
+                        } else {
+                            this.usuarioActual = null;
+                            this.esAdmin = false;
+                        }
+                    });
                 }
                 const form = document.getElementById('loginForm');
                 if (form) form.addEventListener('submit', (e) => this.loginTradicional(e));
-                if (localStorage.getItem('sesionInvitado') === 'true') this.entrarComoInvitado(true);
             },
             async loginConGoogle() {
                 if (!window.firebaseOK) return this._notificar("❌ Firebase no conectado", "#ff5f6d");
@@ -1821,168 +1826,33 @@
                 const btnOriginalText = btnSubmit ? btnSubmit.innerHTML : '🚀 Ingresar';
                 if (btnSubmit) { btnSubmit.innerHTML = '⏳ Verificando...'; btnSubmit.disabled = true; }
 
-                if (user === this.ADMIN_EMAIL && pass === "12345678") {
-                    this.esAdmin = true; this.modoInvitado = false;
-                    localStorage.setItem('superAdmin', 'true');
-                    localStorage.setItem('sesionActiva', 'true');
-                    localStorage.removeItem('sesionInvitado');
-                    this.mostrarPantallaPrincipal();
-                    this._notificar("✅ Bienvenido Administrador", "linear-gradient(to right,#4472C4,#2c5aa0)");
-                } else {
-                    try {
-                        const snapshot = await db.collection('usuarios_acceso').where('username', '==', user).where('password', '==', pass).get();
-                        if (!snapshot.empty) {
-                            const userData = snapshot.docs[0].data();
-                            if (userData.estado !== 'aprobado') {
-                                this._notificar("❌ Tu cuenta no está aprobada", "#ff5f6d");
-                                return;
-                            }
-                            this.esAdmin = (userData.rol === 'admin');
-                            this.modoInvitado = false;
-                            this.usuarioActual = userData; 
-                            localStorage.setItem('sesionActiva', 'true');
-                            // Si el Súper Admin le asignó un Tenant a este usuario, lo cargamos
-                            if (userData.tenantId) localStorage.setItem('tenantId', userData.tenantId);
-                            this.mostrarPantallaPrincipal();
-                            this._notificar(`✅ Bienvenido, ${userData.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
-                        } else {
-                            this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
-                        }
-                    } catch (error) {
-                        console.error(error);
-                        this._notificar("❌ Error conectando a la base de datos", "#ff5f6d");
-                    }
+                try {
+                    await firebase.auth().signInWithEmailAndPassword(user, pass);
+                } catch (error) {
+                    console.error(error);
+                    this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
                 }
                 
                 if (btnSubmit) { btnSubmit.innerHTML = btnOriginalText; btnSubmit.disabled = false; }
             },
-            entrarComoInvitado(auto = false) {
-                this.modoInvitado = true; this.esAdmin = false;
-                localStorage.setItem('sesionInvitado', 'true');
-                localStorage.removeItem('sesionActiva');
-                this.mostrarPantallaPrincipal();
-                if (!auto) this._notificar("👤 Modo Invitado: solo datos locales", "#6c757d");
-            },
-            async manejarAcceso(user) {
-                const isSuperAdminAccount = (user.email === this.ADMIN_EMAIL);
-                
-                // 1. EL PASE VIP DEL SÚPER ADMIN (Evita que quede en "Pendiente")
-                if (isSuperAdminAccount) {
-                    localStorage.setItem('superAdmin', 'true');
-                    localStorage.setItem('sesionActiva', 'true');
-                    this.esAdmin = true;
-                    this.modoInvitado = false;
-                    this.usuarioActual = { email: user.email, nombre: user.displayName || 'Súper Admin', rol: 'admin', uid: user.uid };
-                    if (typeof this.cargarEmpresas === 'function') this.cargarEmpresas();
-                    this.mostrarPantallaPrincipal();
-                    this._notificar(`👑 Bienvenido Súper Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
-                    return; 
-                }
-                
+            async manejarAccesoSeguro(user) {
                 try {
-                    const docRef = db.collection('usuarios_acceso').doc(user.uid);
-                    const docSnap = await docRef.get();
-
-                    if (!docSnap.exists) {
-                        // Ocultar interfaz gráfica para bloquear "Sesiones Fantasma" de cuentas eliminadas
-                        const appCont = document.getElementById('app-container');
-                        const logCont = document.getElementById('login-container');
-                        if (appCont) appCont.style.display = 'none';
-                        if (logCont) logCont.style.display = 'flex';
-
-                        const { value: tipoUsuario } = await Swal.fire({
-                            title: '👋 ¡Bienvenido a LisPro POS!',
-                            text: '¿Qué tipo de cuenta deseas crear?',
-                            icon: 'question',
-                            showDenyButton: true, showCancelButton: true,
-                            confirmButtonText: '🏢 Soy Dueño', denyButtonText: '👤 Soy Empleado', cancelButtonText: 'Cancelar',
-                            confirmButtonColor: '#2B56A5', denyButtonColor: '#10B981', allowOutsideClick: false
-                        });
-
-                        if (!tipoUsuario && tipoUsuario !== false) { await firebase.auth().signOut(); return; }
-
-                        if (tipoUsuario) { 
-                            await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'admin', estado: 'pendiente', tenantId: user.uid, fechaCreacion: new Date().toISOString() });
-                            this._mostrarPantalla('pending-screen');
-                            this._escucharAprobacion(docRef);
-                        } else { 
-                            const { value: codigoTienda } = await Swal.fire({
-                                title: '🔗 Conectar a Tienda',
-                                text: 'Ingresa el Identificador que te proporcionó el administrador:',
-                                input: 'text', inputPlaceholder: 'Ej: NEX-ABCD-1234',
-                                showCancelButton: true, confirmButtonText: 'Siguiente',
-                                preConfirm: async (codigo) => {
-                                    if(!codigo) { Swal.showValidationMessage('Ingresa un código'); return false; }
-                                    const snapshot = await db.collection('empresas').where('storeId', '==', codigo.trim().toUpperCase()).get();
-                                    if(snapshot.empty) { Swal.showValidationMessage('Identificador no válido'); return false; }
-                                    return snapshot.docs[0].id;
-                                }
-                            });
-
-                            if (codigoTienda) {
-                                await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'empleado', estado: 'pendiente', tenantId: codigoTienda, fechaCreacion: new Date().toISOString() });
-                                this._mostrarPantalla('pending-screen');
-                                this._escucharAprobacion(docRef);
-                            } else { await firebase.auth().signOut(); }
-                        }
-                        return;
-                    }
-
-                    const data = docSnap.data();
-                    if (data.estado === 'pendiente') { this._mostrarPantalla('pending-screen'); this._escucharAprobacion(docRef); return; }
-                    if (data.estado === 'rechazado') { this._mostrarPantalla('denied-screen'); return; }
-
-                    if (data.estado === 'aprobado') {
-                        // Solo pedir crear tienda si es el Dueño original (su tenantId es su propio UID)
-                        if (data.rol === 'admin' && data.tenantId === user.uid && !data.storeId && !isSuperAdminAccount) {
-                            const { value: nombreTienda } = await Swal.fire({
-                                title: '🎉 ¡Cuenta Aprobada!',
-                                text: 'Ingresa el nombre de tu negocio para configurar tu espacio:',
-                                input: 'text', inputPlaceholder: 'Ej: Minimarket El Sol', allowOutsideClick: false, confirmButtonText: 'Comenzar 🚀',
-                                preConfirm: (val) => { if(!val) { Swal.showValidationMessage('Requerido'); return false; } return val.trim(); }
-                            });
-                            if (nombreTienda) {
-                                const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-                                const p1 = nombreTienda.replace(/[^A-Z]/ig, '').substring(0,4).toUpperCase().padEnd(4,'X');
-                                const storeId = `NEX-${p1}-${random}`;
-                                
-                                await docRef.update({ storeId: storeId, nombreTienda: nombreTienda });
-                                await db.collection('empresas').doc(user.uid).set({ storeId: storeId, nombreTienda: nombreTienda });
-                                data.storeId = storeId;
-                                
-                                await Swal.fire({ title: '🏢 Tu tienda está lista', html: `El identificador de tu tienda es:<br><b style="font-size:1.6em;color:#2B56A5;letter-spacing:2px;display:block;margin:15px 0;">${storeId}</b><span style="font-size:0.9em;color:#666;">Comparte este código con tus empleados para que se unan a tu tienda.</span>`, icon: 'success' });
-                            }
-                        }
-
-                        this.esAdmin = (data.rol === 'admin');
-                        this.usuarioActual = data;
-                        localStorage.setItem('sesionActiva', 'true');
-                        localStorage.setItem('tenantId', data.tenantId || user.uid);
-                        
-                        if (!isSuperAdminAccount) localStorage.removeItem('superAdminTenant');
-                        else if (typeof this.cargarEmpresas === 'function') this.cargarEmpresas();
-
+                    const doc = await db.collection('usuarios_acceso').doc(user.uid).get();
+                    if (doc.exists) {
+                        const userData = doc.data();
+                        this.esAdmin = (userData.rol === 'admin');
+                        this.usuarioActual = userData;
+                        if (userData.tenantId) localStorage.setItem('tenantId', userData.tenantId);
                         this.mostrarPantallaPrincipal();
-                        this._notificar(`✅ Bienvenido, ${data.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
-                        if (typeof Storage !== 'undefined') Storage.sincronizarDesdeFirebase();
-
-                        // MOTOR DE SEGURIDAD: Expulsar al instante si es eliminado o actualizar menú si cambian permisos
-                        docRef.onSnapshot(snap => {
-                            if (!snap.exists) {
-                                Swal.fire('Cuenta Eliminada', 'Tu acceso ha sido revocado por el dueño de la tienda.', 'error').then(() => this.cerrarSesion());
-                            } else {
-                                const actualData = snap.data();
-                                if (actualData.estado !== 'aprobado') {
-                                    Swal.fire('Acceso Suspendido', 'Tu cuenta ha sido deshabilitada.', 'warning').then(() => this.cerrarSesion());
-                                } else if (this.usuarioActual && (JSON.stringify(this.usuarioActual.modulos) !== JSON.stringify(actualData.modulos) || this.usuarioActual.rol !== actualData.rol)) {
-                                    this.esAdmin = (actualData.rol === 'admin');
-                                    this.usuarioActual = actualData;
-                                    if (typeof this.aplicarRestricciones === 'function') this.aplicarRestricciones();
-                                }
-                            }
-                        });
+                        this._notificar(`✅ Bienvenido, ${userData.nombre || user.email}`, "linear-gradient(to right,#00b09b,#96c93d)");
+                    } else {
+                        this.esAdmin = false;
+                        this.usuarioActual = { email: user.email, uid: user.uid };
+                        this.mostrarPantallaPrincipal();
                     }
-                } catch (error) { console.error(error); Swal.fire('Error', 'Problema de conexión', 'error'); }
+                } catch(e) {
+                    console.error("Error leyendo acceso:", e);
+                }
             },
             _escucharAprobacion(docRef) {
                 // onSnapshot mantiene una conexión abierta en tiempo real con la nube
@@ -2494,150 +2364,37 @@
             },
             async registrarVenta(e) {
                 e.preventDefault();
-
-                if (!document.getElementById('fecha').value) document.getElementById('fecha').valueAsDate = new Date();
-                if (!document.getElementById('categoria').value) document.getElementById('categoria').value = 'Otros';
-                if (!document.getElementById('cliente').value) document.getElementById('cliente').value = 'Público General';
-
-                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
-                if (giro === 'general') {
-                    const totalVenta = (parseFloat(document.getElementById('precio').value) || 0) * (parseInt(document.getElementById('cantidad').value) || 1);
-                    const { value: posData, isConfirmed } = await Swal.fire({
-                        title: '💵 Cobro Rápido',
-                        html: `
-                            <div style="font-size:2.2em; font-weight:800; color:#2B56A5; margin-bottom:15px; font-family:'Poppins',sans-serif;">Total: S/${totalVenta.toFixed(2)}</div>
-                            <label style="display:block;text-align:left;font-weight:600;margin-bottom:5px;">Método de Pago:</label>
-                            <select id="swal-pos-metodo" class="swal2-input" style="width:100%;margin:0;" onchange="const isEf = this.value==='Efectivo'; document.getElementById('swal-pos-efectivo-container').style.display = isEf ? 'block' : 'none';">
-                                <option value="Efectivo">💵 Efectivo</option>
-                                <option value="Yape">📱 Yape / Plin</option>
-                                <option value="Tarjeta">💳 Tarjeta</option>
-                            </select>
-                            <div id="swal-pos-efectivo-container" style="display:block; text-align:left; margin-top:15px; background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e9ecef;">
-                                <label style="display:block;font-weight:600;margin-bottom:5px;">¿Con cuánto paga? (S/)</label>
-                                <input type="number" id="swal-pos-paga" class="swal2-input" style="width:100%;margin:0;font-size:1.2em;font-weight:bold;color:#28a745;" step="0.01" min="${totalVenta}" placeholder="Ej: 50" oninput="const paga=parseFloat(this.value)||0; const vuelto=paga-${totalVenta}; const el=document.getElementById('swal-pos-vuelto'); el.textContent = vuelto>=0 ? 'S/'+vuelto.toFixed(2) : 'S/0.00'; el.style.color = vuelto>=0 ? '#28a745' : '#dc3545';">
-                                <div style="margin-top:10px; font-size:1.6em; font-weight:800;">VUELTO: <span id="swal-pos-vuelto" style="color:#dc3545;">S/0.00</span></div>
-                            </div>`,
-                        showCancelButton: true, confirmButtonText: '✅ Confirmar Pago (Enter)', cancelButtonText: 'Cancelar', confirmButtonColor: '#28a745',
-                        didOpen: () => { setTimeout(() => document.getElementById('swal-pos-paga').focus(), 100); },
-                        preConfirm: () => {
-                            const met = document.getElementById('swal-pos-metodo').value.replace('📱 ', '').replace('💳 ', '').replace('💵 ', '').trim();
-                            const paga = parseFloat(document.getElementById('swal-pos-paga').value) || 0;
-                            if (met === 'Efectivo' && paga < totalVenta) { Swal.showValidationMessage('El monto pagado es insuficiente'); return false; }
-                            return { metodo: met, paga: met === 'Efectivo' ? paga : totalVenta };
-                        }
+                const btnSubmit = document.querySelector('#ventaForm button[type="submit"]');
+                if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerHTML = '⏳ Procesando...'; }
+                
+                try {
+                    const sku = document.getElementById('sku').value.trim();
+                    const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
+                    const cliente = document.getElementById('cliente').value.trim() || 'Público General';
+                    const metodoPago = document.getElementById('metodo_pago') ? document.getElementById('metodo_pago').value : 'Efectivo';
+                    const tenantId = localStorage.getItem('tenantId');
+                    
+                    const response = await fetch('https://us-central1-' + (firebase.app().options.projectId || 'tu-proyecto') + '.cloudfunctions.net/procesarVenta', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sku, cantidad, cliente, metodoPago, tenantId })
                     });
                     
-                    if (!isConfirmed) return;
-                    document.getElementById('metodo').value = posData.metodo;
-                }
-
-                const metodoPago = document.getElementById('metodo').value;
-                let sku = document.getElementById('sku').value.trim();
-                const cantidad = parseInt(document.getElementById('cantidad').value);
-                const categoria = document.getElementById('categoria').value;
-                if (!sku) {
-                    Swal.fire({ icon:'warning', title:'SKU requerido', text:'Debes generar un SKU antes de registrar el producto.', confirmButtonColor:'#7C3AED', confirmButtonText:'🏷️ Generar SKU' })
-                        .then(() => { document.getElementById('sku-inline-panel').style.display = 'block'; document.getElementById('skup-marca').focus(); });
-                    return;
-                }
-                if (sku) {
-                    let item = Estado.inventario.find(x => x.sku === sku);
-                    if (!item) {
-                        const result = await Swal.fire({
-                            title: '¡Nuevo SKU!',
-                            text: 'Ingrese el Inventario existente',
-                            icon: 'info',
-                            input: 'number',
-                            inputAttributes: { min: 0, step: 1 },
-                            showDenyButton: true,
-                            showCancelButton: true,
-                            confirmButtonText: '✅ Confirmar',
-                            denyButtonText: '🕒 Lo ingresaré luego',
-                            cancelButtonText: 'Cancelar',
-                            confirmButtonColor: '#28a745',
-                            denyButtonColor: '#ffc107',
-                            cancelButtonColor: '#6c757d',
-                            preConfirm: (stockValue) => {
-                                if (stockValue === '' || stockValue === null) {
-                                    Swal.showValidationMessage('Falta poner el Inventario');
-                                    return false;
-                                }
-                                return parseInt(stockValue);
-                            }
-                        });
-
-                        let stockInicial = 0;
-                        let faltaInventario = false;
-
-                        if (result.isConfirmed) {
-                            stockInicial = result.value;
-                        } else if (result.isDenied) {
-                            faltaInventario = true;
-                        } else {
-                            Swal.fire('Cancelado', 'No se registró la venta.', 'info');
-                            return;
-                        }
-
-                        const nuevoNombre = document.getElementById('producto').value || sku;
-                        item = { sku: sku, nombre: nuevoNombre, stock: stockInicial, reorderThreshold: 5, faltaInventario: faltaInventario };
-                        Estado.inventario.push(item);
-                        await Storage.guardarInventario();
-                        if (typeof UI.actualizarAlertasInventario === 'function') UI.actualizarAlertasInventario();
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        Toastify({text: "✅ Venta registrada en servidor", backgroundColor: "#28a745"}).showToast();
+                        document.getElementById('ventaForm').reset();
+                        document.getElementById('total-display').value = 'S/0.00';
+                    } else {
+                        Toastify({text: "❌ Error: " + (result.error || 'Desconocido'), backgroundColor: "#dc3545"}).showToast();
                     }
-
-                    if (!item.faltaInventario && item.stock < cantidad) { 
-                        Swal.fire('Stock insuficiente', `Stock: ${item.stock} disponibles.`, 'error'); 
-                        return; 
-                    }
+                } catch (error) {
+                    console.error("Error al registrar venta:", error);
+                    Toastify({text: "❌ Error de conexión con el backend", backgroundColor: "#dc3545"}).showToast();
                 }
-                const adelantoInicial = parseFloat(document.getElementById('adelanto').value) || 0;
-                const venta = {
-                    id: Date.now(), fecha: document.getElementById('fecha').value,
-                    producto: document.getElementById('producto').value, categoria,
-                    cantidad, precio: parseFloat(document.getElementById('precio').value),
-                    total: Math.round(cantidad * parseFloat(document.getElementById('precio').value) * 100) / 100,
-                    adelanto: adelantoInicial, saldoPendiente: 0, estadoPago: 'Pendiente',
-                    cliente: document.getElementById('cliente').value, metodo: metodoPago,
-                    historialPagos: [], vendedor: (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : document.getElementById('vendedor').value.trim(),
-                    notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString()
-                };
-                venta.saldoPendiente = venta.total - venta.adelanto;
-                venta.estadoPago = venta.saldoPendiente <= 0 ? 'Pagado' : 'Pendiente';
-                if (adelantoInicial > 0) venta.historialPagos.push({ monto: adelantoInicial, metodo: metodoPago, fecha: new Date().toISOString() });
-                if (venta.sku) {
-                    const item = Estado.inventario.find(x => x.sku === venta.sku);
-                    if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.guardarInventario(); }
-                }
-                Estado.ventas.unshift(venta);
-                await Storage.guardarVentas();
-                UI.actualizarVistas();
-                const msg = document.getElementById('success-msg');
-                msg.classList.add('show');
-                setTimeout(() => msg.classList.remove('show'), 3000);
-                Toastify({ text:"✅ Venta registrada", duration:3000, gravity:"top", position:"right", backgroundColor:"linear-gradient(to right,#00b09b,#96c93d)" }).showToast();
-                const ventaGuardada = venta;
-                this.limpiarFormulario();
-                // Ofrecer generar boleta
-                const { isConfirmed: hacerBoleta } = await Swal.fire({
-                    icon: 'success',
-                    title: '✅ Venta Registrada',
-                    html: `<p>¿Deseas generar una boleta electrónica para esta venta?</p>`,
-                    showCancelButton: true,
-                    confirmButtonText: '🧾 Generar Boleta',
-                    cancelButtonText: 'No, gracias',
-                    confirmButtonColor: '#1E3A6E',
-                    cancelButtonColor: '#6c757d',
-                    timer: 8000,
-                    timerProgressBar: true
-                });
-                if (hacerBoleta) {
-                    await Boletas.generarDesdeVenta(ventaGuardada.id);
-                }
-                const nombreCliente = venta.cliente ? venta.cliente.trim() : '';
-                if (nombreCliente && !Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase())) {
-                    const result = await Swal.fire({ title:'¿Registrar cliente nuevo?', html:`<p>¿Agregar a <strong>${nombreCliente}</strong>?</p>`, icon:'question', showCancelButton:true, showDenyButton:true, confirmButtonText:'Sí, registrar', denyButtonText:'Después', cancelButtonText:'No', confirmButtonColor:'#4472C4', denyButtonColor:'#6c757d', cancelButtonColor:'#6c757d' });
-                    if (result.isConfirmed) { UI.switchTab('clientes'); Clientes.mostrarFormNuevoCliente(); document.getElementById('nuevo-cliente-nombre').value = nombreCliente; }
-                }
+                
+                if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = '💰 Registrar Venta'; }
             },
             limpiarFormulario() {
                 document.getElementById('ventaForm').reset();
@@ -5896,7 +5653,7 @@ const CierreCaja = {
         // ─────────────────────────────────────────────────────────────
         $('#btnConsultarDNI').on('click', function () {
             var dni   = $('#dniInput').val().toString().trim();
-            var token = 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
+            
 
             // Validar que sean exactamente 8 dígitos
             if (!/^\d{8}$/.test(dni)) {
@@ -5916,57 +5673,32 @@ const CierreCaja = {
             // ── Llamada a la API ─────────────────────────────────────
             // URL: https://api.miapi.cloud/v1/dni/{DNI}?token={TOKEN}
             // La API devuelve: { success: true, data: { nombres, apellidoPaterno, apellidoMaterno } }
-            fetch('https://miapi.cloud/v1/dni/' + dni, {
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
-                })
-                .then(function (response) {
-                    return response.json();
-                })
-                .then(function (data) {
-                    console.log('Respuesta API DNI:', JSON.stringify(data));
-
-                    // Formato real de miapi.cloud:
-                    // { success: true, datos: { nombres, ape_paterno, ape_materno, ... } }
-                    var d = data.datos || data.data || {};
-                    var nombres   = d.nombres      || '';
-                    var apPaterno = d.ape_paterno  || d.apellidoPaterno || '';
-                    var apMaterno = d.ape_materno  || d.apellidoMaterno || '';
-                    var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
-
-                    if (nombreCompleto.length > 2) {
-                        $('#cliente').val(nombreCompleto);
-                        // Ocultar campos manuales si estaban visibles
-                        $('#campos-manuales-dni').slideUp(200);
-                        Swal.fire({
-                            icon: 'success',
-                            title: '✅ Cliente encontrado',
-                            text: nombreCompleto,
-                            timer: 2500,
-                            showConfirmButton: false
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Respuesta inesperada',
-                            html: '<p>La API respondió con un formato distinto.</p>'
-                                + '<pre style="font-size:11px;text-align:left;background:#f0f0f0;padding:8px;border-radius:6px;overflow:auto;max-height:120px;">'
-                                + JSON.stringify(data, null, 2) + '</pre>',
-                            confirmButtonColor: '#4472C4'
-                        });
-                    }
-                })
-                .catch(function (error) {
-                    console.error('Error API DNI:', error);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error de conexión',
-                        text: 'No se pudo conectar con la API. Revisa tu internet.',
-                        confirmButtonColor: '#4472C4'
-                    });
-                })
-                .finally(function () {
+            fetch('https://us-central1-' + (firebase.app().options.projectId || 'tu-proyecto') + '.cloudfunctions.net/consultarDNI', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dni: dni })
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var d = data.datos || data.data || data;
+                var nombres = d.nombres || '';
+                var apPaterno = d.ape_paterno || d.apellidoPaterno || '';
+                var apMaterno = d.ape_materno || d.apellidoMaterno || '';
+                var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
+                
+                if (nombreCompleto.length > 2) {
+                    $('#cliente').val(nombreCompleto);
+                    $('#campos-manuales-dni').slideUp(200);
+                    Swal.fire({icon: 'success', title: '✅ Cliente encontrado', text: nombreCompleto, timer: 2500, showConfirmButton: false});
+                } else {
+                    Swal.fire({icon: 'warning', title: 'No encontrado', text: 'El DNI no devolvió resultados válidos.'});
+                }
+            })
+            .catch(function(error) {
+                console.error(error);
+                Swal.fire({icon: 'error', title: 'Error', text: 'Error consultando al servidor seguro.'});
+            })
+            .finally(function () {
                     // Restaurar el botón siempre, haya error o éxito
                     $btn.html('🔍 Consultar').prop('disabled', false);
                 });
