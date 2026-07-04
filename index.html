@@ -4143,19 +4143,19 @@
                     const { value: posData, isConfirmed } = await Swal.fire({
                         title: '💵 Cobro Rápido',
                         html: `
-                            <div style="font-size:2.2em; font-weight:800; color:#2B56A5; margin-bottom:15px; font-family:'Poppins',sans-serif;">Total: S/${totalVenta.toFixed(2)}</div>
+                            <div style="font-size:2.2em; font-weight:800; color:var(--primary); margin-bottom:15px; font-family:'Poppins',sans-serif;">Total: S/${totalVenta.toFixed(2)}</div>
                             <label style="display:block;text-align:left;font-weight:600;margin-bottom:5px;">Método de Pago:</label>
                             <select id="swal-pos-metodo" class="swal2-input" style="width:100%;margin:0;" onchange="const isEf = this.value==='Efectivo'; document.getElementById('swal-pos-efectivo-container').style.display = isEf ? 'block' : 'none';">
                                 <option value="Efectivo">💵 Efectivo</option>
                                 <option value="Yape">📱 Yape / Plin</option>
                                 <option value="Tarjeta">💳 Tarjeta</option>
                             </select>
-                            <div id="swal-pos-efectivo-container" style="display:block; text-align:left; margin-top:15px; background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e9ecef;">
+                            <div id="swal-pos-efectivo-container" style="display:block; text-align:left; margin-top:15px; background:var(--bg-body); padding:15px; border-radius:10px; border:1px solid var(--border);">
                                 <label style="display:block;font-weight:600;margin-bottom:5px;">¿Con cuánto paga? (S/)</label>
-                                <input type="number" id="swal-pos-paga" class="swal2-input" style="width:100%;margin:0;font-size:1.2em;font-weight:bold;color:#28a745;" step="0.01" min="${totalVenta}" placeholder="Ej: 50" oninput="const paga=parseFloat(this.value)||0; const vuelto=paga-${totalVenta}; const el=document.getElementById('swal-pos-vuelto'); el.textContent = vuelto>=0 ? 'S/'+vuelto.toFixed(2) : 'S/0.00'; el.style.color = vuelto>=0 ? '#28a745' : '#dc3545';">
-                                <div style="margin-top:10px; font-size:1.6em; font-weight:800;">VUELTO: <span id="swal-pos-vuelto" style="color:#dc3545;">S/0.00</span></div>
+                                <input type="number" id="swal-pos-paga" class="swal2-input" style="width:100%;margin:0;font-size:1.2em;font-weight:bold;color:var(--success);" step="0.01" min="${totalVenta}" placeholder="Ej: 50" oninput="const paga=parseFloat(this.value)||0; const vuelto=paga-${totalVenta}; const el=document.getElementById('swal-pos-vuelto'); el.textContent = vuelto>=0 ? 'S/'+vuelto.toFixed(2) : 'S/0.00'; el.style.color = vuelto>=0 ? 'var(--success)' : 'var(--danger)';">
+                                <div style="margin-top:10px; font-size:1.6em; font-weight:800;">VUELTO: <span id="swal-pos-vuelto" style="color:var(--danger);">S/0.00</span></div>
                             </div>`,
-                        showCancelButton: true, confirmButtonText: '✅ Confirmar Pago (Enter)', cancelButtonText: 'Cancelar', confirmButtonColor: '#28a745',
+                        showCancelButton: true, confirmButtonText: '✅ Confirmar Pago (Enter)', cancelButtonText: 'Cancelar', confirmButtonColor: '#10B981',
                         didOpen: () => { setTimeout(() => document.getElementById('swal-pos-paga').focus(), 100); },
                         preConfirm: () => {
                             const met = document.getElementById('swal-pos-metodo').value.replace('📱 ', '').replace('💳 ', '').replace('💵 ', '').trim();
@@ -4167,6 +4167,7 @@
 
                     if (!isConfirmed) return;
                     document.getElementById('metodo').value = posData.metodo;
+                    document.getElementById('adelanto').value = totalVenta.toFixed(2);
                 }
 
                 const metodoPago = document.getElementById('metodo').value;
