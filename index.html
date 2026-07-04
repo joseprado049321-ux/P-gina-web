@@ -6233,10 +6233,13 @@
                 const editandoId = document.getElementById('os-editando-id').value;
                 const ordenes = this.cargar();
 
-                // Actualización silenciosa de cliente
+                // Registro o actualización silenciosa de cliente
                 if (cliente) {
                     const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === cliente.toLowerCase());
-                    if (clienteExistente) {
+                    if (!clienteExistente) {
+                        const result = await Swal.fire({ title: '¿Registrar cliente nuevo?', html: `<p>¿Agregar a <strong>${cliente}</strong>?</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, confirmButtonText: 'Sí, registrar', denyButtonText: 'Después', cancelButtonText: 'No', confirmButtonColor: '#4472C4', denyButtonColor: '#6c757d', cancelButtonColor: '#6c757d' });
+                        if (result.isConfirmed) { UI.switchTab('clientes'); Clientes.mostrarFormNuevoCliente(); document.getElementById('nuevo-cliente-nombre').value = cliente; }
+                    } else {
                         const dniIngresado = document.getElementById('os-dni') ? document.getElementById('os-dni').value.trim() : '';
                         const telIngresado = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
                         let modificado = false;
@@ -6263,9 +6266,15 @@
                     if (typeof UI !== 'undefined' && UI.renderInventario) UI.renderInventario();
                 }
 
+                let numFinal = document.getElementById('os-numero').value.trim();
+                if (!numFinal) {
+                    const siguiente = ordenes.length > 0 ? Math.max(...ordenes.map(o => parseInt((o.numero || 'OS-0').split('-')[1]) || 0)) + 1 : 1;
+                    numFinal = `OS-${String(siguiente).padStart(4, '0')}`;
+                }
+
                 const orden = {
                     id: editandoId || Date.now().toString(),
-                    numero: document.getElementById('os-numero').value,
+                    numero: numFinal,
                     fecha, cliente,
                     telefono: document.getElementById('os-telefono').value.trim(),
                     tipoEquipo, marca: document.getElementById('os-marca').value.trim(),
