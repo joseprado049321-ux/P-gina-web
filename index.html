@@ -2391,7 +2391,7 @@
                     const cantidad = parseInt(document.getElementById('cantidad').value) || 1;
                     const cliente = document.getElementById('cliente').value.trim() || 'Público General';
                     const metodoPago = document.getElementById('metodo_pago') ? document.getElementById('metodo_pago').value : 'Efectivo';
-                    const tenantId = localStorage.getItem('tenantId');
+                    const tenantId = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
                     
                     if (!sku || !cantidad || !tenantId) {
                         throw new Error('Faltan parámetros requeridos');
