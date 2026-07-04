@@ -2405,9 +2405,8 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="form-group"><label for="adelanto">Adelanto (S/)</label><input type="number"
-                                        id="adelanto" step="0.01" min="0" placeholder="0.00" value="0"><small>Monto
-                                        pagado inicialmente.</small></div>
+                                <div class="form-group"><label for="adelanto">Monto Recibido (S/)</label><input type="number"
+                                        id="adelanto" step="0.01" min="0" placeholder="0.00" value="0"><small>Dinero entregado por el cliente.</small></div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>DNI del Cliente</label>
@@ -2489,6 +2488,7 @@
                             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
                             <h2 style="color:var(--text-primary);">Historial de Ventas</h2>
                             <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                                <button onclick="window._mostrarDetallesVenta = !window._mostrarDetallesVenta; this.innerHTML = window._mostrarDetallesVenta ? '👁️ Menos Detalles' : '👁️ Mostrar Detalles'; Filtros.aplicarFiltros();" style="background:var(--warning);color:#000;">👁️ Mostrar Detalles</button>
                                 <button onclick="Exportar.exportarExcel()">📥 Exportar a Excel</button>
                                 <button onclick="Exportar.guardarJSON()" class="btn-secondary">💾 Guardar Datos</button>
                                 <button onclick="document.getElementById('fileInput').click()" class="btn-secondary">📂
@@ -4267,13 +4267,31 @@
                         return;
                     }
                 }
-                const adelantoInicial = parseFloat(document.getElementById('adelanto').value) || 0;
+                const montoRecibido = parseFloat(document.getElementById('adelanto').value) || 0;
+                const totalCalculado = Math.round(cantidad * parseFloat(document.getElementById('precio').value) * 100) / 100;
+                
+                if (montoRecibido < totalCalculado) {
+                    const { isConfirmed } = await Swal.fire({
+                        title: 'Saldo Pendiente',
+                        text: `El monto recibido (S/${montoRecibido.toFixed(2)}) es menor al total (S/${totalCalculado.toFixed(2)}). ¿Deseas registrar esta venta con saldo pendiente?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, guardar',
+                        cancelButtonText: 'No, corregir'
+                    });
+                    if (!isConfirmed) return;
+                } else if (montoRecibido > totalCalculado) {
+                    await Swal.fire('Vuelto a entregar', `S/${(montoRecibido - totalCalculado).toFixed(2)}`, 'info');
+                }
+                
+                const adelantoReal = Math.min(montoRecibido, totalCalculado);
                 const venta = {
                     id: Date.now(), fecha: document.getElementById('fecha').value,
                     producto: document.getElementById('producto').value, categoria,
                     cantidad, precio: parseFloat(document.getElementById('precio').value),
-                    total: Math.round(cantidad * parseFloat(document.getElementById('precio').value) * 100) / 100,
-                    adelanto: adelantoInicial, saldoPendiente: 0, estadoPago: 'Pendiente',
+                    total: totalCalculado,
+                    adelanto: adelantoReal, saldoPendiente: 0, estadoPago: 'Pendiente',
+                    montoRecibido: montoRecibido, vuelto: montoRecibido > totalCalculado ? montoRecibido - totalCalculado : 0,
                     cliente: document.getElementById('cliente').value, metodo: metodoPago,
                     historialPagos: [], vendedor: (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : document.getElementById('vendedor').value.trim(),
                     notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString()
@@ -5312,7 +5330,7 @@
             exportarExcel() {
                 const ventas = Estado.ventasFiltradas.length ? Estado.ventasFiltradas : Estado.ventas;
                 if (!ventas.length) return Swal.fire('Sin datos', 'No hay ventas para exportar', 'info');
-                const filas = ventas.map(v => ({ Fecha: v.fecha, SKU: v.sku || '-', Producto: v.producto, Categoría: v.categoria, Cantidad: v.cantidad, 'Precio Unit.': v.precio, Total: v.total, 'Adelanto': v.adelanto, 'Saldo': v.saldoPendiente, 'Estado Pago': v.estadoPago, Cliente: v.cliente || '-', Método: v.metodo || '-', Vendedor: v.vendedor || '-', Notas: v.notas || '-' }));
+                const filas = ventas.map(v => ({ Fecha: v.fecha, SKU: v.sku || '-', Producto: v.producto, Categoría: v.categoria, Cantidad: v.cantidad, 'Precio Unit.': v.precio, Total: v.total, 'Monto Recibido': v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto, Vuelto: v.vuelto || 0, 'Saldo': v.saldoPendiente, 'Estado Pago': v.estadoPago, Cliente: v.cliente || '-', Método: v.metodo || '-', Vendedor: v.vendedor || '-', Notas: v.notas || '-' }));
                 const ws = XLSX.utils.json_to_sheet(filas);
                 const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
                 XLSX.writeFile(wb, `Ventas_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -5582,13 +5600,17 @@
                 if (typeof $ !== 'undefined' && $.fn.DataTable && $.fn.DataTable.isDataTable('#miTablaVentas')) {
                     $('#miTablaVentas').DataTable().destroy();
                 }
-                c.innerHTML = `<table id="miTablaVentas"><thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Cant.</th><th>Precio</th><th>Total</th><th>Cliente</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
+                const mostrarDetalles = window._mostrarDetallesVenta;
+                c.innerHTML = `<table id="miTablaVentas"><thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Cant.</th><th>Precio</th><th>Total</th>${mostrarDetalles ? '<th>Monto Recibido</th><th>Vuelto</th>' : ''}<th>Cliente</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
                     ventas.map(v => {
                         const [y, m, d] = v.fecha.split('-');
                         const metodoCombinado = Ventas.calcularMetodoCombinado(v.historialPagos || [{ monto: v.adelanto, metodo: v.metodo || '-' }]);
+                        const montoRecibido = v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto;
+                        const vuelto = v.vuelto || 0;
                         return `<tr>
                         <td>${d}/${m}/${y}</td><td style="font-size:0.8em;color:#666;">${v.sku || '-'}</td><td>${v.producto}</td><td>${v.categoria || '-'}</td>
                         <td>${v.cantidad}</td><td>S/${v.precio.toFixed(2)}</td><td><strong>S/${v.total.toFixed(2)}</strong></td>
+                        ${mostrarDetalles ? `<td>S/${montoRecibido.toFixed(2)}</td><td>S/${vuelto.toFixed(2)}</td>` : ''}
                         <td>${v.cliente || '-'}</td><td>${metodoCombinado}</td>
                         <td>${v.estadoPago === 'Pagado' ? '<span class="estado-pagado">✅ Pagado</span>' : '<span class="estado-pendiente">⏳ Pendiente</span>'}</td>
                         <td style="white-space:nowrap;">
@@ -5605,7 +5627,7 @@
                             language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
                             pageLength: 10,
                             order: [],
-                            columnDefs: [{ orderable: false, targets: 10 }]
+                            columnDefs: [{ orderable: false, targets: -1 }]
                         });
                     }, 50);
                 }
