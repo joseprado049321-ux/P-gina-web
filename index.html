@@ -2830,10 +2830,24 @@
                                         placeholder="Auto-generado"></div>
                             </div>
                             <div class="form-row">
-                                <div class="form-group"><label>Nombre del Cliente *</label><input type="text"
-                                        id="os-cliente" placeholder="Nombre completo" required autocomplete="off"></div>
+                                <div class="form-group">
+                                    <label>DNI del Cliente</label>
+                                    <div style="display: flex; gap: 5px;">
+                                        <input type="number" id="os-dni" placeholder="8 dígitos" style="flex: 1;" onkeypress="if(event.which===13){event.preventDefault();window.consultarDNIGenerico('os-dni','os-cliente',document.getElementById('btnConsultarDNI_OS'));}">
+                                        <button type="button" id="btnConsultarDNI_OS" onclick="window.consultarDNIGenerico('os-dni', 'os-cliente', this)"
+                                            style="padding: 5px 15px; background:var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                            🔍 Consultar
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="form-group"><label>Teléfono</label><input type="tel" id="os-telefono"
                                         placeholder="987654321"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 1;"><label>Nombre del Cliente *</label>
+                                    <input type="text" id="os-cliente" placeholder="Nombre completo" required autocomplete="off" list="dl-clientes-os" oninput="OrdenesServicio.rellenarDatosCliente()">
+                                    <datalist id="dl-clientes-os"></datalist>
+                                </div>
                             </div>
                             <div
                                 style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
@@ -2924,6 +2938,22 @@
                             </div>
                             <div class="form-group"><label>Notas adicionales</label><input type="text" id="os-notas"
                                     placeholder="Observaciones internas..."></div>
+                            <div style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
+                                <strong style="color:var(--primary);">📦 Repuestos Utilizados</strong>
+                            </div>
+                            <div class="form-group" style="background:var(--bg-surface-hover);padding:15px;border-radius:8px;border:1px dashed var(--border);">
+                                <label>Agregar Repuesto (Descuenta del inventario al guardar)</label>
+                                <div style="display:flex;gap:5px;margin-bottom:10px;">
+                                    <input type="text" id="os-repuesto-input" placeholder="Buscar producto..." list="dl-repuestos-os" style="flex:1;" oninput="OrdenesServicio.rellenarPrecioRepuesto()">
+                                    <datalist id="dl-repuestos-os"></datalist>
+                                    <input type="number" id="os-repuesto-precio" placeholder="S/ 0.00" step="0.01" style="width:100px;">
+                                    <button type="button" class="btn-secondary" onclick="OrdenesServicio.agregarRepuesto()" style="background:var(--primary);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;">➕</button>
+                                </div>
+                                <div id="os-repuestos-list" style="display:flex;flex-direction:column;gap:5px;"></div>
+                                <div style="text-align:right;margin-top:10px;font-weight:bold;color:var(--text-primary);">
+                                    Total Repuestos: S/ <span id="os-repuestos-total">0.00</span>
+                                </div>
+                            </div>
                             <div
                                 style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
                                 <strong style="color:var(--primary);">📸 Fotos del Equipo</strong></div>
@@ -4623,6 +4653,95 @@
                 await this._flujo(datos);
             },
 
+            async generarTicketRecepcion(id) {
+                const ordenes = OrdenesServicio.cargar();
+                const orden = ordenes.find(o => o.id === id);
+                if (!orden) return Swal.fire('Error', 'Orden no encontrada', 'error');
+                
+                const datosNegocioLocal = {
+                    nombre: Estado.configuracion?.nombre || 'Mi Negocio',
+                    propietario: Estado.configuracion?.propietario || '',
+                    direccion: Estado.configuracion?.direccion || '',
+                    documento: Estado.configuracion?.documento || '',
+                    telefono: Estado.configuracion?.telefono || '',
+                    mensaje: Estado.configuracion?.mensaje || 'Gracias por su preferencia'
+                };
+
+                const doc = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 200] });
+                const W = 80; const PX = 4; const PXR = W - PX; let y = 6; const LH = 4; const FS = 9;
+                doc.setFont('courier', 'normal'); doc.setFontSize(FS);
+                
+                const txtt = (txt, x, yy, opts = {}) => {
+                    const text = String(txt || '');
+                    if (opts.align === 'right') { const tw = doc.getStringUnitWidth(text) * doc.internal.getFontSize() / doc.internal.scaleFactor; doc.text(text, x - tw, yy); }
+                    else if (opts.align === 'center') { const tw = doc.getStringUnitWidth(text) * doc.internal.getFontSize() / doc.internal.scaleFactor; doc.text(text, x - tw / 2, yy); }
+                    else { doc.text(text, x, yy); }
+                };
+                const row = (txt, size, bold = false) => { doc.setFont('courier', bold ? 'bold' : 'normal'); doc.setFontSize(size); txtt(txt, W / 2, y, { align: 'center' }); y += LH; };
+                const sep = () => { doc.setFont('courier', 'normal'); doc.setFontSize(FS); txtt('-'.repeat(32), W / 2, y, { align: 'center' }); y += LH; };
+                const gap = (lines = 1) => { y += LH * lines; };
+
+                // HEADER
+                doc.setFont('courier', 'bold'); doc.setFontSize(14);
+                txtt('TICKET DE RECEPCION', W / 2, y, { align: 'center' }); y += LH + 2;
+                
+                row(`Negocio : ${datosNegocioLocal.nombre}`, FS, true);
+                if(datosNegocioLocal.direccion) row(`Direcc. : ${datosNegocioLocal.direccion}`, FS);
+                if(datosNegocioLocal.telefono) row(`Tel. : ${datosNegocioLocal.telefono}`, FS);
+                gap(0.5); sep(); gap(0.5);
+
+                const f = this._fmtFecha(orden.fecha);
+                row(`Orden N.: ${orden.numero}`, FS + 1, true);
+                row(`Fecha   : ${f.d}/${f.m}/${f.y}`, FS);
+                
+                gap(0.5); sep(); gap(0.5);
+
+                // CLIENTE
+                doc.setFont('courier', 'bold'); txtt('DATOS DEL CLIENTE', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                const cliLines = doc.splitTextToSize(`Cliente: ${orden.cliente || '—'}`, W - PX * 2);
+                cliLines.forEach(l => { txtt(l, PX, y); y += LH; });
+                if(orden.telefono) { txtt(`Tel: ${orden.telefono}`, PX, y); y += LH; }
+                
+                gap(0.5); sep(); gap(0.5);
+
+                // EQUIPO
+                doc.setFont('courier', 'bold'); txtt('DATOS DEL EQUIPO', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                txtt(`Tipo : ${orden.tipoEquipo}`, PX, y); y += LH;
+                txtt(`Marca: ${orden.marca || '—'}`, PX, y); y += LH;
+                txtt(`Mod. : ${orden.modelo || '—'}`, PX, y); y += LH;
+                
+                gap(0.5); sep(); gap(0.5);
+
+                // PROBLEMA
+                doc.setFont('courier', 'bold'); txtt('PROBLEMA REPORTADO', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                const probLines = doc.splitTextToSize(orden.problema || '—', W - PX * 2);
+                probLines.forEach(l => { txtt(l, PX, y); y += LH; });
+
+                gap(0.5); sep(); gap(0.5);
+
+                // IMPORTES
+                doc.setFont('courier', 'bold'); txtt('IMPORTES', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                txtt(`Costo Aprox:`, PX, y); txtt(`S/ ${Number(orden.costo || 0).toFixed(2)}`, PXR, y, { align: 'right' }); y += LH;
+                txtt(`Monto Recibido:`, PX, y); txtt(`S/ ${Number(orden.adelanto || 0).toFixed(2)}`, PXR, y, { align: 'right' }); y += LH;
+                doc.setFont('courier', 'bold');
+                txtt(`Saldo Pendiente:`, PX, y); txtt(`S/ ${Number(orden.saldo || 0).toFixed(2)}`, PXR, y, { align: 'right' }); y += LH;
+                
+                gap(1);
+                doc.setFont('courier', 'normal'); doc.setFontSize(8);
+                const msgLines = doc.splitTextToSize(`Estimado cliente, por favor conserve este ticket. Es indispensable para recoger su equipo.`, W - PX * 2);
+                msgLines.forEach(l => { txtt(l, W/2, y, {align: 'center'}); y += LH-1; });
+                
+                gap(1);
+                row('*** COPIA CLIENTE ***', 9, true);
+
+                doc.save(`Ticket_Recepcion_${orden.numero}.pdf`);
+                Toastify({ text: `✅ Ticket de Recepción generado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#1E3A6E,#2B56A5)' }).showToast();
+            },
+
             // ─── PASO 1: ELEGIR TIPO ─────────────────────────────────────
             async _flujo(datos) {
                 const { value: tipo } = await Swal.fire({
@@ -5976,6 +6095,7 @@
 
         const OrdenesServicio = {
             fotosTemp: [],
+            repuestosTemp: [],
             lightboxIndex: 0,
             lightboxFotos: [],
             cargarYRenderizar() {
@@ -5984,12 +6104,79 @@
             },
             cargar() { return Estado.ordenesServicio || []; },
             async guardar(data) { Estado.ordenesServicio = data; await Firebase.guardar('ordenesServicio', data); },
+            rellenarDatosCliente() {
+                const nombre = document.getElementById('os-cliente').value;
+                if (!nombre || !Estado.clientes) return;
+                const cliente = Estado.clientes.find(c => c.nombre.toLowerCase() === nombre.toLowerCase());
+                if (cliente) {
+                    if (cliente.dni && !document.getElementById('os-dni').value) document.getElementById('os-dni').value = cliente.dni;
+                    if (cliente.telefono && !document.getElementById('os-telefono').value) document.getElementById('os-telefono').value = cliente.telefono;
+                }
+            },
+            rellenarPrecioRepuesto() {
+                const nombre = document.getElementById('os-repuesto-input').value;
+                if (!nombre || !Estado.inventario) return;
+                const producto = Estado.inventario.find(p => p.nombre.toLowerCase() === nombre.toLowerCase());
+                if (producto) {
+                    document.getElementById('os-repuesto-precio').value = producto.precioVenta.toFixed(2);
+                }
+            },
+            agregarRepuesto() {
+                const nombre = document.getElementById('os-repuesto-input').value.trim();
+                const precio = parseFloat(document.getElementById('os-repuesto-precio').value);
+                if (!nombre || isNaN(precio) || precio < 0) {
+                    Toastify({ text: '⚠️ Ingrese un repuesto válido y su precio.', duration: 2500, backgroundColor: '#fd7e14' }).showToast();
+                    return;
+                }
+                const producto = Estado.inventario ? Estado.inventario.find(p => p.nombre.toLowerCase() === nombre.toLowerCase()) : null;
+                const idProducto = producto ? producto.id : null;
+                
+                this.repuestosTemp.push({ idProducto, nombre, precio });
+                document.getElementById('os-repuesto-input').value = '';
+                document.getElementById('os-repuesto-precio').value = '';
+                this.renderRepuestos();
+            },
+            eliminarRepuesto(index) {
+                this.repuestosTemp.splice(index, 1);
+                this.renderRepuestos();
+            },
+            renderRepuestos() {
+                const list = document.getElementById('os-repuestos-list');
+                if (!list) return;
+                list.innerHTML = this.repuestosTemp.map((r, i) => `
+                    <div style="display:flex;justify-content:space-between;background:var(--bg-card);padding:8px;border-radius:6px;border:1px solid var(--border);">
+                        <span>${r.nombre}</span>
+                        <span>
+                            S/ ${r.precio.toFixed(2)}
+                            <button type="button" onclick="OrdenesServicio.eliminarRepuesto(${i})" style="margin-left:8px;background:var(--danger);color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">✖</button>
+                        </span>
+                    </div>
+                `).join('');
+                const total = this.repuestosTemp.reduce((sum, r) => sum + r.precio, 0);
+                document.getElementById('os-repuestos-total').textContent = total.toFixed(2);
+                this.calcularSaldo();
+            },
             mostrarFormNuevaOrden() {
                 document.getElementById('form-nueva-orden').classList.remove('hidden');
                 document.getElementById('os-fecha').valueAsDate = new Date();
                 document.getElementById('os-editando-id').value = '';
                 document.getElementById('os-form-titulo').textContent = '📋 Nueva Orden de Servicio';
                 document.getElementById('os-tecnico').value = (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : 'Administrador';
+                
+                // Cargar clientes para autocompletado
+                const dl = document.getElementById('dl-clientes-os');
+                if (dl && typeof Estado !== 'undefined' && Estado.clientes) {
+                    dl.innerHTML = Estado.clientes.map(c => `<option value="${c.nombre}">${c.dni ? 'DNI: '+c.dni : ''}</option>`).join('');
+                }
+
+                // Cargar repuestos para autocompletado
+                const dlRepuestos = document.getElementById('dl-repuestos-os');
+                if (dlRepuestos && typeof Estado !== 'undefined' && Estado.inventario) {
+                    dlRepuestos.innerHTML = Estado.inventario.filter(i => i.stock > 0).map(i => `<option value="${i.nombre}">Stock: ${i.stock} - S/${i.precioVenta.toFixed(2)}</option>`).join('');
+                }
+                this.repuestosTemp = [];
+                this.renderRepuestos();
+
                 if(typeof MarcasCustom !== 'undefined') MarcasCustom.cargarEnSelect();
                 const ordenes = this.cargar();
                 const siguiente = ordenes.length > 0 ? Math.max(...ordenes.map(o => parseInt((o.numero || 'OS-0').split('-')[1]) || 0)) + 1 : 1;
@@ -5998,13 +6185,15 @@
                 this.renderFotosPreview();
                 document.getElementById('form-nueva-orden').scrollIntoView({ behavior: 'smooth' });
             },
-            cancelarFormulario() { document.getElementById('form-nueva-orden').classList.add('hidden'); this.fotosTemp = []; },
+            cancelarFormulario() { document.getElementById('form-nueva-orden').classList.add('hidden'); this.fotosTemp = []; this.repuestosTemp = []; },
             calcularSaldo() {
-                const costo = parseFloat(document.getElementById('os-costo').value) || 0;
+                const costoServicio = parseFloat(document.getElementById('os-costo').value) || 0;
+                const totalRepuestos = (this.repuestosTemp || []).reduce((s, r) => s + r.precio, 0);
+                const costoTotal = costoServicio + totalRepuestos;
                 const adelanto = parseFloat(document.getElementById('os-adelanto').value) || 0;
-                const saldo = costo - adelanto;
+                const saldo = costoTotal - adelanto;
                 const disp = document.getElementById('os-saldo-display');
-                if (saldo > 0 && adelanto > 0) { disp.style.display = 'block'; document.getElementById('os-saldo-valor').textContent = `S/${saldo.toFixed(2)}`; }
+                if (saldo > 0) { disp.style.display = 'block'; document.getElementById('os-saldo-valor').textContent = `S/${saldo.toFixed(2)}`; }
                 else disp.style.display = 'none';
             },
             manejarDrop(event) {
@@ -6034,6 +6223,21 @@
                 if (!cliente || !tipoEquipo || !problema || !fecha) { Swal.fire('Error', 'Completa los campos obligatorios (*)', 'error'); return; }
                 const editandoId = document.getElementById('os-editando-id').value;
                 const ordenes = this.cargar();
+
+                // Descontar inventario de repuestos si es nueva orden (para que no descuente doble al editar)
+                if (!editandoId && this.repuestosTemp.length > 0) {
+                    this.repuestosTemp.forEach(rep => {
+                        if (rep.idProducto && Estado.inventario) {
+                            const invItem = Estado.inventario.find(i => i.id === rep.idProducto);
+                            if (invItem && invItem.stock > 0) {
+                                invItem.stock -= 1;
+                            }
+                        }
+                    });
+                    await Firebase.guardar('inventario', Estado.inventario);
+                    if (typeof UI !== 'undefined' && UI.renderInventario) UI.renderInventario();
+                }
+
                 const orden = {
                     id: editandoId || Date.now().toString(),
                     numero: document.getElementById('os-numero').value,
@@ -6047,6 +6251,7 @@
                     tecnico: document.getElementById('os-tecnico').value.trim(),
                     estado: document.getElementById('os-estado').value,
                     costo: parseFloat(document.getElementById('os-costo').value) || 0,
+                    repuestos: this.repuestosTemp.slice(),
                     adelanto: parseFloat(document.getElementById('os-adelanto').value) || 0,
                     saldo: 0, metodo: document.getElementById('os-metodo-pago').value,
                     fechaEntregaEstimada: document.getElementById('os-fecha-entrega').value,
@@ -6055,13 +6260,28 @@
                     createdAt: editandoId ? (ordenes.find(o => o.id === editandoId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
-                orden.saldo = orden.costo - orden.adelanto;
+                const totalRepuestos = (orden.repuestos || []).reduce((s, r) => s + r.precio, 0);
+                orden.saldo = (orden.costo + totalRepuestos) - orden.adelanto;
+                
                 if (editandoId) { const idx = ordenes.findIndex(o => o.id === editandoId); if (idx !== -1) ordenes[idx] = orden; else ordenes.unshift(orden); }
                 else ordenes.unshift(orden);
                 await this.guardar(ordenes);
                 this.cancelarFormulario();
                 this.cargarYRenderizar();
-                Toastify({ text: editandoId ? '✅ Orden actualizada' : '✅ Orden creada', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                
+                Swal.fire({
+                    title: editandoId ? '✅ Orden actualizada' : '✅ Orden creada',
+                    text: '¿Deseas imprimir el Ticket de Recepción?',
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: '🖨️ Generar Ticket',
+                    cancelButtonText: 'No, gracias',
+                    confirmButtonColor: '#1E3A6E'
+                }).then(result => {
+                    if (result.isConfirmed && typeof Boletas !== 'undefined') {
+                        Boletas.generarTicketRecepcion(orden.id);
+                    }
+                });
             },
             actualizarCards() {
                 const ordenes = this.cargar();
@@ -7657,8 +7877,8 @@
             // Paso 4: Si hay respuesta exitosa, se rellena #cliente
             // Paso 5: Se muestra una alerta de éxito con SweetAlert2
             // ─────────────────────────────────────────────────────────────
-            $('#btnConsultarDNI').on('click', function () {
-                var dni = $('#dniInput').val().toString().trim();
+            window.consultarDNIGenerico = function(dniInputId, nombreInputId, btnElement) {
+                var dni = $('#' + dniInputId).val().toString().trim();
                 var token = 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
 
                 // Validar que sean exactamente 8 dígitos
@@ -7673,12 +7893,10 @@
                 }
 
                 // Deshabilitar el botón mientras busca (evita doble clic)
-                var $btn = $(this);
+                var $btn = $(btnElement);
+                var originalText = $btn.html();
                 $btn.html('⏳ Buscando...').prop('disabled', true);
 
-                // ── Llamada a la API ─────────────────────────────────────
-                // URL: https://api.miapi.cloud/v1/dni/{DNI}?token={TOKEN}
-                // La API devuelve: { success: true, data: { nombres, apellidoPaterno, apellidoMaterno } }
                 fetch('https://miapi.cloud/v1/dni/' + dni, {
                     headers: {
                         'Authorization': 'Bearer ' + token
@@ -7689,9 +7907,6 @@
                     })
                     .then(function (data) {
                         console.log('Respuesta API DNI:', JSON.stringify(data));
-
-                        // Formato real de miapi.cloud:
-                        // { success: true, datos: { nombres, ape_paterno, ape_materno, ... } }
                         var d = data.datos || data.data || {};
                         var nombres = d.nombres || '';
                         var apPaterno = d.ape_paterno || d.apellidoPaterno || '';
@@ -7699,9 +7914,15 @@
                         var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
 
                         if (nombreCompleto.length > 2) {
-                            $('#cliente').val(nombreCompleto);
-                            // Ocultar campos manuales si estaban visibles
-                            $('#campos-manuales-dni').slideUp(200);
+                            $('#' + nombreInputId).val(nombreCompleto);
+                            if (nombreInputId === 'cliente') $('#campos-manuales-dni').slideUp(200);
+                            
+                            // Si estamos en Órdenes de Servicio, buscar si ya existe para rellenar teléfono
+                            if (nombreInputId === 'os-cliente' && typeof Estado !== 'undefined' && Estado.clientes) {
+                                const c = Estado.clientes.find(x => x.nombre.toLowerCase() === nombreCompleto.toLowerCase() || x.dni === dni);
+                                if (c && c.telefono) $('#os-telefono').val(c.telefono);
+                            }
+
                             Swal.fire({
                                 icon: 'success',
                                 title: '✅ Cliente encontrado',
@@ -7731,9 +7952,14 @@
                     })
                     .finally(function () {
                         // Restaurar el botón siempre, haya error o éxito
-                        $btn.html('🔍 Consultar').prop('disabled', false);
+                        $btn.html(originalText).prop('disabled', false);
                     });
+            };
+
+            $('#btnConsultarDNI').on('click', function () {
+                window.consultarDNIGenerico('dniInput', 'cliente', this);
             });
+
 
             // También activar la consulta al presionar ENTER dentro del campo DNI
             $('#dniInput').on('keypress', function (e) {
