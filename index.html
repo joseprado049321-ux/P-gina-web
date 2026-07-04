@@ -2853,8 +2853,14 @@
                                         <option>Disco Duro / SSD</option>
                                         <option>Otro</option>
                                     </select></div>
-                                <div class="form-group"><label>Marca</label><input type="text" id="os-marca"
-                                        placeholder="Ej: HP, Lenovo, Samsung..."></div>
+                                <div class="form-group">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                        <label for="os-marca" style="margin-bottom:0;">Marca</label>
+                                    </div>
+                                    <select id="os-marca" onchange="if(typeof MarcasCustom !== 'undefined') MarcasCustom.manejarSeleccion(this)">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group"><label>Modelo</label><input type="text" id="os-modelo"
@@ -2877,7 +2883,7 @@
                                 <strong style="color:var(--primary);">💳 Servicio y Pago</strong></div>
                             <div class="form-row">
                                 <div class="form-group"><label>Técnico Responsable</label><input type="text"
-                                        id="os-tecnico" placeholder="Nombre del técnico"></div>
+                                        id="os-tecnico" placeholder="Nombre del técnico" readonly style="background-color: var(--bg-surface-hover); cursor: not-allowed; border: 1px solid var(--border);"></div>
                                 <div class="form-group"><label>Estado *</label><select id="os-estado" required>
                                         <option value="Pendiente">⏳ Pendiente</option>
                                         <option value="En diagnóstico">🔍 En diagnóstico</option>
@@ -2892,8 +2898,8 @@
                                 <div class="form-group"><label>Costo del Servicio (S/)</label><input type="number"
                                         id="os-costo" step="0.01" min="0" placeholder="0.00"
                                         oninput="OrdenesServicio.calcularSaldo()"></div>
-                                <div class="form-group"><label>Adelanto (S/)</label><input type="number"
-                                        id="os-adelanto" step="0.01" min="0" placeholder="0.00" value="0"
+                                <div class="form-group"><label>Monto Recibido (S/)</label><input type="number"
+                                        id="os-adelanto" step="0.01" min="0" placeholder="0.00"
                                         oninput="OrdenesServicio.calcularSaldo()"></div>
                             </div>
                             <div class="form-group">
@@ -2923,18 +2929,32 @@
                                 <strong style="color:var(--primary);">📸 Fotos del Equipo</strong></div>
                             <div class="form-group">
                                 <label>Añadir fotos (máx. 5 imágenes)</label>
-                                <div id="os-foto-dropzone" onclick="document.getElementById('os-foto-input').click()"
-                                    style="border:2px dashed var(--primary);border-radius:10px;padding:28px;text-align:center;cursor:pointer;background:var(--bg-surface-hover);"
-                                    ondragover="event.preventDefault();this.style.background='#d0dcf8'"
-                                    ondragleave="this.style.background='#f8f9fa'"
+                                <div id="os-foto-dropzone"
+                                    style="border:2px dashed var(--primary);border-radius:10px;padding:28px;text-align:center;background:var(--bg-surface-hover);"
+                                    ondragover="event.preventDefault();this.style.background='rgba(59,130,246,0.1)'"
+                                    ondragleave="this.style.background='var(--bg-surface-hover)'"
                                     ondrop="OrdenesServicio.manejarDrop(event)">
                                     <div style="font-size:2em;margin-bottom:8px;">📷</div>
-                                    <div style="font-weight:600;color:var(--primary);">Haz clic o arrastra fotos aquí</div>
+                                    <div style="font-weight:600;color:var(--primary);margin-bottom:15px;">Captura o arrastra fotos aquí</div>
+                                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                                        <button type="button" onclick="CameraHandler.open()" style="background:var(--primary);color:#fff;">📸 Tomar Foto (Cámara)</button>
+                                        <button type="button" onclick="document.getElementById('os-foto-input').click()" class="btn-secondary">📂 Subir Archivo</button>
+                                    </div>
                                 </div>
                                 <input type="file" id="os-foto-input" accept="image/*" multiple style="display:none;"
                                     onchange="OrdenesServicio.agregarFotos(event)">
                             </div>
                             <div id="os-fotos-preview" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">
+                            </div>
+                            <div id="camera-modal" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;justify-content:center;align-items:center;">
+                                <div style="background:var(--bg-card);padding:20px;border-radius:12px;text-align:center;width:90%;max-width:500px;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+                                    <h3 style="margin-top:0;color:var(--text-primary);">📸 Capturar Foto</h3>
+                                    <video id="camera-stream" autoplay playsinline style="width:100%;border-radius:8px;background:#000;margin-bottom:15px;"></video>
+                                    <div style="display:flex;gap:10px;justify-content:center;">
+                                        <button type="button" onclick="CameraHandler.takeSnapshot()" style="background:var(--success);color:#fff;">📸 Capturar</button>
+                                        <button type="button" class="btn-secondary" onclick="CameraHandler.close()">Cancelar</button>
+                                    </div>
+                                </div>
                             </div>
                             <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
                                 <button onclick="OrdenesServicio.guardarOrden()">💾 Guardar Orden</button>
@@ -5969,6 +5989,8 @@
                 document.getElementById('os-fecha').valueAsDate = new Date();
                 document.getElementById('os-editando-id').value = '';
                 document.getElementById('os-form-titulo').textContent = '📋 Nueva Orden de Servicio';
+                document.getElementById('os-tecnico').value = (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : 'Administrador';
+                if(typeof MarcasCustom !== 'undefined') MarcasCustom.cargarEnSelect();
                 const ordenes = this.cargar();
                 const siguiente = ordenes.length > 0 ? Math.max(...ordenes.map(o => parseInt((o.numero || 'OS-0').split('-')[1]) || 0)) + 1 : 1;
                 document.getElementById('os-numero').value = `OS-${String(siguiente).padStart(4, '0')}`;
@@ -7554,10 +7576,12 @@
                 const custom = Estado.marcasCustom || [];
                 const combined = [...new Set([...defaults, ...custom])].sort();
 
-                const sel = document.getElementById('nuevo-marca-inv'); if (!sel) return;
-                const val = sel.value;
-                sel.innerHTML = combined.map(m => `<option value="${m}">${m}</option>`).join('') + `<option value="nueva_marca" style="font-weight:bold;color:#2B56A5;">➕ Añadir nueva marca...</option>`;
-                if (val && combined.includes(val)) sel.value = val;
+                ['nuevo-marca-inv', 'os-marca'].forEach(id => {
+                    const sel = document.getElementById(id); if (!sel) return;
+                    const val = sel.value;
+                    sel.innerHTML = `<option value="">Seleccionar...</option>` + combined.map(m => `<option value="${m}">${m}</option>`).join('') + `<option value="nueva_marca" style="font-weight:bold;color:#2B56A5;">➕ Añadir nueva marca...</option>`;
+                    if (val && combined.includes(val)) sel.value = val;
+                });
             },
             async manejarSeleccion(selectEl) {
                 if (selectEl.value === 'nueva_marca') {
@@ -7574,6 +7598,45 @@
                         selectEl.value = cleanMarca;
                     } else { selectEl.selectedIndex = 0; }
                 }
+            }
+        };
+
+        const CameraHandler = {
+            stream: null,
+            async open() {
+                if (OrdenesServicio.fotosTemp.length >= 5) {
+                    Toastify({ text: '⚠️ Máximo 5 fotos', duration: 2500, gravity: 'top', position: 'right', style: { background: '#fd7e14' } }).showToast();
+                    return;
+                }
+                const modal = document.getElementById('camera-modal');
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex';
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    document.getElementById('camera-stream').srcObject = this.stream;
+                } catch (err) {
+                    Swal.fire('Error', 'No se pudo acceder a la cámara. Asegúrate de dar los permisos necesarios.', 'error');
+                    this.close();
+                }
+            },
+            close() {
+                if (this.stream) this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
+                const modal = document.getElementById('camera-modal');
+                modal.classList.add('hidden');
+                modal.style.display = '';
+            },
+            takeSnapshot() {
+                const video = document.getElementById('camera-stream');
+                if (!video.videoWidth) return;
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                OrdenesServicio.fotosTemp.push({ dataURL, nombre: `foto_os_${Date.now()}.jpg` });
+                OrdenesServicio.renderFotosPreview();
+                this.close();
             }
         };
     </script>
