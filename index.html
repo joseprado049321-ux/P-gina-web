@@ -2401,11 +2401,17 @@
                         const inventarioRef = db.collection('empresas').doc(tenantId).collection('inventario').doc(sku);
                         const doc = await transaction.get(inventarioRef);
 
+                        let producto = {};
                         if (!doc.exists) {
-                            throw new Error('Producto no encontrado en inventario');
+                            const nombreManual = document.getElementById('producto').value.trim();
+                            const precioManual = parseFloat(document.getElementById('precio').value) || 0;
+                            producto = {
+                                nombre: nombreManual || sku,
+                                precioVenta: precioManual
+                            };
+                        } else {
+                            producto = doc.data();
                         }
-
-                        const producto = doc.data();
                         
                         if (producto.stock !== undefined && producto.stock < cantidad) {
                             throw new Error('Stock insuficiente');
