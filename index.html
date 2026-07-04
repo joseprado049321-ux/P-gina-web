@@ -4379,9 +4379,20 @@
                     await Boletas.generarDesdeVenta(ventaGuardada.id);
                 }
                 const nombreCliente = venta.cliente ? venta.cliente.trim() : '';
-                if (nombreCliente && !Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase())) {
-                    const result = await Swal.fire({ title: '¿Registrar cliente nuevo?', html: `<p>¿Agregar a <strong>${nombreCliente}</strong>?</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, confirmButtonText: 'Sí, registrar', denyButtonText: 'Después', cancelButtonText: 'No', confirmButtonColor: '#4472C4', denyButtonColor: '#6c757d', cancelButtonColor: '#6c757d' });
-                    if (result.isConfirmed) { UI.switchTab('clientes'); Clientes.mostrarFormNuevoCliente(); document.getElementById('nuevo-cliente-nombre').value = nombreCliente; }
+                if (nombreCliente) {
+                    const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase());
+                    if (!clienteExistente) {
+                        const result = await Swal.fire({ title: '¿Registrar cliente nuevo?', html: `<p>¿Agregar a <strong>${nombreCliente}</strong>?</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, confirmButtonText: 'Sí, registrar', denyButtonText: 'Después', cancelButtonText: 'No', confirmButtonColor: '#4472C4', denyButtonColor: '#6c757d', cancelButtonColor: '#6c757d' });
+                        if (result.isConfirmed) { UI.switchTab('clientes'); Clientes.mostrarFormNuevoCliente(); document.getElementById('nuevo-cliente-nombre').value = nombreCliente; }
+                    } else {
+                        // Actualización silenciosa de DNI si falta
+                        const dniIngresado = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
+                        if (dniIngresado && !clienteExistente.dni) {
+                            clienteExistente.dni = dniIngresado;
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
+                    }
                 }
             },
             limpiarFormulario() {
@@ -6223,6 +6234,22 @@
                 if (!cliente || !tipoEquipo || !problema || !fecha) { Swal.fire('Error', 'Completa los campos obligatorios (*)', 'error'); return; }
                 const editandoId = document.getElementById('os-editando-id').value;
                 const ordenes = this.cargar();
+
+                // Actualización silenciosa de cliente
+                if (cliente) {
+                    const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === cliente.toLowerCase());
+                    if (clienteExistente) {
+                        const dniIngresado = document.getElementById('os-dni') ? document.getElementById('os-dni').value.trim() : '';
+                        const telIngresado = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
+                        let modificado = false;
+                        if (dniIngresado && !clienteExistente.dni) { clienteExistente.dni = dniIngresado; modificado = true; }
+                        if (telIngresado && !clienteExistente.telefono) { clienteExistente.telefono = telIngresado; modificado = true; }
+                        if (modificado) {
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
+                    }
+                }
 
                 // Descontar inventario de repuestos si es nueva orden (para que no descuente doble al editar)
                 if (!editandoId && this.repuestosTemp.length > 0) {
