@@ -2369,8 +2369,8 @@
 
                             <div class="form-group">
                                 <div id="saldo-pendiente-display"
-                                    style="background:rgba(255,193,7,0.15);padding:15px;border-radius:8px;border:2px solid var(--warning);display:none;margin-top:10px;">
-                                    <strong style="color:#856404;">Saldo Pendiente: <span
+                                    style="background:rgba(255,193,7,0.2);padding:15px;border-radius:8px;border:2px solid #ffc107;display:none;margin-top:10px;">
+                                    <strong style="color:#ffc107;">Saldo Pendiente: <span
                                             id="saldo-valor">S/0.00</span></strong>
                                 </div>
                             </div>
@@ -2918,8 +2918,8 @@
                             </div>
                             <div class="form-group">
                                 <div id="os-saldo-display"
-                                    style="background:rgba(255,193,7,0.15);padding:12px;border-radius:8px;border:2px solid var(--warning);display:none;">
-                                    <strong style="color:#856404;">Saldo Pendiente: <span
+                                    style="background:rgba(255,193,7,0.2);padding:12px;border-radius:8px;border:2px solid #ffc107;display:none;">
+                                    <strong style="color:#ffc107;">Saldo Pendiente: <span
                                             id="os-saldo-valor">S/0.00</span></strong>
                                 </div>
                             </div>
@@ -6198,9 +6198,7 @@
             },
             cancelarFormulario() { document.getElementById('form-nueva-orden').classList.add('hidden'); this.fotosTemp = []; this.repuestosTemp = []; },
             calcularSaldo() {
-                const costoServicio = parseFloat(document.getElementById('os-costo').value) || 0;
-                const totalRepuestos = (this.repuestosTemp || []).reduce((s, r) => s + r.precio, 0);
-                const costoTotal = costoServicio + totalRepuestos;
+                const costoTotal = parseFloat(document.getElementById('os-costo').value) || 0;
                 const adelanto = parseFloat(document.getElementById('os-adelanto').value) || 0;
                 const saldo = costoTotal - adelanto;
                 const disp = document.getElementById('os-saldo-display');
@@ -6287,8 +6285,7 @@
                     createdAt: editandoId ? (ordenes.find(o => o.id === editandoId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
-                const totalRepuestos = (orden.repuestos || []).reduce((s, r) => s + r.precio, 0);
-                orden.saldo = (orden.costo + totalRepuestos) - orden.adelanto;
+                orden.saldo = orden.costo - orden.adelanto;
                 
                 if (editandoId) { const idx = ordenes.findIndex(o => o.id === editandoId); if (idx !== -1) ordenes[idx] = orden; else ordenes.unshift(orden); }
                 else ordenes.unshift(orden);
