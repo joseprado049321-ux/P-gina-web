@@ -4298,7 +4298,7 @@
                 };
                 venta.saldoPendiente = venta.total - venta.adelanto;
                 venta.estadoPago = venta.saldoPendiente <= 0 ? 'Pagado' : 'Pendiente';
-                if (adelantoInicial > 0) venta.historialPagos.push({ monto: adelantoInicial, metodo: metodoPago, fecha: new Date().toISOString() });
+                if (adelantoReal > 0) venta.historialPagos.push({ monto: adelantoReal, metodo: metodoPago, fecha: new Date().toISOString() });
                 if (venta.sku) {
                     const item = Estado.inventario.find(x => x.sku === venta.sku);
                     if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.guardarInventario(); }
@@ -4309,7 +4309,7 @@
                 const msg = document.getElementById('success-msg');
                 msg.classList.add('show');
                 setTimeout(() => msg.classList.remove('show'), 3000);
-                Toastify({ text: "✅ Venta registrada", duration: 3000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#00b09b,#96c93d)" }).showToast();
+                Toastify({ text: "✅ Venta registrada", duration: 3000, gravity: "top", position: "right", style: { background: "linear-gradient(to right,#00b09b,#96c93d)" } }).showToast();
                 const ventaGuardada = venta;
                 this.limpiarFormulario();
                 // Ofrecer generar boleta
