@@ -146,7 +146,7 @@
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: white;
+            background:var(--bg-surface);
             transition: left 0.3s;
         }
 
@@ -2175,7 +2175,7 @@
             <h1 style="color:#fd7e14;font-size:1.6em;margin-bottom:10px;">Acceso Pendiente</h1>
             <p style="color:#555;margin-bottom:20px;">Tu cuenta está esperando aprobación del administrador.</p>
             <div id="pending-user-info"
-                style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:15px;margin-bottom:20px;font-size:0.9em;color:#856404;">
+                style="background:rgba(255,193,7,0.15);border:1px solid var(--warning);border-radius:10px;padding:15px;margin-bottom:20px;font-size:0.9em;color:#856404;">
             </div>
             <button onclick="Auth.cerrarSesion()"
                 style="background:linear-gradient(135deg,#6c757d,#495057);width:100%;">🚪 Cerrar Sesión</button>
@@ -2187,7 +2187,7 @@
             <h1 style="color:#dc3545;font-size:1.6em;margin-bottom:10px;">Acceso Denegado</h1>
             <p style="color:#555;margin-bottom:20px;">Tu solicitud de acceso fue rechazada por el administrador.</p>
             <div id="denied-user-info"
-                style="background:#f8d7da;border:1px solid #f5c2c7;border-radius:10px;padding:15px;margin-bottom:20px;font-size:0.9em;color:#721c24;">
+                style="background:rgba(239,68,68,0.15);border:1px solid var(--danger);border-radius:10px;padding:15px;margin-bottom:20px;font-size:0.9em;color:#721c24;">
             </div>
             <button onclick="Auth.cerrarSesion()"
                 style="background:linear-gradient(135deg,#dc3545,#c82333);width:100%;">🚪 Cerrar Sesión</button>
@@ -2365,11 +2365,11 @@
                             </div>
                             <div class="form-group"><label for="total-display">Total a Pagar</label><input type="text"
                                     id="total-display" readonly
-                                    style="background:#f0f0f0;font-weight:bold;font-size:1.1em;color:#4472C4;"></div>
+                                    style="background:var(--bg-surface-hover);font-weight:bold;font-size:1.1em;color:var(--primary);"></div>
 
                             <div class="form-group">
                                 <div id="saldo-pendiente-display"
-                                    style="background:#fff3cd;padding:15px;border-radius:8px;border:2px solid #ffc107;display:none;margin-top:10px;">
+                                    style="background:rgba(255,193,7,0.15);padding:15px;border-radius:8px;border:2px solid var(--warning);display:none;margin-top:10px;">
                                     <strong style="color:#856404;">Saldo Pendiente: <span
                                             id="saldo-valor">S/0.00</span></strong>
                                 </div>
@@ -2414,7 +2414,7 @@
                                         <div style="display: flex; gap: 5px;">
                                             <input type="number" id="dniInput" placeholder="8 dígitos" style="flex: 1;">
                                             <button type="button" id="btnConsultarDNI"
-                                                style="padding: 5px 15px; background: #4472C4; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                                style="padding: 5px 15px; background:var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer;">
                                                 🔍 Consultar
                                             </button>
                                         </div>
@@ -2487,7 +2487,7 @@
                     <div id="historial" class="tab-content">
                         <div
                             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                            <h2 style="color:#333;">Historial de Ventas</h2>
+                            <h2 style="color:var(--text-primary);">Historial de Ventas</h2>
                             <div style="display:flex;gap:10px;flex-wrap:wrap;">
                                 <button onclick="Exportar.exportarExcel()">📥 Exportar a Excel</button>
                                 <button onclick="Exportar.guardarJSON()" class="btn-secondary">💾 Guardar Datos</button>
@@ -2545,7 +2545,7 @@
 
                     <!-- TAB: CUENTAS POR COBRAR -->
                     <div id="cuentas-cobrar" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">💰 Cuentas por Cobrar</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">💰 Cuentas por Cobrar</h2>
                         <div class="summary-cards" id="cuentas-por-cobrar-cards"></div>
                         <div style="margin-bottom:15px;display:flex;gap:10px;flex-wrap:wrap;">
                             <span style="font-weight:600;">Ordenar por:</span>
@@ -2559,15 +2559,15 @@
 
                     <!-- TAB: CLIENTES -->
                     <div id="clientes" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">👥 Gestión de Clientes</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">👥 Gestión de Clientes</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="Clientes.mostrarFormNuevoCliente()">➕ Nuevo Cliente</button>
                             <button class="btn-secondary" onclick="Clientes.exportarClientes()">📥 Exportar
                                 Excel</button>
                         </div>
                         <div id="form-nuevo-cliente" class="hidden"
-                            style="margin-bottom:20px;padding:20px;border:2px solid #4472C4;border-radius:10px;background:#f8f9fa;">
-                            <h3 style="margin-bottom:15px;color:#4472C4;">Registrar Nuevo Cliente</h3>
+                            style="margin-bottom:20px;padding:20px;border:2px solid var(--primary);border-radius:10px;background:var(--bg-surface-hover);">
+                            <h3 style="margin-bottom:15px;color:var(--primary);">Registrar Nuevo Cliente</h3>
                             <div class="form-row">
                                 <div class="form-group"><label>Nombre *</label><input id="nuevo-cliente-nombre"
                                         type="text" placeholder="Nombre completo"></div>
@@ -2596,7 +2596,7 @@
 
                     <!-- TAB: REPORTES -->
                     <div id="reportes" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">📊 Reportes y Análisis</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">📊 Reportes y Análisis</h2>
                         <div class="reporte-container">
                             <div class="date-range-selector">
                                 <div class="preset-buttons">
@@ -2615,7 +2615,7 @@
                                     <input type="date" id="reporte-fecha-desde" onchange="Reportes.generarReporte()">
                                     <input type="date" id="reporte-fecha-hasta" onchange="Reportes.generarReporte()">
                                 </div>
-                                <button onclick="Reportes.exportarPDF()" style="background:#dc3545;">📄 PDF</button>
+                                <button onclick="Reportes.exportarPDF()" style="background:var(--danger);">📄 PDF</button>
                                 <button onclick="Reportes.exportarExcel()">📥 Excel</button>
                             </div>
                             <div id="comparacion-periodo"></div>
@@ -2649,13 +2649,13 @@
 
                     <!-- TAB: GASTOS -->
                     <div id="gastos" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">💸 Control de Gastos</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">💸 Control de Gastos</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="Gastos.mostrarFormNuevoGasto()">➕ Registrar Gasto</button>
                             <button class="btn-secondary" onclick="Gastos.exportarGastos()">📥 Exportar</button>
                         </div>
                         <div id="form-nuevo-gasto" class="hidden"
-                            style="margin-bottom:20px;padding:20px;border:2px solid #dc3545;border-radius:10px;background:#f8f9fa;">
+                            style="margin-bottom:20px;padding:20px;border:2px solid var(--danger);border-radius:10px;background:var(--bg-surface-hover);">
                             <h3 style="margin-bottom:15px;color:#dc3545;">Registrar Nuevo Gasto</h3>
                             <div class="form-row">
                                 <div class="form-group"><label>Fecha *</label><input id="nuevo-gasto-fecha" type="date"
@@ -2698,10 +2698,10 @@
 
                     <!-- TAB: RENTABILIDAD -->
                     <div id="rentabilidad" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">💰 Análisis de Rentabilidad</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">💰 Análisis de Rentabilidad</h2>
                         <div class="rentabilidad-grid" id="metricas-rentabilidad"></div>
                         <div style="margin-bottom:30px;">
-                            <h3 style="margin-bottom:15px;color:#333;">⚙️ Configurar Costos de Productos</h3>
+                            <h3 style="margin-bottom:15px;color:var(--text-primary);">⚙️ Configurar Costos de Productos</h3>
                             <div style="display:flex;gap:10px;margin-bottom:15px;">
                                 <button onclick="Rentabilidad.mostrarFormCosto()">➕ Configurar Costo</button>
                                 <button class="btn-secondary" onclick="Rentabilidad.importarCostos()">📂 Importar
@@ -2710,18 +2710,18 @@
                             <div id="lista-costos"></div>
                         </div>
                         <div style="margin-bottom:30px;">
-                            <h3 style="margin-bottom:15px;color:#333;">🏆 Top 10 Productos Más Rentables</h3>
+                            <h3 style="margin-bottom:15px;color:var(--text-primary);">🏆 Top 10 Productos Más Rentables</h3>
                             <div id="productos-rentables"></div>
                         </div>
                         <div>
-                            <h3 style="margin-bottom:15px;color:#333;">⚖️ Punto de Equilibrio</h3>
+                            <h3 style="margin-bottom:15px;color:var(--text-primary);">⚖️ Punto de Equilibrio</h3>
                             <div id="punto-equilibrio"></div>
                         </div>
                     </div>
 
                     <!-- TAB: RESUMEN -->
                     <div id="resumen" class="tab-content">
-                        <h2 style="margin-bottom:30px;color:#333;">Resumen de Ventas</h2>
+                        <h2 style="margin-bottom:30px;color:var(--text-primary);">Resumen de Ventas</h2>
                         <div class="summary-cards" id="summary-cards"></div>
                         <div style="margin-bottom:20px;height:320px;"><canvas id="metodoChart"
                                 style="width:100%;height:100%"></canvas></div>
@@ -2731,7 +2731,7 @@
 
                     <!-- TAB: INVENTARIO -->
                     <div id="inventario" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">Inventario</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">Inventario</h2>
                         <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
                             <button onclick="Inventario.mostrarFormNuevoItem()">➕ Añadir Producto</button>
                             <button onclick="Inventario.exportarInventarioJSON()" class="btn-secondary">💾 Exportar
@@ -2744,8 +2744,8 @@
                                 onchange="Inventario.importarInventarioJSON(event)">
                         </div>
                         <div id="form-nuevo-item" class="hidden"
-                            style="margin-bottom:20px;padding:15px;border:2px solid #4472C4;border-radius:10px;background:#f8f9fa;">
-                            <h3 style="margin-bottom:15px;color:#4472C4;">📦 Nuevo Producto</h3>
+                            style="margin-bottom:20px;padding:15px;border:2px solid var(--primary);border-radius:10px;background:var(--bg-surface-hover);">
+                            <h3 style="margin-bottom:15px;color:var(--primary);">📦 Nuevo Producto</h3>
                             <div class="form-row">
                                 <div class="form-group">
                                     <div
@@ -2779,7 +2779,7 @@
                                     <label>🔑 SKU (Auto-generado) *</label>
                                     <div style="display:flex;gap:8px;">
                                         <input id="nuevo-sku" type="text" placeholder="Se generará solo..."
-                                            style="margin:0;width:100%;background:#e9ecef;font-weight:bold;color:#2B56A5;"
+                                            style="margin:0;width:100%;background:var(--bg-surface-hover);font-weight:bold;color:#2B56A5;"
                                             readonly>
                                         <button type="button" class="btn-secondary"
                                             onclick="document.getElementById('nuevo-sku').readOnly = !document.getElementById('nuevo-sku').readOnly"
@@ -2809,7 +2809,7 @@
 
                     <!-- TAB: ÓRDENES DE SERVICIO -->
                     <div id="ordenes-servicio" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">🔧 Órdenes de Servicio</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">🔧 Órdenes de Servicio</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="OrdenesServicio.mostrarFormNuevaOrden()">➕ Nueva Orden</button>
                             <button class="btn-secondary" onclick="OrdenesServicio.exportarExcel()">📥 Excel</button>
@@ -2817,16 +2817,16 @@
                         </div>
                         <div class="summary-cards" id="os-cards" style="margin-bottom:25px;"></div>
                         <div id="form-nueva-orden" class="hidden"
-                            style="margin-bottom:25px;padding:25px;border:2px solid #4472C4;border-radius:12px;background:#f8f9fa;">
-                            <h3 style="margin-bottom:20px;color:#4472C4;" id="os-form-titulo">📋 Nueva Orden de Servicio
+                            style="margin-bottom:25px;padding:25px;border:2px solid var(--primary);border-radius:12px;background:var(--bg-surface-hover);">
+                            <h3 style="margin-bottom:20px;color:var(--primary);" id="os-form-titulo">📋 Nueva Orden de Servicio
                             </h3>
-                            <div style="margin-bottom:15px;padding:12px;background:#e8eefa;border-radius:8px;"><strong
-                                    style="color:#4472C4;">👤 Datos del Cliente</strong></div>
+                            <div style="margin-bottom:15px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;"><strong
+                                    style="color:var(--primary);">👤 Datos del Cliente</strong></div>
                             <div class="form-row">
                                 <div class="form-group"><label>Fecha de Ingreso *</label><input type="date"
                                         id="os-fecha" required></div>
                                 <div class="form-group"><label>N° de Orden</label><input type="text" id="os-numero"
-                                        readonly style="background:#f0f0f0;font-weight:bold;color:#4472C4;"
+                                        readonly style="background:var(--bg-surface-hover);font-weight:bold;color:var(--primary);"
                                         placeholder="Auto-generado"></div>
                             </div>
                             <div class="form-row">
@@ -2836,8 +2836,8 @@
                                         placeholder="987654321"></div>
                             </div>
                             <div
-                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:#e8eefa;border-radius:8px;">
-                                <strong style="color:#4472C4;">💻 Datos del Equipo</strong></div>
+                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
+                                <strong style="color:var(--primary);">💻 Datos del Equipo</strong></div>
                             <div class="form-row">
                                 <div class="form-group"><label>Tipo de Equipo *</label><select id="os-tipo-equipo"
                                         required>
@@ -2865,16 +2865,16 @@
                             <div class="form-group"><label>Accesorios Entregados</label><input type="text"
                                     id="os-accesorios" placeholder="Ej: Cargador, funda, mouse..."></div>
                             <div
-                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:#e8eefa;border-radius:8px;">
-                                <strong style="color:#4472C4;">🔍 Problema y Diagnóstico</strong></div>
+                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
+                                <strong style="color:var(--primary);">🔍 Problema y Diagnóstico</strong></div>
                             <div class="form-group"><label>Descripción del Problema *</label><textarea id="os-problema"
                                     placeholder="Describa el problema reportado por el cliente..." required></textarea>
                             </div>
                             <div class="form-group"><label>Diagnóstico del Técnico</label><textarea id="os-diagnostico"
                                     placeholder="Diagnóstico técnico..."></textarea></div>
                             <div
-                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:#e8eefa;border-radius:8px;">
-                                <strong style="color:#4472C4;">💳 Servicio y Pago</strong></div>
+                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
+                                <strong style="color:var(--primary);">💳 Servicio y Pago</strong></div>
                             <div class="form-row">
                                 <div class="form-group"><label>Técnico Responsable</label><input type="text"
                                         id="os-tecnico" placeholder="Nombre del técnico"></div>
@@ -2898,7 +2898,7 @@
                             </div>
                             <div class="form-group">
                                 <div id="os-saldo-display"
-                                    style="background:#fff3cd;padding:12px;border-radius:8px;border:2px solid #ffc107;display:none;">
+                                    style="background:rgba(255,193,7,0.15);padding:12px;border-radius:8px;border:2px solid var(--warning);display:none;">
                                     <strong style="color:#856404;">Saldo Pendiente: <span
                                             id="os-saldo-valor">S/0.00</span></strong>
                                 </div>
@@ -2919,17 +2919,17 @@
                             <div class="form-group"><label>Notas adicionales</label><input type="text" id="os-notas"
                                     placeholder="Observaciones internas..."></div>
                             <div
-                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:#e8eefa;border-radius:8px;">
-                                <strong style="color:#4472C4;">📸 Fotos del Equipo</strong></div>
+                                style="margin-bottom:15px;margin-top:10px;padding:12px;background:rgba(59,130,246,0.1);border-radius:8px;">
+                                <strong style="color:var(--primary);">📸 Fotos del Equipo</strong></div>
                             <div class="form-group">
                                 <label>Añadir fotos (máx. 5 imágenes)</label>
                                 <div id="os-foto-dropzone" onclick="document.getElementById('os-foto-input').click()"
-                                    style="border:2px dashed #4472C4;border-radius:10px;padding:28px;text-align:center;cursor:pointer;background:#f8f9fa;"
+                                    style="border:2px dashed var(--primary);border-radius:10px;padding:28px;text-align:center;cursor:pointer;background:var(--bg-surface-hover);"
                                     ondragover="event.preventDefault();this.style.background='#d0dcf8'"
                                     ondragleave="this.style.background='#f8f9fa'"
                                     ondrop="OrdenesServicio.manejarDrop(event)">
                                     <div style="font-size:2em;margin-bottom:8px;">📷</div>
-                                    <div style="font-weight:600;color:#4472C4;">Haz clic o arrastra fotos aquí</div>
+                                    <div style="font-weight:600;color:var(--primary);">Haz clic o arrastra fotos aquí</div>
                                 </div>
                                 <input type="file" id="os-foto-input" accept="image/*" multiple style="display:none;"
                                     onchange="OrdenesServicio.agregarFotos(event)">
@@ -2988,15 +2988,15 @@
 
                     <!-- ===== TAB: PROVEEDORES ===== -->
                     <div id="proveedores" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">🏭 Gestión de Proveedores</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">🏭 Gestión de Proveedores</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="Proveedores.mostrarForm()">➕ Nuevo Proveedor</button>
                             <button class="btn-secondary" onclick="Proveedores.exportarExcel()">📥 Exportar
                                 Excel</button>
                         </div>
                         <div id="form-nuevo-proveedor" class="hidden"
-                            style="margin-bottom:20px;padding:20px;border:2px solid #4472C4;border-radius:12px;background:#f8f9fa;">
-                            <h3 style="margin-bottom:15px;color:#4472C4;">🏭 Registrar / Editar Proveedor</h3>
+                            style="margin-bottom:20px;padding:20px;border:2px solid var(--primary);border-radius:12px;background:var(--bg-surface-hover);">
+                            <h3 style="margin-bottom:15px;color:var(--primary);">🏭 Registrar / Editar Proveedor</h3>
                             <input type="hidden" id="prov-editando-id">
                             <div class="form-row">
                                 <div class="form-group"><label>Nombre / Razón Social *</label><input id="prov-nombre"
@@ -3027,14 +3027,14 @@
 
                     <!-- ===== TAB: COMPRAS ===== -->
                     <div id="compras" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">🛒 Registro de Compras</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">🛒 Registro de Compras</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="Compras.mostrarForm()">➕ Nueva Compra</button>
                             <button class="btn-secondary" onclick="Compras.exportarExcel()">📥 Exportar Excel</button>
                         </div>
                         <div class="summary-cards" id="compras-cards" style="margin-bottom:20px;"></div>
                         <div id="form-nueva-compra" class="hidden"
-                            style="margin-bottom:25px;padding:25px;border:2px solid #28a745;border-radius:12px;background:#f8f9fa;">
+                            style="margin-bottom:25px;padding:25px;border:2px solid var(--success);border-radius:12px;background:var(--bg-surface-hover);">
                             <h3 style="margin-bottom:20px;color:#28a745;">🛒 Registrar Compra / Ingreso de Mercadería
                             </h3>
                             <input type="hidden" id="compra-editando-id">
@@ -3050,11 +3050,11 @@
                                         type="text" placeholder="F001-00123"></div>
                                 <div class="form-group"><label>Total Calculado</label><input id="compra-total-display"
                                         readonly
-                                        style="background:#f0f0f0;font-weight:bold;font-size:1.1em;color:#28a745;">
+                                        style="background:var(--bg-surface-hover);font-weight:bold;font-size:1.1em;color:#28a745;">
                                 </div>
                             </div>
                             <div
-                                style="margin-bottom:15px;padding:15px;background:#e8f5e9;border-radius:8px;border:1px solid #c8e6c9;">
+                                style="margin-bottom:15px;padding:15px;background:rgba(16,185,129,0.1);border-radius:8px;border:1px solid #c8e6c9;">
                                 <strong style="color:#28a745;display:block;margin-bottom:12px;">➕ Agregar
                                     Producto</strong>
                                 <div class="compra-item-form">
@@ -3070,7 +3070,7 @@
                                             Unit. *</label><input id="ci-costo" type="number" step="0.01" min="0"
                                             placeholder="0.00"></div>
                                     <button onclick="Compras.agregarItem()"
-                                        style="background:#28a745;padding:10px 16px;height:44px;align-self:end;">➕</button>
+                                        style="background:var(--success);padding:10px 16px;height:44px;align-self:end;">➕</button>
                                 </div>
                             </div>
                             <div id="compra-items-lista" style="margin-bottom:15px;"></div>
@@ -3094,7 +3094,7 @@
 
                     <!-- ===== TAB: DEVOLUCIONES ===== -->
                     <div id="devoluciones" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">↩️ Devoluciones</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">↩️ Devoluciones</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="Devoluciones.iniciarDevolucion()"
                                 style="background:linear-gradient(135deg,#dc3545,#c82333);">↩️ Registrar
@@ -3108,17 +3108,17 @@
 
                     <!-- ===== TAB: COTIZACIONES ===== -->
                     <div id="cotizaciones" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">📄 Cotizaciones</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">📄 Cotizaciones</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;"><button
                                 onclick="Cotizaciones.mostrarForm()">➕ Nueva Cotización</button></div>
                         <div class="summary-cards" id="cot-cards" style="margin-bottom:20px;"></div>
                         <div id="form-nueva-cotizacion" class="hidden"
-                            style="margin-bottom:25px;padding:25px;border:2px solid #4472C4;border-radius:12px;background:#f8f9fa;">
-                            <h3 style="margin-bottom:20px;color:#4472C4;">📄 Nueva Cotización</h3>
+                            style="margin-bottom:25px;padding:25px;border:2px solid var(--primary);border-radius:12px;background:var(--bg-surface-hover);">
+                            <h3 style="margin-bottom:20px;color:var(--primary);">📄 Nueva Cotización</h3>
                             <input type="hidden" id="cot-editando-id">
                             <div class="form-row">
                                 <div class="form-group"><label>N° Cotización</label><input id="cot-numero" type="text"
-                                        readonly style="background:#f0f0f0;font-weight:bold;color:#4472C4;"></div>
+                                        readonly style="background:var(--bg-surface-hover);font-weight:bold;color:var(--primary);"></div>
                                 <div class="form-group"><label>Fecha *</label><input type="date" id="cot-fecha"></div>
                             </div>
                             <div class="form-row">
@@ -3134,8 +3134,8 @@
                                         placeholder="cliente@email.com"></div>
                             </div>
                             <div
-                                style="margin-bottom:15px;padding:15px;background:#e8eefa;border-radius:8px;border:1px solid #c5d3f5;">
-                                <strong style="color:#4472C4;display:block;margin-bottom:12px;">➕ Agregar
+                                style="margin-bottom:15px;padding:15px;background:rgba(59,130,246,0.1);border-radius:8px;border:1px solid #c5d3f5;">
+                                <strong style="color:var(--primary);display:block;margin-bottom:12px;">➕ Agregar
                                     Producto/Servicio</strong>
                                 <div class="compra-item-form" style="grid-template-columns:1fr 70px 90px 70px auto;">
                                     <div class="form-group" style="margin:0;"><label
@@ -3180,7 +3180,7 @@
 
                     <!-- ===== TAB: CIERRE DE CAJA ===== -->
                     <div id="cierre-caja" class="tab-content">
-                        <h2 style="margin-bottom:20px;color:#333;">🏧 Cierre de Caja</h2>
+                        <h2 style="margin-bottom:20px;color:var(--text-primary);">🏧 Cierre de Caja</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;" id="caja-controles">
                             <button id="btn-abrir-caja" onclick="CierreCaja.abrirCaja()"
                                 style="background:linear-gradient(135deg,#ffc107,#fd7e14);color:#000;">🔓 Abrir
@@ -3192,7 +3192,7 @@
                                 Excel</button>
                         </div>
                         <div class="summary-cards" id="caja-cards" style="margin-bottom:25px;"></div>
-                        <h3 style="margin-bottom:15px;color:#333;">📋 Historial de Cierres</h3>
+                        <h3 style="margin-bottom:15px;color:var(--text-primary);">📋 Historial de Cierres</h3>
                         <div id="tabla-cierres"></div>
                     </div>
 
@@ -3200,7 +3200,7 @@
                     <div id="usuarios" class="tab-content">
                         <div
                             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:10px;">
-                            <h2 style="color:#333;margin:0;">👨‍💼 Gestión de Usuarios</h2>
+                            <h2 style="color:var(--text-primary);margin:0;">👨‍💼 Gestión de Usuarios</h2>
                             <button onclick="GestionUsuarios.mostrarModalAgregarLocal()"
                                 style="background:linear-gradient(135deg,#28a745,#20c997);color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px;box-shadow:0 4px 12px rgba(40,167,69,0.3);">➕
                                 Añadir Usuario Local</button>
@@ -3232,7 +3232,7 @@
                     <div id="papelera" class="tab-content">
                         <div
                             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                            <h2 style="color:#333;margin:0;">🗑️ Papelera de Reciclaje</h2>
+                            <h2 style="color:var(--text-primary);margin:0;">🗑️ Papelera de Reciclaje</h2>
                             <button onclick="Papelera.vaciarTodo()"
                                 style="background:linear-gradient(135deg,#dc3545,#c82333);">🔥 Vaciar Papelera</button>
                         </div>
@@ -3244,7 +3244,7 @@
                     <div id="configuracion" class="tab-content">
                         <div
                             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                            <h2 style="color:#333;margin:0;">⚙️ Configuración del Negocio</h2>
+                            <h2 style="color:var(--text-primary);margin:0;">⚙️ Configuración del Negocio</h2>
                         </div>
                         <p style="color:#666;margin-bottom:20px;font-size:0.9em;">Estos datos aparecerán en los
                             encabezados de las boletas y reportes generados por el sistema.</p>
@@ -3777,7 +3777,7 @@
                         else botonesHtml = `<button class="btn" style="background:var(--success);padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')">✅ Aprobar</button>`;
                     }
                     const botonesAdmin = esSuperAdmin ? `
-                        <button class="btn" style="background:#F59E0B; color:#000; padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.editarRol('${u.id}')">✏️ Editar</button>
+                        <button class="btn" style="background:var(--warning); color:#000; padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.editarRol('${u.id}')">✏️ Editar</button>
                         <button class="btn btn-danger" style="padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email || u.username}')">🗑️ Eliminar</button>
                     ` : '';
                     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;color:var(--text-primary);">
@@ -3823,7 +3823,7 @@
                                 <option value="empleado" ${rolActual === 'empleado' ? 'selected' : ''}>Empleado / Vendedor</option>
                                 <option value="admin" ${rolActual === 'admin' ? 'selected' : ''}>Administrador</option>
                             </select>
-                            <div id="edit-modulos-container" style="display:${rolActual === 'empleado' ? 'block' : 'none'}; border:1px solid #d5dce9; border-radius:8px; padding:12px; background:#f8f9fa; text-align:left;">
+                            <div id="edit-modulos-container" style="display:${rolActual === 'empleado' ? 'block' : 'none'}; border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-surface-hover); text-align:left;">
                                 <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos:</label>
                                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
                                     <label><input type="checkbox" value="registro" class="swal-edit-modulos" ${isChecked('registro')}> 📝 Registro</label>
@@ -3864,7 +3864,7 @@
                                 <option value="empleado">Empleado / Vendedor</option>
                                 ${esSuperAdmin ? '<option value="admin">Administrador</option>' : ''}
                             </select>
-                            <div id="modulos-container" style="border:1px solid #d5dce9; border-radius:8px; padding:12px; background:#f8f9fa;">
+                            <div id="modulos-container" style="border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-surface-hover);">
                                 <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos (Solo Empleado):</label>
                                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
                                     <label><input type="checkbox" value="registro" class="swal-modulos" checked> 📝 Registro</label>
@@ -4595,7 +4595,7 @@
                         <td style="min-width:130px;"><input type="text" value="${it.descripcion}" id="bitem-desc-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;"></td>
                         <td><input type="number" step="0.01" value="${it.precioUnit.toFixed(2)}" id="bitem-pu-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${i})"></td>
                         <td id="bitem-tot-${i}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${it.total.toFixed(2)}</td>
-                        <td><button type="button" onclick="Boletas._removeItemRow(${i})" style="background:#dc3545;color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                        <td><button type="button" onclick="Boletas._removeItemRow(${i})" style="background:var(--danger);color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
                     </tr>`).join('');
 
                 const igvPct = 0.18;
@@ -4629,7 +4629,7 @@
                             </div>
                         </div>
 
-                        <div style="background:#F7F9FC;border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #d5dce9;">
+                        <div style="background:#F7F9FC;border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid var(--border);">
                             <div style="font-weight:700;color:#1E3A6E;margin-bottom:10px;">📦 Ítems de la Boleta</div>
                             <div style="overflow-x:auto;">
                                 <table id="boleta-items-table" style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -4673,7 +4673,7 @@
                         </div>
 
                         ${esEstructurada ? `
-                        <div style="background:#F7F9FC;border-radius:10px;padding:14px;border:1px solid #d5dce9;">
+                        <div style="background:#F7F9FC;border-radius:10px;padding:14px;border:1px solid var(--border);">
                             <div style="font-weight:700;color:#1E3A6E;margin-bottom:10px;">📝 Notas y Garantía</div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                                 <div>
@@ -4776,7 +4776,7 @@
                         <td><input type="text" value="${it.descripcion}" id="bitem-desc-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;min-width:120px;"></td>
                         <td><input type="number" step="0.01" value="${it.precioUnit.toFixed(2)}" id="bitem-pu-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${idx})"></td>
                         <td id="bitem-tot-${idx}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${it.total.toFixed(2)}</td>
-                        <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:#dc3545;color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                        <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:var(--danger);color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
                     </tr>`).join('');
                 this._recalcTotales();
             },
@@ -4804,7 +4804,7 @@
                             <td><input type="text" value="${desc}" id="bitem-desc-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;min-width:120px;"></td>
                             <td><input type="number" step="0.01" value="${pu.toFixed(2)}" id="bitem-pu-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${idx})"></td>
                             <td id="bitem-tot-${idx}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${(cant * pu).toFixed(2)}</td>
-                            <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:#dc3545;color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                            <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:var(--danger);color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
                         </tr>`);
                 }
                 if (cantEl) cantEl.value = '1';
@@ -5066,7 +5066,7 @@
                         const [y, m, d] = x.fechaBorrado.slice(0, 10).split('-');
                         return `<tr><td>${d}/${m}/${y}</td><td><span class="badge badge-info">${x.modulo.toUpperCase()}</span></td>
                             <td style="font-weight:600;">${x.descripcion}</td>
-                            <td><button class="small-btn" onclick="Papelera.recuperar('${x.idPapelera}')" style="background:#28a745;">♻️ Recuperar</button>
+                            <td><button class="small-btn" onclick="Papelera.recuperar('${x.idPapelera}')" style="background:var(--success);">♻️ Recuperar</button>
                             <button class="delete-btn" onclick="Papelera.borrarDefinitivo('${x.idPapelera}')">🗑️</button></td></tr>`;
                     }).join('') + `</tbody></table>`;
             }
@@ -5200,7 +5200,7 @@
                         const bajo = item.stock <= item.reorderThreshold;
                         const cero = item.stock === 0;
                         const estado = cero ? '<span class="badge badge-danger">Sin stock</span>' : bajo ? '<span class="badge badge-warning">Bajo</span>' : '<span class="badge badge-success">OK</span>';
-                        return `<tr style="${cero ? 'background:#ffebee;' : bajo ? 'background:#fffde7;' : ''}">
+                        return `<tr style="${cero ? 'background:rgba(239,68,68,0.15);' : bajo ? 'background:rgba(255,193,7,0.15);' : ''}">
                         <td><strong>${item.sku}</strong></td>
                         <td>${item.nombre}</td>
                         <td><strong>${item.stock}</strong></td>
@@ -5340,7 +5340,7 @@
                     return;
                 }
                 container.innerHTML = pendientes.map(p => `
-                    <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:13px;color:#856404;display:flex;align-items:center;gap:12px;pointer-events:auto;animation:fadeIn 0.3s ease;">
+                    <div style="background:rgba(255,193,7,0.15);border-left:4px solid var(--warning);padding:12px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:13px;color:#856404;display:flex;align-items:center;gap:12px;pointer-events:auto;animation:fadeIn 0.3s ease;">
                         <div style="font-size:1.5em;">⚠️</div>
                         <div>
                             <strong style="display:block;margin-bottom:2px;">Falta Inventario</strong>
@@ -5462,7 +5462,7 @@
                     <div class="card"><h3>💰 Total Ventas</h3><div class="value">S/${totalVentas.toFixed(2)}</div></div>
                     <div class="card"><h3>✅ Total Cobrado</h3><div class="value" style="color:#28a745;">S/${totalCobrado.toFixed(2)}</div></div>
                     <div class="card"><h3>⏳ Por Cobrar</h3><div class="value" style="color:#dc3545;">S/${pendiente.toFixed(2)}</div></div>
-                    <div class="card"><h3>📅 Ventas Hoy</h3><div class="value" style="color:#4472C4;">S/${ventasHoy.toFixed(2)}</div></div>`;
+                    <div class="card"><h3>📅 Ventas Hoy</h3><div class="value" style="color:var(--primary);">S/${ventasHoy.toFixed(2)}</div></div>`;
                 this.actualizarGraficoMetodo();
                 this.stockAlerts();
                 this.ventasPorCategoria();
@@ -5484,7 +5484,7 @@
                 if (!c) return;
                 const bajo = Estado.inventario.filter(i => i.stock <= i.reorderThreshold);
                 if (!bajo.length) { c.innerHTML = ''; return; }
-                c.innerHTML = `<div style="background:#fff3cd;border:2px solid #ffc107;border-radius:10px;padding:20px;margin-bottom:20px;">
+                c.innerHTML = `<div style="background:rgba(255,193,7,0.15);border:2px solid var(--warning);border-radius:10px;padding:20px;margin-bottom:20px;">
                     <h3 style="color:#856404;margin-bottom:12px;">⚠️ Stock Bajo (${bajo.length} productos)</h3>
                     ${bajo.map(i => `<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #ffc10755;">
                         <span>${i.nombre} <small style="color:#999;">(${i.sku})</small></span>
@@ -5499,8 +5499,8 @@
                 Estado.ventas.forEach(v => { const ct = v.categoria || 'Sin cat.'; cats[ct] = (cats[ct] || 0) + v.total; });
                 const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
                 const total = sorted.reduce((s, [, v]) => s + v, 0);
-                c.innerHTML = `<div style="background:white;border-radius:10px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-                    <h3 style="margin-bottom:15px;color:#333;">📊 Ventas por Categoría</h3>
+                c.innerHTML = `<div style="background:var(--bg-surface);border-radius:10px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                    <h3 style="margin-bottom:15px;color:var(--text-primary);">📊 Ventas por Categoría</h3>
                     ${sorted.map(([cat, val]) => {
                     const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
                     return `<div style="margin-bottom:12px;">
@@ -5582,7 +5582,7 @@
                 const cards = document.getElementById('cuentas-por-cobrar-cards');
                 if (cards) cards.innerHTML = `
                     <div class="card" style="border-left:4px solid #dc3545;"><h3>📊 Cuentas Pendientes</h3><div class="value">${pendientes.length}</div></div>
-                    <div class="card" style="border-left:4px solid #ffc107;"><h3>💰 Total por Cobrar</h3><div class="value" style="color:#dc3545;">S/${totalPendiente.toFixed(2)}</div></div>
+                    <div class="card" style="border-left:4px solid var(--warning);"><h3>💰 Total por Cobrar</h3><div class="value" style="color:#dc3545;">S/${totalPendiente.toFixed(2)}</div></div>
                     <div class="card" style="border-left:4px solid #28a745;"><h3>✅ Cuentas Pagadas</h3><div class="value" style="color:#28a745;">${Estado.ventas.filter(v => v.estadoPago === 'Pagado').length}</div></div>`;
                 this.renderizarTabla();
             },
@@ -5668,7 +5668,7 @@
                             <div class="cliente-stat"><div class="cliente-stat-label">Total Comprado</div><div class="cliente-stat-value" style="font-size:1.2em;">S/${totalComprado.toFixed(2)}</div></div>
                             ${pendiente > 0 ? `<div class="cliente-stat"><div class="cliente-stat-label">Pendiente</div><div class="cliente-stat-value pendiente" style="font-size:1.2em;">S/${pendiente.toFixed(2)}</div></div>` : ''}
                         </div>
-                        ${cl.notas ? `<div style="margin-top:8px;padding:8px;background:#f8f9fa;border-radius:6px;font-size:0.9em;">📝 ${cl.notas}</div>` : ''}
+                        ${cl.notas ? `<div style="margin-top:8px;padding:8px;background:var(--bg-surface-hover);border-radius:6px;font-size:0.9em;">📝 ${cl.notas}</div>` : ''}
                     </div>`;
                 }).join('');
             },
@@ -5989,8 +5989,8 @@
                 const porCobrar = ordenes.filter(o => o.saldo > 0).reduce((s, o) => s + o.saldo, 0);
                 const c = document.getElementById('os-cards'); if (!c) return;
                 c.innerHTML = `
-                    <div class="card" style="border-left:4px solid #ffc107;"><h3>⏳ Pendientes</h3><div class="value" style="color:#856404;">${pendientes}</div></div>
-                    <div class="card" style="border-left:4px solid #4472C4;"><h3>🔧 En Proceso</h3><div class="value" style="color:#4472C4;">${enProceso}</div></div>
+                    <div class="card" style="border-left:4px solid var(--warning);"><h3>⏳ Pendientes</h3><div class="value" style="color:#856404;">${pendientes}</div></div>
+                    <div class="card" style="border-left:4px solid #4472C4;"><h3>🔧 En Proceso</h3><div class="value" style="color:var(--primary);">${enProceso}</div></div>
                     <div class="card" style="border-left:4px solid #28a745;"><h3>✅ Listos para Entrega</h3><div class="value" style="color:#28a745;">${listos}</div></div>
                     <div class="card" style="border-left:4px solid #dc3545;"><h3>💰 Por Cobrar</h3><div class="value" style="color:#dc3545;">S/${porCobrar.toFixed(2)}</div></div>`;
             },
@@ -6024,13 +6024,13 @@
                     return `<div class="os-orden-card estado-${o.estado.replace(/\s+/g, '-')}">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
                             <div>
-                                <span style="font-weight:700;color:#4472C4;font-size:0.95em;">${o.numero || '-'}</span>
+                                <span style="font-weight:700;color:var(--primary);font-size:0.95em;">${o.numero || '-'}</span>
                                 <span class="os-estado" style="margin-left:8px;background:${color}22;color:${color};">${o.estado}</span>
-                                ${o.saldo > 0 ? `<span style="margin-left:8px;background:#f8d7da;color:#721c24;padding:3px 8px;border-radius:10px;font-size:0.8em;font-weight:700;">⚠️ S/${o.saldo.toFixed(2)} pendiente</span>` : ''}
+                                ${o.saldo > 0 ? `<span style="margin-left:8px;background:rgba(239,68,68,0.15);color:#721c24;padding:3px 8px;border-radius:10px;font-size:0.8em;font-weight:700;">⚠️ S/${o.saldo.toFixed(2)} pendiente</span>` : ''}
                             </div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                 <button class="small-btn gray" onclick="OrdenesServicio.editarOrden('${o.id}')">✏️ Editar</button>
-                                <button class="small-btn" onclick="OrdenesServicio.generarPDFOrden('${o.id}')" style="background:#dc3545;">📄 PDF</button>
+                                <button class="small-btn" onclick="OrdenesServicio.generarPDFOrden('${o.id}')" style="background:var(--danger);">📄 PDF</button>
                                 <button class="small-btn" onclick="Boletas.generarDesdeOrden('${o.id}')" style="background:linear-gradient(135deg,#1E3A6E,#2B56A5);">🧾 Boleta</button>
                                 <button class="delete-btn" onclick="OrdenesServicio.eliminarOrden('${o.id}')">🗑️</button>
                             </div>
@@ -6041,8 +6041,8 @@
                             <div>📅 ${d}/${m}/${y}${o.tecnico ? ` · 🔧 ${o.tecnico}` : ''}</div>
                             <div>💰 S/${o.costo.toFixed(2)} ${o.adelanto > 0 ? `· Adelanto: S/${o.adelanto.toFixed(2)}` : ''}</div>
                         </div>
-                        <div style="background:#f8f9fa;padding:10px;border-radius:6px;font-size:0.88em;margin-bottom:6px;"><strong>Problema:</strong> ${o.problema}</div>
-                        ${o.diagnostico ? `<div style="background:#e8f5e9;padding:8px;border-radius:6px;font-size:0.85em;"><strong>Diagnóstico:</strong> ${o.diagnostico}</div>` : ''}
+                        <div style="background:var(--bg-surface-hover);padding:10px;border-radius:6px;font-size:0.88em;margin-bottom:6px;"><strong>Problema:</strong> ${o.problema}</div>
+                        ${o.diagnostico ? `<div style="background:rgba(16,185,129,0.1);padding:8px;border-radius:6px;font-size:0.85em;"><strong>Diagnóstico:</strong> ${o.diagnostico}</div>` : ''}
                         ${fotosHtml}
                         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
                             ${['Pendiente', 'En diagnóstico', 'En reparación', 'Esperando repuesto', 'Listo', 'Entregado'].map(est =>
@@ -6236,7 +6236,7 @@
                     <div class="cliente-actions">
                         <button class="small-btn" onclick="Compras.nuevaCompraParaProveedor('${p.id}')">🛒 Nueva Compra</button>
                         <button class="small-btn gray" onclick="Proveedores.editarProveedor('${p.id}')">✏️ Editar</button>
-                        <button class="small-btn" style="background:#dc3545;" onclick="Proveedores.eliminarProveedor('${p.id}')">🗑️</button>
+                        <button class="small-btn" style="background:var(--danger);" onclick="Proveedores.eliminarProveedor('${p.id}')">🗑️</button>
                     </div>
                 </div>
                 <div class="cliente-info">
@@ -6249,7 +6249,7 @@
                     <div class="cliente-stat"><div class="cliente-stat-label">Compras</div><div class="cliente-stat-value">${comprasProveedor.length}</div></div>
                     <div class="cliente-stat"><div class="cliente-stat-label">Total Comprado</div><div class="cliente-stat-value" style="font-size:1.2em;">S/${totalComprado.toFixed(2)}</div></div>
                 </div>
-                ${p.notas ? `<div style="margin-top:8px;padding:8px;background:#f8f9fa;border-radius:6px;font-size:0.88em;">📝 ${p.notas}</div>` : ''}
+                ${p.notas ? `<div style="margin-top:8px;padding:8px;background:var(--bg-surface-hover);border-radius:6px;font-size:0.88em;">📝 ${p.notas}</div>` : ''}
             </div>`;
                 }).join('');
             },
@@ -6426,10 +6426,10 @@
                 if (!compras.length) { container.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay compras registradas</p>'; return; }
                 container.innerHTML = compras.map(c => {
                     const [y, m, d] = c.fecha.split('-');
-                    return `<div style="background:white;border:2px solid #e9ecef;border-radius:10px;padding:18px;margin-bottom:12px;transition:all 0.2s;" onmouseenter="this.style.borderColor='#4472C4'" onmouseleave="this.style.borderColor='#e9ecef'">
+                    return `<div style="background:var(--bg-surface);border:2px solid var(--border);border-radius:10px;padding:18px;margin-bottom:12px;transition:all 0.2s;" onmouseenter="this.style.borderColor='#4472C4'" onmouseleave="this.style.borderColor='#e9ecef'">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
                     <div>
-                        <span style="font-weight:700;font-size:1.05em;color:#333;">🏭 ${c.proveedorNombre}</span>
+                        <span style="font-weight:700;font-size:1.05em;color:var(--text-primary);">🏭 ${c.proveedorNombre}</span>
                         ${c.nroDoc ? `<span style="margin-left:10px;font-size:0.85em;color:#888;">📄 ${c.nroDoc}</span>` : ''}
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;">
@@ -6439,7 +6439,7 @@
                 </div>
                 <div style="font-size:0.88em;color:#666;margin-bottom:10px;">📅 ${d}/${m}/${y} · ${c.items.length} producto(s)</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                    ${c.items.map(it => `<span style="background:#e8eefa;color:#4472C4;padding:3px 10px;border-radius:12px;font-size:0.82em;font-weight:600;">${it.nombre} ×${it.cantidad} — S/${it.costoUnit.toFixed(2)}</span>`).join('')}
+                    ${c.items.map(it => `<span style="background:rgba(59,130,246,0.1);color:var(--primary);padding:3px 10px;border-radius:12px;font-size:0.82em;font-weight:600;">${it.nombre} ×${it.cantidad} — S/${it.costoUnit.toFixed(2)}</span>`).join('')}
                 </div>
                 ${c.notas ? `<div style="margin-top:8px;font-size:0.82em;color:#888;">💬 ${c.notas}</div>` : ''}
             </div>`;
@@ -6523,7 +6523,7 @@
                 const { value: detalle } = await Swal.fire({
                     title: '↩️ Detalles de la Devolución',
                     html: `
-                <div style="text-align:left;background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:15px;font-size:0.9em;line-height:1.8;">
+                <div style="text-align:left;background:var(--bg-surface-hover);padding:12px;border-radius:8px;margin-bottom:15px;font-size:0.9em;line-height:1.8;">
                     <strong>Producto:</strong> ${venta.producto}<br>
                     <strong>Cliente:</strong> ${venta.cliente || 'Anónimo'}<br>
                     <strong>Total venta:</strong> S/${venta.total.toFixed(2)}<br>
@@ -6893,7 +6893,7 @@
             <div class="card"><h3>📄 Total Cotizaciones</h3><div class="value">${cots.length}</div></div>
             <div class="card"><h3>⏳ Pendientes</h3><div class="value" style="color:#ffc107;">${pendientes}</div></div>
             <div class="card"><h3>✅ Aprobadas</h3><div class="value" style="color:#28a745;">${aprobadas}</div></div>
-            <div class="card"><h3>💰 Valor Pendiente</h3><div class="value" style="color:#4472C4;">S/${totalPendiente.toFixed(2)}</div></div>`;
+            <div class="card"><h3>💰 Valor Pendiente</h3><div class="value" style="color:var(--primary);">S/${totalPendiente.toFixed(2)}</div></div>`;
             },
 
             actualizarTabla() {
@@ -6906,25 +6906,25 @@
                     const isVencida = cot.estado === 'Pendiente' && cot.vencimiento && cot.vencimiento < new Date().toISOString().slice(0, 10);
                     const estadoFinal = isVencida ? 'Vencida' : cot.estado;
                     const color = estadoColors[estadoFinal] || '#6c757d';
-                    return `<div style="background:white;border:2px solid #e9ecef;border-radius:10px;padding:18px;margin-bottom:12px;transition:all 0.2s;" onmouseenter="this.style.borderColor='#4472C4'" onmouseleave="this.style.borderColor='#e9ecef'">
+                    return `<div style="background:var(--bg-surface);border:2px solid var(--border);border-radius:10px;padding:18px;margin-bottom:12px;transition:all 0.2s;" onmouseenter="this.style.borderColor='#4472C4'" onmouseleave="this.style.borderColor='#e9ecef'">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
                     <div>
-                        <span style="font-weight:700;font-size:1.05em;color:#333;">${cot.cliente}</span>
+                        <span style="font-weight:700;font-size:1.05em;color:var(--text-primary);">${cot.cliente}</span>
                         <span style="margin-left:8px;font-size:0.82em;color:#888;">${cot.numero}</span>
                         <span style="margin-left:8px;background:${color}22;color:${color};padding:2px 8px;border-radius:10px;font-size:0.8em;font-weight:700;">${estadoFinal}</span>
                     </div>
-                    <div style="font-size:1.3em;font-weight:700;color:#4472C4;">S/${cot.total.toFixed(2)}</div>
+                    <div style="font-size:1.3em;font-weight:700;color:var(--primary);">S/${cot.total.toFixed(2)}</div>
                 </div>
                 <div style="font-size:0.85em;color:#666;margin-bottom:10px;">
                     📅 ${d}/${m}/${y}${cot.vencimiento ? ` · Vence: ${cot.vencimiento.split('-').reverse().join('/')}` : ''} · ${cot.items.length} item(s)
                     ${cot.telefono ? ` · 📞 ${cot.telefono}` : ''}
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-                    ${cot.items.map(it => `<span style="background:#f0f4ff;color:#4472C4;padding:3px 10px;border-radius:12px;font-size:0.8em;">${it.nombre} ×${it.cantidad}</span>`).join('')}
+                    ${cot.items.map(it => `<span style="background:#f0f4ff;color:var(--primary);padding:3px 10px;border-radius:12px;font-size:0.8em;">${it.nombre} ×${it.cantidad}</span>`).join('')}
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     ${cot.estado === 'Pendiente' && !isVencida ? `<button class="small-btn" onclick="Cotizaciones.convertirAVenta('${cot.id}')">🛒 Convertir a Venta</button>` : ''}
-                    <button class="small-btn" onclick="Cotizaciones.exportarPDF('${cot.id}')" style="background:#dc3545;">📄 PDF</button>
+                    <button class="small-btn" onclick="Cotizaciones.exportarPDF('${cot.id}')" style="background:var(--danger);">📄 PDF</button>
                     ${cot.estado === 'Pendiente' ? `
                         <button class="small-btn gray" onclick="Cotizaciones.cambiarEstado('${cot.id}','Aprobada')">✅ Aprobar</button>
                         <button class="small-btn" style="background:#6c757d;" onclick="Cotizaciones.cambiarEstado('${cot.id}','Rechazada')">❌ Rechazar</button>` : ''}
@@ -7005,8 +7005,8 @@
                     title: '🏧 Cierre de Caja',
                     width: '640px',
                     html: `
-                <div style="background:#f8f9fa;border-radius:10px;padding:15px;margin-bottom:15px;text-align:left;font-size:0.9em;line-height:2;">
-                    <div style="font-size:1em;font-weight:700;color:#333;margin-bottom:8px;">📊 Resumen del Día: ${hoy.split('-').reverse().join('/')}</div>
+                <div style="background:var(--bg-surface-hover);border-radius:10px;padding:15px;margin-bottom:15px;text-align:left;font-size:0.9em;line-height:2;">
+                    <div style="font-size:1em;font-weight:700;color:var(--text-primary);margin-bottom:8px;">📊 Resumen del Día: ${hoy.split('-').reverse().join('/')}</div>
                     <div>🔓 Monto inicial en caja: <strong style="color:#ffc107;">S/${montoInicial.toFixed(2)}</strong></div>
                     <div>💵 Cobrado efectivo: <strong style="color:#28a745;">S/${cobradoEfectivo.toFixed(2)}</strong></div>
                     <div>📱 Cobrado digital (Yape/Plin/Tarjeta): <strong style="color:#17a2b8;">S/${cobradoDigital.toFixed(2)}</strong></div>
@@ -7591,7 +7591,7 @@
                                 icon: 'warning',
                                 title: 'Respuesta inesperada',
                                 html: '<p>La API respondió con un formato distinto.</p>'
-                                    + '<pre style="font-size:11px;text-align:left;background:#f0f0f0;padding:8px;border-radius:6px;overflow:auto;max-height:120px;">'
+                                    + '<pre style="font-size:11px;text-align:left;background:var(--bg-surface-hover);padding:8px;border-radius:6px;overflow:auto;max-height:120px;">'
                                     + JSON.stringify(data, null, 2) + '</pre>',
                                 confirmButtonColor: '#4472C4'
                             });
