@@ -4031,8 +4031,29 @@
                     item.innerHTML = producto.substr(0, pos) + '<strong>' + producto.substr(pos, val.length) + '</strong>' + producto.substr(pos + val.length);
                     item.addEventListener('click', () => {
                         input.value = producto;
+                        let precio = 0;
                         const itemInv = Estado.inventario.find(i => i.nombre === producto);
-                        if (itemInv) document.getElementById('sku').value = itemInv.sku;
+                        if (itemInv) {
+                            document.getElementById('sku').value = itemInv.sku;
+                            const costoInfo = Estado.costosProductos ? Estado.costosProductos[itemInv.sku] : null;
+                            if (costoInfo && costoInfo.precioVenta) precio = costoInfo.precioVenta;
+                        }
+                        
+                        if (!precio) {
+                            const lastSale = Estado.ventas.find(v => v.producto === producto);
+                            if (lastSale) {
+                                if (!document.getElementById('sku').value && lastSale.sku) {
+                                    document.getElementById('sku').value = lastSale.sku;
+                                }
+                                precio = lastSale.precio || 0;
+                            }
+                        }
+
+                        if (precio > 0) {
+                            document.getElementById('precio').value = precio.toFixed(2);
+                            document.getElementById('cantidad').value = 1;
+                            document.getElementById('total-display').value = `S/${precio.toFixed(2)}`;
+                        }
                         this.cerrarSugerencias();
                     });
                     container.appendChild(item);
