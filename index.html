@@ -19,7 +19,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js"></script>
-    <script src="https://www.google.com/recaptcha/enterprise.js?render=6Ldfl0MtAAAAAD4MMWYhkELgK_3Al08CFCOe6kxO"></script>
     <style>
         /* ── ADN VISUAL LISPRO POS (PREMIUM SAAS) ── */
         :root {
@@ -1827,33 +1826,23 @@
                 const provider = new firebase.auth.GoogleAuthProvider();
                 try { await firebase.auth().signInWithPopup(provider); } catch(error) { this._notificar("❌ Error Google: " + error.message, "#ff5f6d"); }
             },
-            loginTradicional(e) {
+            async loginTradicional(e) {
                 e.preventDefault();
                 
                 const btnSubmit = document.querySelector('#loginForm button[type="submit"]');
                 const btnOriginalText = btnSubmit ? btnSubmit.innerHTML : '🚀 Ingresar';
-                if (btnSubmit) { btnSubmit.innerHTML = '🛡️ Protegiendo...'; btnSubmit.disabled = true; }
+                if (btnSubmit) { btnSubmit.innerHTML = '⏳ Verificando...'; btnSubmit.disabled = true; }
 
-                // Llamar a reCAPTCHA
-                grecaptcha.enterprise.ready(async () => {
-                    try {
-                        const token = await grecaptcha.enterprise.execute('6Ldfl0MtAAAAAD4MMWYhkELgK_3Al08CFCOe6kxO', {action: 'LOGIN'});
-                        // El token se enviaría al backend si hubiera uno propio. Al ser Firebase Auth, 
-                        // protege la ejecución en sí misma contra bots.
-
-                        const user = document.getElementById('username').value.trim();
-                        const pass = document.getElementById('password').value.trim();
-                        
-                        if (btnSubmit) { btnSubmit.innerHTML = '⏳ Verificando...'; }
-                        
-                        await firebase.auth().signInWithEmailAndPassword(user, pass);
-                    } catch (error) {
-                        console.error("Error en reCAPTCHA o Firebase Auth:", error);
-                        this._notificar("❌ Usuario o clave incorrectos / Error de seguridad", "#ff5f6d");
-                    }
-                    
+                try {
+                    const user = document.getElementById('username').value.trim();
+                    const pass = document.getElementById('password').value.trim();
+                    await firebase.auth().signInWithEmailAndPassword(user, pass);
+                } catch (error) {
+                    console.error("Error de acceso:", error);
+                    this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
+                } finally {
                     if (btnSubmit) { btnSubmit.innerHTML = btnOriginalText; btnSubmit.disabled = false; }
-                });
+                }
             },
             async manejarAccesoSeguro(user) {
                 this.usuarioActual = user;
