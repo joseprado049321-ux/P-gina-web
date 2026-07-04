@@ -5127,12 +5127,13 @@
                 // ══════════════════════════════════════════════════════
                 // ENCABEZADO DINÁMICO
                 // ══════════════════════════════════════════════════════
-                // Obtenemos los datos del negocio guardados, o usamos unos por defecto
-                const datosNegocioLocal = JSON.parse(localStorage.getItem('configuracionNegocio')) || {
-                    nombre: 'Nombre de su Negocio',
-                    propietario: 'Propietario',
-                    direccion: 'Dirección del Local',
-                    documento: '___________________'
+                // Obtenemos los datos del negocio desde el estado central
+                const datosNegocioLocal = {
+                    nombre: Estado.configuracion?.nombre || 'Nombre de su Negocio',
+                    propietario: Estado.configuracion?.propietario || 'Propietario',
+                    direccion: Estado.configuracion?.direccion || 'Dirección del Local',
+                    documento: Estado.configuracion?.documento || '___________________',
+                    mensaje: Estado.configuracion?.mensaje || '¡Gracias por su preferencia!'
                 };
 
                 dbl(); gap(0.5);
