@@ -1717,6 +1717,8 @@
         /* Botones Premium (Sólidos) */
         button,
         .btn {
+            position: relative;
+            z-index: 10;
             background: var(--primary);
             color: #fff;
             border: none;
@@ -1886,6 +1888,12 @@
             color: var(--text-primary) !important;
             border: 1px solid var(--border) !important;
             border-radius: var(--radius-sm) !important;
+        }
+
+        .swal2-actions {
+            position: relative !important;
+            z-index: 15 !important;
+            margin-top: 15px !important;
         }
 
         /* Botones Secundarios (Sólidos, sin difuminado/glow) */
