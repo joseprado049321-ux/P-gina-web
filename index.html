@@ -1865,9 +1865,24 @@
                         this.mostrarPantallaPrincipal();
                         this._notificar(`✅ Bienvenido, ${userData.nombre || user.email}`, "linear-gradient(to right,#00b09b,#96c93d)");
                     } else {
-                        this.esAdmin = false;
-                        this.usuarioActual = { email: user.email, uid: user.uid };
+                        const userData = {
+                            email: user.email,
+                            nombre: user.displayName || user.email,
+                            tenantId: 'demo',
+                            rol: 'admin',
+                            estado: 'aprobado',
+                            fechaCreacion: new Date().toISOString()
+                        };
+                        try {
+                            await db.collection('usuarios_acceso').doc(user.uid).set(userData);
+                        } catch(e) {
+                            console.error("No se pudo crear perfil de usuario:", e);
+                        }
+                        this.esAdmin = true;
+                        this.usuarioActual = userData;
+                        localStorage.setItem('tenantId', 'demo');
                         this.mostrarPantallaPrincipal();
+                        this._notificar(`✅ Cuenta de pruebas (Demo) activada`, "linear-gradient(to right,#00b09b,#96c93d)");
                     }
                 } catch(e) {
                     console.error("Error leyendo acceso:", e);
@@ -1948,6 +1963,8 @@
                     localStorage.removeItem('sesionActiva');
                     localStorage.removeItem('sesionInvitado');
                     localStorage.removeItem('superAdmin');
+                    localStorage.removeItem('tenantId');
+                    localStorage.removeItem('superAdminTenant');
                     location.reload();
                 },
             async cargarEmpresas() {
