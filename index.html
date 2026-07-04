@@ -4382,8 +4382,43 @@
                 if (nombreCliente) {
                     const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase());
                     if (!clienteExistente) {
-                        const result = await Swal.fire({ title: '¿Registrar cliente nuevo?', html: `<p>¿Agregar a <strong>${nombreCliente}</strong>?</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, confirmButtonText: 'Sí, registrar', denyButtonText: 'Después', cancelButtonText: 'No', confirmButtonColor: '#4472C4', denyButtonColor: '#6c757d', cancelButtonColor: '#6c757d' });
-                        if (result.isConfirmed) { UI.switchTab('clientes'); Clientes.mostrarFormNuevoCliente(); document.getElementById('nuevo-cliente-nombre').value = nombreCliente; }
+                        const dniActual = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
+                        const { value: formData, isConfirmed } = await Swal.fire({
+                            title: 'Registrar Cliente Nuevo',
+                            html: `
+                                <div style="text-align:left;font-size:14px;">
+                                    <p style="margin-bottom:10px;">Agregar a <strong>${nombreCliente}</strong> a la base de datos:</p>
+                                    <input id="swal-dni" class="swal2-input" placeholder="DNI / RUC (Opcional)" value="${dniActual}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                    <input id="swal-tel" class="swal2-input" placeholder="Teléfono (Opcional)" style="width:100%; max-width:100%; margin: 5px 0;">
+                                </div>
+                            `,
+                            showCancelButton: true,
+                            confirmButtonText: 'Guardar y Continuar',
+                            cancelButtonText: 'Solo continuar sin guardar',
+                            confirmButtonColor: '#2B56A5',
+                            preConfirm: () => {
+                                return {
+                                    dni: document.getElementById('swal-dni').value.trim(),
+                                    telefono: document.getElementById('swal-tel').value.trim()
+                                }
+                            }
+                        });
+                        
+                        if (isConfirmed) {
+                            const nuevoCliente = {
+                                id: Date.now().toString(),
+                                nombre: nombreCliente,
+                                dni: formData.dni,
+                                telefono: formData.telefono,
+                                direccion: '',
+                                correo: '',
+                                fechaRegistro: new Date().toISOString()
+                            };
+                            if(!Estado.clientes) Estado.clientes = [];
+                            Estado.clientes.push(nuevoCliente);
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
                     } else {
                         // Actualización silenciosa de DNI si falta
                         const dniIngresado = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
@@ -6169,9 +6204,16 @@
             },
             mostrarFormNuevaOrden() {
                 document.getElementById('form-nueva-orden').classList.remove('hidden');
-                document.getElementById('os-fecha').valueAsDate = new Date();
-                document.getElementById('os-editando-id').value = '';
                 document.getElementById('os-form-titulo').textContent = '📋 Nueva Orden de Servicio';
+                document.getElementById('os-editando-id').value = '';
+                
+                // Limpiar campos
+                ['os-dni', 'os-cliente', 'os-telefono', 'os-tipo-equipo', 'os-marca', 'os-modelo', 'os-serie', 'os-accesorios', 'os-problema', 'os-diagnostico', 'os-costo', 'os-adelanto', 'os-metodo-pago', 'os-fecha-entrega', 'os-notas'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.value = '';
+                });
+                document.getElementById('os-estado').value = 'Pendiente';
+                document.getElementById('os-fecha').valueAsDate = new Date();
+                
                 document.getElementById('os-tecnico').value = (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : 'Administrador';
                 
                 // Cargar clientes para autocompletado
@@ -6237,8 +6279,44 @@
                 if (cliente) {
                     const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === cliente.toLowerCase());
                     if (!clienteExistente) {
-                        const result = await Swal.fire({ title: '¿Registrar cliente nuevo?', html: `<p>¿Agregar a <strong>${cliente}</strong>?</p>`, icon: 'question', showCancelButton: true, showDenyButton: true, confirmButtonText: 'Sí, registrar', denyButtonText: 'Después', cancelButtonText: 'No', confirmButtonColor: '#4472C4', denyButtonColor: '#6c757d', cancelButtonColor: '#6c757d' });
-                        if (result.isConfirmed) { UI.switchTab('clientes'); Clientes.mostrarFormNuevoCliente(); document.getElementById('nuevo-cliente-nombre').value = cliente; }
+                        const dniActual = document.getElementById('os-dni') ? document.getElementById('os-dni').value.trim() : '';
+                        const telActual = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
+                        const { value: formData, isConfirmed } = await Swal.fire({
+                            title: 'Registrar Cliente Nuevo',
+                            html: `
+                                <div style="text-align:left;font-size:14px;">
+                                    <p style="margin-bottom:10px;">Agregar a <strong>${cliente}</strong> a la base de datos:</p>
+                                    <input id="swal-dni" class="swal2-input" placeholder="DNI / RUC (Opcional)" value="${dniActual}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                    <input id="swal-tel" class="swal2-input" placeholder="Teléfono (Opcional)" value="${telActual}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                </div>
+                            `,
+                            showCancelButton: true,
+                            confirmButtonText: 'Guardar y Continuar',
+                            cancelButtonText: 'Solo continuar sin guardar',
+                            confirmButtonColor: '#2B56A5',
+                            preConfirm: () => {
+                                return {
+                                    dni: document.getElementById('swal-dni').value.trim(),
+                                    telefono: document.getElementById('swal-tel').value.trim()
+                                }
+                            }
+                        });
+                        
+                        if (isConfirmed) {
+                            const nuevoCliente = {
+                                id: Date.now().toString(),
+                                nombre: cliente,
+                                dni: formData.dni,
+                                telefono: formData.telefono,
+                                direccion: '',
+                                correo: '',
+                                fechaRegistro: new Date().toISOString()
+                            };
+                            if(!Estado.clientes) Estado.clientes = [];
+                            Estado.clientes.push(nuevoCliente);
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
                     } else {
                         const dniIngresado = document.getElementById('os-dni') ? document.getElementById('os-dni').value.trim() : '';
                         const telIngresado = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
