@@ -1753,10 +1753,10 @@
         try {
             firebase.initializeApp(firebaseConfig);
             
-            // Inicializar Firebase App Check para que Authentication y Firestore lo usen automáticamente
+            // Inicializar Firebase App Check (Formato para Firebase v8)
             const appCheck = firebase.appCheck();
             appCheck.activate(
-                new firebase.appCheck.ReCaptchaEnterpriseProvider('6Ldfl0MtAAAAAD4MMWYhkELgK_3Al08CFCOe6kxO'),
+                '6Ldfl0MtAAAAAD4MMWYhkELgK_3Al08CFCOe6kxO',
                 true // isTokenAutoRefreshEnabled
             );
 
