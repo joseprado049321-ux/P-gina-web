@@ -1735,6 +1735,25 @@
             gap: 8px;
         }
 
+        .modo-datos-btn {
+            padding: 6px 14px !important;
+            font-size: 13px !important;
+            border-radius: var(--radius-sm) !important;
+            cursor: pointer;
+            border: none;
+            transition: 0.2s;
+            font-weight: 600;
+            box-shadow: none !important;
+        }
+        .modo-datos-btn.btn-active {
+            background: var(--primary) !important;
+            color: white !important;
+        }
+        .modo-datos-btn.btn-inactive {
+            background: var(--bg-surface-hover) !important;
+            color: var(--text-secondary) !important;
+        }
+
         button:hover,
         .btn:hover {
             transform: translateY(-1px);
@@ -2492,9 +2511,14 @@
 
                     <!-- TAB: HISTORIAL -->
                     <div id="historial" class="tab-content">
+                        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                            <button class="modo-datos-btn btn-active" data-modo="VENTAS" onclick="cambiarModoDatos('VENTAS')">🛒 Ventas</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="ORDENES" onclick="cambiarModoDatos('ORDENES')">🔧 Órdenes de Servicio</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="AMBOS" onclick="cambiarModoDatos('AMBOS')">🔄 Combinar Datos</button>
+                        </div>
                         <div
                             style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                            <h2 style="color:var(--text-primary);">Historial de Ventas</h2>
+                            <h2 style="color:var(--text-primary);">Historial General</h2>
                             <div style="display:flex;gap:10px;flex-wrap:wrap;">
                                 <button onclick="window._mostrarDetallesVenta = !window._mostrarDetallesVenta; this.innerHTML = window._mostrarDetallesVenta ? '👁️ Menos Detalles' : '👁️ Mostrar Detalles'; Filtros.aplicarFiltros();" style="background:var(--warning);color:#000;">👁️ Mostrar Detalles</button>
                                 <button onclick="Exportar.exportarExcel()">📥 Exportar a Excel</button>
@@ -2567,6 +2591,11 @@
 
                     <!-- TAB: CLIENTES -->
                     <div id="clientes" class="tab-content">
+                        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                            <button class="modo-datos-btn btn-active" data-modo="VENTAS" onclick="cambiarModoDatos('VENTAS')">🛒 Ventas</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="ORDENES" onclick="cambiarModoDatos('ORDENES')">🔧 Órdenes de Servicio</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="AMBOS" onclick="cambiarModoDatos('AMBOS')">🔄 Combinar Datos</button>
+                        </div>
                         <h2 style="margin-bottom:20px;color:var(--text-primary);">👥 Gestión de Clientes</h2>
                         <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                             <button onclick="Clientes.mostrarFormNuevoCliente()">➕ Nuevo Cliente</button>
@@ -2604,6 +2633,11 @@
 
                     <!-- TAB: REPORTES -->
                     <div id="reportes" class="tab-content">
+                        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                            <button class="modo-datos-btn btn-active" data-modo="VENTAS" onclick="cambiarModoDatos('VENTAS')">🛒 Ventas</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="ORDENES" onclick="cambiarModoDatos('ORDENES')">🔧 Órdenes de Servicio</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="AMBOS" onclick="cambiarModoDatos('AMBOS')">🔄 Combinar Datos</button>
+                        </div>
                         <h2 style="margin-bottom:20px;color:var(--text-primary);">📊 Reportes y Análisis</h2>
                         <div class="reporte-container">
                             <div class="date-range-selector">
@@ -2706,6 +2740,11 @@
 
                     <!-- TAB: RENTABILIDAD -->
                     <div id="rentabilidad" class="tab-content">
+                        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                            <button class="modo-datos-btn btn-active" data-modo="VENTAS" onclick="cambiarModoDatos('VENTAS')">🛒 Ventas</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="ORDENES" onclick="cambiarModoDatos('ORDENES')">🔧 Órdenes de Servicio</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="AMBOS" onclick="cambiarModoDatos('AMBOS')">🔄 Combinar Datos</button>
+                        </div>
                         <h2 style="margin-bottom:20px;color:var(--text-primary);">💰 Análisis de Rentabilidad</h2>
                         <div class="rentabilidad-grid" id="metricas-rentabilidad"></div>
                         <div style="margin-bottom:30px;">
@@ -2729,7 +2768,12 @@
 
                     <!-- TAB: RESUMEN -->
                     <div id="resumen" class="tab-content">
-                        <h2 style="margin-bottom:30px;color:var(--text-primary);">Resumen de Ventas</h2>
+                        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                            <button class="modo-datos-btn btn-active" data-modo="VENTAS" onclick="cambiarModoDatos('VENTAS')">🛒 Ventas</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="ORDENES" onclick="cambiarModoDatos('ORDENES')">🔧 Órdenes de Servicio</button>
+                            <button class="modo-datos-btn btn-inactive" data-modo="AMBOS" onclick="cambiarModoDatos('AMBOS')">🔄 Combinar Datos</button>
+                        </div>
+                        <h2 style="margin-bottom:30px;color:var(--text-primary);">Resumen General</h2>
                         <div class="summary-cards" id="summary-cards"></div>
                         <div style="margin-bottom:20px;height:320px;"><canvas id="metodoChart"
                                 style="width:100%;height:100%"></canvas></div>
@@ -3484,6 +3528,63 @@
             ventas: [], ventasFiltradas: [], inventario: [], clientes: [], gastos: [], costosProductos: {},
             ordenesServicio: [], proveedores: [], compras: [], devoluciones: [], cotizaciones: [], cierresCaja: [], estadoCaja: null,
             metodoChart: null, graficos: { linea: null, pastel: null, area: null, barras: null, dona: null }, configuracion: null, papelera: []
+        };
+
+        // ════════════════════════════════════════════════════════════════
+        // VARIABLES GLOBALES DE VISTAS (MODO DE DATOS)
+        // ════════════════════════════════════════════════════════════════
+        window._modoDatos = 'VENTAS'; // 'VENTAS' | 'ORDENES' | 'AMBOS'
+        
+        window.cambiarModoDatos = function(modo) {
+            window._modoDatos = modo;
+            
+            // Actualizar botones UI en todas las pestañas
+            document.querySelectorAll('.modo-datos-btn').forEach(btn => {
+                btn.classList.remove('btn-active', 'btn-inactive');
+                if (btn.dataset.modo === modo) {
+                    btn.classList.add('btn-active');
+                } else {
+                    btn.classList.add('btn-inactive');
+                }
+            });
+
+            // Refrescar vistas si los objetos ya están definidos
+            if (typeof Filtros !== 'undefined' && Filtros.aplicarFiltros) Filtros.aplicarFiltros();
+            if (typeof Reportes !== 'undefined' && Reportes.actualizar) Reportes.actualizar();
+            if (typeof Rentabilidad !== 'undefined' && Rentabilidad.actualizar) Rentabilidad.actualizar();
+            if (typeof Dashboard !== 'undefined' && Dashboard.actualizar) Dashboard.actualizar();
+            if (typeof Clientes !== 'undefined' && Clientes.actualizar) Clientes.actualizar();
+        };
+
+        window.obtenerDatosFiltradosGlobales = function() {
+            // Check si OrdenesServicio ya se inicializó
+            const ordenes = (typeof OrdenesServicio !== 'undefined' && OrdenesServicio.cargar) ? OrdenesServicio.cargar() : (Estado.ordenesServicio || []);
+            
+            // Normalizamos órdenes de servicio para que se comporten como "Ventas" en las tablas y gráficas
+            const ordenesNormalizadas = ordenes.map(o => {
+                const costoRepuestos = o.repuestosTemp ? o.repuestosTemp.reduce((sum, r) => sum + (parseFloat(r.precio) || 0), 0) : 0;
+                return {
+                    ...o,
+                    id: o.id || o.numero,
+                    isOrden: true,
+                    producto: `[OS] ${o.tipoEquipo || 'Equipo'} - ${o.problema || ''}`,
+                    categoria: 'Servicios',
+                    sku: o.numero || '',
+                    cantidad: 1,
+                    precio: parseFloat(o.costo) || 0,
+                    total: parseFloat(o.costo) || 0,
+                    costoReal: costoRepuestos, // Se usa en Rentabilidad
+                    estado: o.estado === 'Entregado' ? 'Pagado' : 'Pendiente' 
+                };
+            });
+
+            if (window._modoDatos === 'VENTAS') return Estado.ventas;
+            if (window._modoDatos === 'ORDENES') return ordenesNormalizadas;
+            
+            // Si es AMBOS, combinamos y ordenamos por fecha descendente
+            const combinados = [...Estado.ventas, ...ordenesNormalizadas];
+            combinados.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            return combinados;
         };
 
         // ════════════════════════════════════════════════════════════════
@@ -5702,11 +5803,12 @@
 
         const Dashboard = {
             actualizar() {
-                const totalVentas = Estado.ventas.reduce((s, v) => s + v.total, 0);
-                const totalCobrado = Estado.ventas.reduce((s, v) => s + v.adelanto, 0);
-                const pendiente = Estado.ventas.reduce((s, v) => s + v.saldoPendiente, 0);
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                const totalVentas = transacciones.reduce((s, v) => s + v.total, 0);
+                const totalCobrado = transacciones.reduce((s, v) => s + (v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto), 0);
+                const pendiente = transacciones.reduce((s, v) => s + (v.saldoPendiente || 0), 0);
                 const hoy = new Date().toISOString().slice(0, 10);
-                const ventasHoy = Estado.ventas.filter(v => v.fecha === hoy).reduce((s, v) => s + v.total, 0);
+                const ventasHoy = transacciones.filter(v => v.fecha === hoy).reduce((s, v) => s + v.total, 0);
                 const cards = document.getElementById('summary-cards');
                 if (cards) cards.innerHTML = `
                     <div class="card"><h3>💰 Total Ventas</h3><div class="value">S/${totalVentas.toFixed(2)}</div></div>
@@ -5721,7 +5823,7 @@
                 const canvas = document.getElementById('metodoChart');
                 if (!canvas) return;
                 const metodos = {};
-                Estado.ventas.forEach(v => { const m = v.metodo || 'Sin método'; metodos[m] = (metodos[m] || 0) + v.total; });
+                window.obtenerDatosFiltradosGlobales().forEach(v => { const m = v.metodo || 'Sin método'; metodos[m] = (metodos[m] || 0) + v.total; });
                 if (Estado.metodoChart) Estado.metodoChart.destroy();
                 Estado.metodoChart = new Chart(canvas, {
                     type: 'bar',
@@ -5746,7 +5848,7 @@
                 const c = document.getElementById('ventas-por-categoria');
                 if (!c) return;
                 const cats = {};
-                Estado.ventas.forEach(v => { const ct = v.categoria || 'Sin cat.'; cats[ct] = (cats[ct] || 0) + v.total; });
+                window.obtenerDatosFiltradosGlobales().forEach(v => { const ct = v.categoria || 'Sin cat.'; cats[ct] = (cats[ct] || 0) + v.total; });
                 const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
                 const total = sorted.reduce((s, [, v]) => s + v, 0);
                 c.innerHTML = `<div style="background:var(--bg-surface);border-radius:10px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
@@ -5764,7 +5866,7 @@
 
         const Filtros = {
             aplicarFiltros() {
-                let ventas = [...Estado.ventas];
+                let ventas = window.obtenerDatosFiltradosGlobales();
                 const busq = (document.getElementById('busqueda') || {}).value?.toLowerCase() || '';
                 const desde = (document.getElementById('filtro-fecha-desde') || {}).value || '';
                 const hasta = (document.getElementById('filtro-fecha-hasta') || {}).value || '';
@@ -5878,6 +5980,7 @@
         };
 
         const Clientes = {
+            actualizar() { this.renderizarLista(); },
             mostrarFormNuevoCliente() { document.getElementById('form-nuevo-cliente').classList.remove('hidden'); },
             cancelarNuevoCliente() { document.getElementById('form-nuevo-cliente').classList.add('hidden'); },
             async guardarNuevoCliente() {
@@ -5902,9 +6005,11 @@
                 if (filtro) clientes = clientes.filter(cl => cl.nombre.toLowerCase().includes(filtro) || (cl.telefono || '').includes(filtro) || (cl.email || '').toLowerCase().includes(filtro));
                 if (!clientes.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay clientes registrados.</p>'; return; }
                 c.innerHTML = clientes.map(cl => {
-                    const ventasCl = Estado.ventas.filter(v => v.cliente && v.cliente.toLowerCase() === cl.nombre.toLowerCase());
+                    const transacciones = window.obtenerDatosFiltradosGlobales();
+                    const ventasCl = transacciones.filter(v => v.cliente && v.cliente.toLowerCase() === cl.nombre.toLowerCase());
                     const totalComprado = ventasCl.reduce((s, v) => s + v.total, 0);
-                    const pendiente = ventasCl.reduce((s, v) => s + v.saldoPendiente, 0);
+                    // Las órdenes de servicio no manejan saldoPendiente de la misma forma, así que comprobaremos si existe o usaremos 0
+                    const pendiente = ventasCl.reduce((s, v) => s + (v.saldoPendiente || 0), 0);
                     return `<div class="cliente-card">
                         <div class="cliente-header">
                             <div class="cliente-nombre">👤 ${cl.nombre}</div>
@@ -6008,12 +6113,16 @@
 
         const Rentabilidad = {
             actualizar() {
-                const ventas = Estado.ventas;
+                const transacciones = window.obtenerDatosFiltradosGlobales();
                 const gastos = Estado.gastos;
                 const costos = Estado.costosProductos;
-                const ingresos = ventas.reduce((s, v) => s + v.total, 0);
+                const ingresos = transacciones.reduce((s, v) => s + v.total, 0);
                 const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
-                const costoVentas = ventas.reduce((s, v) => { const c = costos[v.sku || v.producto]; return s + (c ? c.costo * v.cantidad : 0); }, 0);
+                const costoVentas = transacciones.reduce((s, v) => { 
+                    if (v.isOrden) return s + (v.costoReal || 0);
+                    const c = costos[v.sku || v.producto]; 
+                    return s + (c ? c.costo * v.cantidad : 0); 
+                }, 0);
                 const utilidadBruta = ingresos - costoVentas;
                 const utilidadNeta = ingresos - totalGastos - costoVentas;
                 const margenBruto = ingresos > 0 ? (utilidadBruta / ingresos * 100) : 0;
@@ -6056,7 +6165,19 @@
             renderizarProductosRentables() {
                 const c = document.getElementById('productos-rentables'); if (!c) return;
                 const productos = {};
-                Estado.ventas.forEach(v => { const key = v.sku || v.producto; if (!productos[key]) productos[key] = { nombre: v.producto, totalVentas: 0, cantidad: 0, costo: 0 }; productos[key].totalVentas += v.total; productos[key].cantidad += v.cantidad; const cost = Estado.costosProductos[key]; if (cost) productos[key].costo += cost.costo * v.cantidad; });
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                transacciones.forEach(v => { 
+                    const key = v.sku || v.producto; 
+                    if (!productos[key]) productos[key] = { nombre: v.producto, totalVentas: 0, cantidad: 0, costo: 0 }; 
+                    productos[key].totalVentas += v.total; 
+                    productos[key].cantidad += v.cantidad; 
+                    if (v.isOrden) {
+                        productos[key].costo += (v.costoReal || 0);
+                    } else {
+                        const cost = Estado.costosProductos[key]; 
+                        if (cost) productos[key].costo += cost.costo * v.cantidad; 
+                    }
+                });
                 const sorted = Object.values(productos).map(p => ({ ...p, ganancia: p.totalVentas - p.costo })).sort((a, b) => b.ganancia - a.ganancia).slice(0, 10);
                 if (!sorted.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">Registra ventas para ver los productos más rentables.</p>'; return; }
                 c.innerHTML = sorted.map((p, i) => `<div class="producto-rentable"><div><div style="font-weight:700;">${i + 1}. ${p.nombre}</div><div style="font-size:0.85em;color:#666;">Cant: ${p.cantidad} · Ventas: S/${p.totalVentas.toFixed(2)}</div></div><div class="ganancia">S/${p.ganancia.toFixed(2)}</div></div>`).join('');
@@ -6076,6 +6197,7 @@
         };
 
         const Reportes = {
+            actualizar() { this.generarReporte(); },
             periodoActual: 'hoy',
             seleccionarPreset(preset, e) {
                 this.periodoActual = preset;
@@ -6094,7 +6216,8 @@
             },
             generarReporte() {
                 const { desde, hasta } = this.getFechas();
-                const ventasPeriodo = Estado.ventas.filter(v => v.fecha >= desde && v.fecha <= hasta);
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                const ventasPeriodo = transacciones.filter(v => v.fecha >= desde && v.fecha <= hasta);
                 const totalPeriodo = ventasPeriodo.reduce((s, v) => s + v.total, 0);
                 const cobradoPeriodo = ventasPeriodo.reduce((s, v) => s + v.adelanto, 0);
                 const ticketProm = ventasPeriodo.length ? totalPeriodo / ventasPeriodo.length : 0;
@@ -6129,7 +6252,7 @@
                 destroyAndCreate('grafico-area', 'line', { labels: fechas.map(f => { const [y, m, d] = f.split('-'); return `${d}/${m}`; }), datasets: [{ label: 'Acumulado (S/)', data: acumData, borderColor: '#28a745', backgroundColor: 'rgba(40,167,69,0.15)', fill: true, tension: 0.3 }] }, { plugins: { legend: { display: false } } });
             },
             exportarPDF() {
-                const { desde, hasta } = this.getFechas(); const ventas = Estado.ventas.filter(v => v.fecha >= desde && v.fecha <= hasta);
+                const { desde, hasta } = this.getFechas(); const transacciones = window.obtenerDatosFiltradosGlobales(); const ventas = transacciones.filter(v => v.fecha >= desde && v.fecha <= hasta);
                 const { jsPDF } = window.jspdf; const doc = new jsPDF();
                 doc.setFillColor(68, 114, 196); doc.rect(0, 0, 210, 35, 'F');
                 doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
