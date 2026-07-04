@@ -2393,24 +2393,53 @@
                     const metodoPago = document.getElementById('metodo_pago') ? document.getElementById('metodo_pago').value : 'Efectivo';
                     const tenantId = localStorage.getItem('tenantId');
                     
-                    const response = await fetch('https://us-central1-' + (firebase.app().options.projectId || 'tu-proyecto') + '.cloudfunctions.net/procesarVenta', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sku, cantidad, cliente, metodoPago, tenantId })
+                    if (!sku || !cantidad || !tenantId) {
+                        throw new Error('Faltan parámetros requeridos');
+                    }
+                    
+                    await db.runTransaction(async (transaction) => {
+                        const inventarioRef = db.collection('empresas').doc(tenantId).collection('inventario').doc(sku);
+                        const doc = await transaction.get(inventarioRef);
+
+                        if (!doc.exists) {
+                            throw new Error('Producto no encontrado en inventario');
+                        }
+
+                        const producto = doc.data();
+                        
+                        if (producto.stock !== undefined && producto.stock < cantidad) {
+                            throw new Error('Stock insuficiente');
+                        }
+
+                        const precio = producto.precioVenta || 0;
+                        const total = precio * cantidad;
+
+                        if (producto.stock !== undefined) {
+                            transaction.update(inventarioRef, {
+                                stock: firebase.firestore.FieldValue.increment(-cantidad)
+                            });
+                        }
+
+                        const ventaRef = db.collection('empresas').doc(tenantId).collection('ventas').doc();
+                        transaction.set(ventaRef, {
+                            sku,
+                            producto: producto.nombre || sku,
+                            cantidad,
+                            precioUnitario: precio,
+                            total,
+                            cliente,
+                            metodoPago,
+                            fecha: firebase.firestore.FieldValue.serverTimestamp(),
+                            estado: 'completada'
+                        });
                     });
                     
-                    const result = await response.json();
-                    
-                    if (response.ok && result.success) {
-                        Toastify({text: "✅ Venta registrada en servidor", backgroundColor: "#28a745"}).showToast();
-                        document.getElementById('ventaForm').reset();
-                        document.getElementById('total-display').value = 'S/0.00';
-                    } else {
-                        Toastify({text: "❌ Error: " + (result.error || 'Desconocido'), backgroundColor: "#dc3545"}).showToast();
-                    }
+                    Toastify({text: "✅ Venta registrada exitosamente", style: { background: "#28a745" }}).showToast();
+                    document.getElementById('ventaForm').reset();
+                    document.getElementById('total-display').value = 'S/0.00';
                 } catch (error) {
                     console.error("Error al registrar venta:", error);
-                    Toastify({text: "❌ Error de conexión con el backend", backgroundColor: "#dc3545"}).showToast();
+                    Toastify({text: "❌ Error: " + error.message, style: { background: "#dc3545" }}).showToast();
                 }
                 
                 if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = '💰 Registrar Venta'; }
