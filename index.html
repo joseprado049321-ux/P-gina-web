@@ -3562,7 +3562,7 @@
             
             // Normalizamos órdenes de servicio para que se comporten como "Ventas" en las tablas y gráficas
             const ordenesNormalizadas = ordenes.map(o => {
-                const costoRepuestos = o.repuestosTemp ? o.repuestosTemp.reduce((sum, r) => sum + (parseFloat(r.precio) || 0), 0) : 0;
+                const costoRepuestos = o.repuestos ? o.repuestos.reduce((sum, r) => sum + (parseFloat(r.precio) || 0), 0) : 0;
                 return {
                     ...o,
                     id: o.id || o.numero,
@@ -6608,7 +6608,7 @@
                 Toastify({ text: `📋 Estado → ${nuevoEstado}`, duration: 2500, gravity: 'top', position: 'right', backgroundColor: `linear-gradient(to right,${nuevoEstado === 'Listo' ? '#28a745,#20c997' : '#4472C4,#2c5aa0'})` }).showToast();
             },
             editarOrden(id) {
-                const orden = this.cargar().find(o => o.id === id); if (!orden) return;
+                const orden = this.cargar().find(o => String(o.id) === String(id)); if (!orden) return;
                 this.mostrarFormNuevaOrden();
                 document.getElementById('os-editando-id').value = id;
                 document.getElementById('os-form-titulo').textContent = '✏️ Editar Orden';
@@ -6630,6 +6630,8 @@
                 document.getElementById('os-metodo-pago').value = orden.metodo || '';
                 document.getElementById('os-fecha-entrega').value = orden.fechaEntregaEstimada || '';
                 document.getElementById('os-notas').value = orden.notas || '';
+                this.repuestosTemp = orden.repuestos ? [...orden.repuestos] : [];
+                this.renderRepuestos();
                 this.fotosTemp = (orden.fotos || []).map((url, i) => ({ dataURL: url, nombre: `foto_${i + 1}` }));
                 this.renderFotosPreview();
                 this.calcularSaldo();
