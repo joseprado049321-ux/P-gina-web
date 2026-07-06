@@ -203,9 +203,28 @@
                         <div class="success-msg" id="success-msg">✅ Venta registrada correctamente</div>
                         <form id="ventaForm">
 
-                            <div class="form-group"><label for="producto">Nombre del Producto *</label><input
-                                    type="text" id="producto" placeholder="Ej: Bolsa de Arroz" required
-                                    autocomplete="off"></div>
+                            <div class="form-row">
+                                <div class="form-group"><label for="producto">Nombre del Producto *</label><input
+                                        type="text" id="producto" placeholder="Ej: Bolsa de Arroz" required
+                                        autocomplete="off"></div>
+                                <div class="form-group">
+                                    <div class="utils-ed5954">
+                                        <label for="categoria" class="utils-a2d48c">Categoría</label>
+                                        <button type="button" onclick="CategoriaCustom.agregar()" class="utils-0458e0">➕
+                                            Nueva categoría</button>
+                                    </div>
+                                    <select id="categoria">
+                                        <option value="">Seleccionar...</option>
+                                        <option>Laptops</option>
+                                        <option>Desktops</option>
+                                        <option>Accesorios</option>
+                                        <option>Periféricos</option>
+                                        <option>Componentes</option>
+                                        <option>Servicios</option>
+                                        <option>Otros</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group"><label for="cantidad">Cantidad *</label><input type="number"
                                         id="cantidad" min="1" value="1" required></div>
@@ -259,26 +278,9 @@
                                 <div class="form-row">
                                     <div class="form-group"><label for="fecha">Fecha</label><input type="date"
                                             id="fecha"></div>
-                                    <div class="form-group">
-                                        <div class="utils-ed5954">
-                                            <label for="categoria" class="utils-a2d48c">Categoría</label>
-                                            <button type="button" onclick="CategoriaCustom.agregar()" class="utils-0458e0">➕
-                                                Nueva categoría</button>
-                                        </div>
-                                        <select id="categoria">
-                                            <option value="">Seleccionar...</option>
-                                            <option>Laptops</option>
-                                            <option>Desktops</option>
-                                            <option>Accesorios</option>
-                                            <option>Periféricos</option>
-                                            <option>Componentes</option>
-                                            <option>Servicios</option>
-                                            <option>Otros</option>
-                                        </select>
-                                    </div>
+                                    <div class="form-group"><label for="adelanto">Monto Recibido (S/)</label><input type="number"
+                                            id="adelanto" step="0.01" min="0" placeholder="0.00"><small>Dinero entregado por el cliente.</small></div>
                                 </div>
-                                <div class="form-group"><label for="adelanto">Monto Recibido (S/)</label><input type="number"
-                                        id="adelanto" step="0.01" min="0" placeholder="0.00"><small>Dinero entregado por el cliente.</small></div>
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>DNI del Cliente</label>
