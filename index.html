@@ -327,7 +327,7 @@
                                                 Añadir método</button>
                                         </div>
                                         <div id="metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%;">
-                                        <select id="metodo" style="flex: 1;">
+                                        <select id="metodo" style="flex: 1;" onchange="MetodoPagoCustom.actualizarOpciones('metodo-container')">
                                             <option value="">Seleccionar...</option>
                                             <option>Efectivo</option>
                                             <option>Tarjeta</option>
@@ -813,7 +813,7 @@
                                             Añadir método</button>
                                     </div>
                                     <div id="os-metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%;">
-                                    <select id="os-metodo-pago" style="flex: 1;">
+                                    <select id="os-metodo-pago" style="flex: 1;" onchange="MetodoPagoCustom.actualizarOpciones('os-metodo-container')">
                                         <option value="">Seleccionar...</option>
                                         <option>Efectivo</option>
                                         <option>Tarjeta</option>
@@ -1349,6 +1349,31 @@
             cargarEnSelect() {
                 // Ya no cargamos desde Firebase, los métodos de pago están harcodeados
             },
+            actualizarOpciones(containerId) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                
+                const selects = Array.from(container.querySelectorAll('select'));
+                const valoresSeleccionados = selects.map(s => s.value).filter(v => v !== '');
+                
+                selects.forEach(select => {
+                    const opciones = Array.from(select.options);
+                    opciones.forEach(op => {
+                        if (op.value === '') {
+                            op.hidden = false;
+                            op.disabled = false;
+                            return;
+                        }
+                        if (valoresSeleccionados.includes(op.value) && select.value !== op.value) {
+                            op.hidden = true;
+                            op.disabled = true;
+                        } else {
+                            op.hidden = false;
+                            op.disabled = false;
+                        }
+                    });
+                });
+            },
             duplicar(containerId) {
                 const container = document.getElementById(containerId);
                 if (!container) return;
@@ -1374,13 +1399,17 @@
                 removeBtn.textContent = '❌';
                 removeBtn.className = 'btn-secondary';
                 removeBtn.style.padding = '0 10px';
-                removeBtn.onclick = () => wrapper.remove();
+                removeBtn.onclick = () => {
+                    wrapper.remove();
+                    this.actualizarOpciones(containerId);
+                };
                 
                 newSelect.style.flex = '1';
                 wrapper.appendChild(newSelect);
                 wrapper.appendChild(removeBtn);
                 
                 container.appendChild(wrapper);
+                this.actualizarOpciones(containerId);
             },
             obtenerValores(containerId, originalId) {
                 const container = document.getElementById(containerId);
@@ -1408,6 +1437,7 @@
                 
                 const firstSelect = container.querySelector('select');
                 if (firstSelect) firstSelect.value = '';
+                this.actualizarOpciones(containerId);
             },
             setValores(containerId, originalId, valorStr) {
                 this.limpiar(containerId, originalId);
@@ -1429,6 +1459,7 @@
                     const selects = container.querySelectorAll('select');
                     if (selects[i]) selects[i].value = parts[i];
                 }
+                this.actualizarOpciones(containerId);
             }
         };
 
