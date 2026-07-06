@@ -689,7 +689,7 @@ const firebaseConfig = {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
-                const claves = ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom'];
+                const claves = ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
 
                 claves.forEach(clave => {
                     tenantRef.doc(clave).onSnapshot(docSnap => {
@@ -698,6 +698,7 @@ const firebaseConfig = {
                         // (Dentro del onSnapshot, antes de la actualización reactiva)
                         if (typeof CategoriaCustom !== 'undefined') CategoriaCustom.cargarEnSelect();
                         if (typeof MarcasCustom !== 'undefined') MarcasCustom.cargarEnSelect();
+                        if (typeof MetodoPagoCustom !== 'undefined') MetodoPagoCustom.cargarEnSelect();
 
                         // Mapeo dinámico al objeto Estado
                         if (clave === 'categoriasCustom') {
@@ -1274,6 +1275,9 @@ const firebaseConfig = {
                 // Recargar las categorías dinámicamente cada vez que se cambia de rubro
                 if (typeof CategoriaCustom !== 'undefined' && typeof CategoriaCustom.cargarEnSelect === 'function') {
                     CategoriaCustom.cargarEnSelect();
+                }
+                if (typeof MetodoPagoCustom !== 'undefined' && typeof MetodoPagoCustom.cargarEnSelect === 'function') {
+                    MetodoPagoCustom.cargarEnSelect();
                 }
             },
             cargar() {

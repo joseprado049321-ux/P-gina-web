@@ -320,7 +320,12 @@
                                         <input type="text" id="cliente" placeholder="Se rellenará solo..."
                                             autocomplete="off">
                                     </div>
-                                    <div class="form-group"><label for="metodo">Método de Pago</label>
+                                    <div class="form-group">
+                                        <div class="utils-ed5954">
+                                            <label for="metodo" class="utils-a2d48c">Método de Pago</label>
+                                            <button type="button" onclick="MetodoPagoCustom.agregar('metodo')" class="utils-0458e0">➕
+                                                Nuevo método</button>
+                                        </div>
                                         <select id="metodo">
                                             <option value="">Seleccionar...</option>
                                             <option>Efectivo</option>
@@ -799,7 +804,13 @@
                                 </div>
                             </div>
                             <div class="form-row">
-                                <div class="form-group"><label>Método de Pago</label><select id="os-metodo-pago">
+                                <div class="form-group">
+                                    <div class="utils-ed5954">
+                                        <label for="os-metodo-pago" class="utils-a2d48c">Método de Pago</label>
+                                        <button type="button" onclick="MetodoPagoCustom.agregar('os-metodo-pago')" class="utils-0458e0">➕
+                                            Nuevo método</button>
+                                    </div>
+                                    <select id="os-metodo-pago">
                                         <option value="">Seleccionar...</option>
                                         <option>Efectivo</option>
                                         <option>Tarjeta</option>
@@ -807,7 +818,8 @@
                                         <option>Yape</option>
                                         <option>Plin</option>
                                         <option>Otro</option>
-                                    </select></div>
+                                    </select>
+                                </div>
                                 <div class="form-group"><label>Fecha Estimada de Entrega</label><input type="date"
                                         id="os-fecha-entrega"></div>
                             </div>
@@ -1325,6 +1337,46 @@
                         this.cargarEnSelect();
                         selectEl.value = cleanMarca;
                     } else { selectEl.selectedIndex = 0; }
+                }
+            }
+        };
+
+        const MetodoPagoCustom = {
+            getDefaultMetodos() {
+                return ['Efectivo', 'Tarjeta', 'Transferencia', 'Plin', 'Yape', 'Otro'];
+            },
+            cargarEnSelect() {
+                const defaults = this.getDefaultMetodos();
+                const custom = Estado.metodosPagoCustom || [];
+                const combined = [...new Set([...defaults, ...custom])].filter(c => c && c.toLowerCase() !== 'seleccionar...');
+
+                const updateSelect = (id, firstOpt) => {
+                    const sel = document.getElementById(id); if (!sel) return;
+                    const val = sel.value;
+                    sel.innerHTML = `<option value="">${firstOpt}</option>` + combined.map(c => `<option value="${c}">${c}</option>`).join('');
+                    if (val && combined.includes(val)) sel.value = val;
+                };
+                updateSelect('metodo', 'Seleccionar...');
+                updateSelect('filtro-metodo', 'Todos');
+                updateSelect('os-metodo-pago', 'Seleccionar...');
+            },
+            async agregar(targetId) {
+                const { value: nombre } = await Swal.fire({ title: 'Nuevo Método de Pago', input: 'text', inputPlaceholder: 'Ej: Efectivo + Yape', showCancelButton: true, confirmButtonColor: '#10B981', confirmButtonText: 'Guardar' });
+                if (!nombre || !nombre.trim()) return;
+                const cleanNombre = nombre.trim();
+                if (!Estado.metodosPagoCustom) Estado.metodosPagoCustom = [];
+                const all = [...this.getDefaultMetodos(), ...Estado.metodosPagoCustom].map(c => c.toLowerCase());
+
+                if (!all.includes(cleanNombre.toLowerCase())) {
+                    Estado.metodosPagoCustom.push(cleanNombre);
+                    await Firebase.guardar('metodosPagoCustom', Estado.metodosPagoCustom);
+                    Toastify({ text: `✅ Método de pago en la nube`, duration: 2500, backgroundColor: '#10B981' }).showToast();
+                }
+                this.cargarEnSelect();
+                
+                if (targetId) {
+                    const targetSelect = document.getElementById(targetId);
+                    if (targetSelect) targetSelect.value = cleanNombre;
                 }
             }
         };
