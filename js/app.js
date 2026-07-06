@@ -2418,8 +2418,16 @@ const firebaseConfig = {
             },
             actualizarVistas() {
                 const inputVendedor = document.getElementById('vendedor');
-                if (inputVendedor && typeof Auth !== 'undefined' && Auth.usuarioActual) {
-                    inputVendedor.value = Auth.usuarioActual.nombre || Auth.usuarioActual.email || 'Desconocido';
+                if (inputVendedor && typeof Auth !== 'undefined') {
+                    if (Auth.usuarioActual) {
+                        inputVendedor.value = Auth.usuarioActual.nombre || Auth.usuarioActual.email || 'Desconocido';
+                    } else if (Auth.esAdmin) {
+                        inputVendedor.value = 'Administrador';
+                    } else if (Auth.modoInvitado) {
+                        inputVendedor.value = 'Invitado';
+                    } else {
+                        inputVendedor.value = 'Sistema';
+                    }
                 }
 
                 if (this.actualizarAlertasInventario) this.actualizarAlertasInventario();
