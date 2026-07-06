@@ -1042,6 +1042,8 @@ const firebaseConfig = {
                     historialPagos: [], vendedor: (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : document.getElementById('vendedor').value.trim(),
                     notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString()
                 };
+                const dniIngresadoTemp = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
+                const telIngresadoTemp = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
                 venta.saldoPendiente = venta.total - venta.adelanto;
                 venta.estadoPago = venta.saldoPendiente <= 0 ? 'Pagado' : 'Pendiente';
                 if (adelantoReal > 0) {
@@ -1094,14 +1096,13 @@ const firebaseConfig = {
                 if (nombreCliente) {
                     const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase());
                     if (!clienteExistente) {
-                        const dniActual = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
                         const { value: formData, isConfirmed } = await Swal.fire({
                             title: 'Registrar Cliente Nuevo',
                             html: `
                                 <div style="text-align:left;font-size:14px;">
                                     <p style="margin-bottom:10px;">Agregar a <strong>${nombreCliente}</strong> a la base de datos:</p>
-                                    <input id="swal-dni" class="swal2-input" placeholder="DNI / RUC (Opcional)" value="${dniActual}" style="width:100%; max-width:100%; margin: 5px 0;">
-                                    <input id="swal-tel" class="swal2-input" placeholder="Teléfono (Opcional)" style="width:100%; max-width:100%; margin: 5px 0;">
+                                    <input id="swal-dni" class="swal2-input" placeholder="DNI / RUC (Opcional)" value="${dniIngresadoTemp}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                    <input id="swal-tel" class="swal2-input" placeholder="Teléfono (Opcional)" value="${telIngresadoTemp}" style="width:100%; max-width:100%; margin: 5px 0;">
                                 </div>
                             `,
                             showCancelButton: true,
