@@ -2752,13 +2752,6 @@
                             <div id="flujo-salidas" style="display:flex; gap:15px; flex-wrap:wrap;"></div>
                         </div>
                         <div style="margin-bottom:30px;">
-                            <h3 style="margin-bottom:15px;color:var(--text-primary);">⚙️ Configurar Costos de Productos</h3>
-                            <div style="display:flex;gap:10px;margin-bottom:15px;">
-                                <button onclick="Rentabilidad.mostrarFormCosto()">➕ Configurar Costo</button>
-                                <button class="btn-secondary" onclick="Rentabilidad.importarCostos()">📂 Importar
-                                    Costos</button>
-                            </div>
-                            <div id="lista-costos"></div>
                         </div>
                         <div style="margin-bottom:30px;">
                             <h3 style="margin-bottom:15px;color:var(--text-primary);">🏆 Top 10 Productos Más Rentables</h3>
@@ -2828,7 +2821,9 @@
                                 <div class="form-group"><label>💰 Precio de Venta (S/) *</label><input
                                         id="nuevo-precio-inv" type="number" step="0.01" min="0" placeholder="Ej: 50.00"
                                         required></div>
-                                <div class="form-group"></div>
+                                <div class="form-group"><label>💸 Costo Unitario (S/) *</label><input
+                                        id="nuevo-costo-inv" type="number" step="0.01" min="0" placeholder="Ej: 30.00"
+                                        required></div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
@@ -4451,11 +4446,16 @@
                 }
                 
                 const adelantoReal = Math.min(montoRecibido, totalCalculado);
+                let costoItem = 0;
+                if (sku) {
+                    const invItem = Estado.inventario.find(x => x.sku === sku);
+                    if (invItem) costoItem = invItem.costo || 0;
+                }
                 const venta = {
                     id: Date.now(), fecha: document.getElementById('fecha').value,
                     producto: document.getElementById('producto').value, categoria,
                     cantidad, precio: parseFloat(document.getElementById('precio').value),
-                    total: totalCalculado,
+                    total: totalCalculado, costoReal: costoItem * cantidad,
                     adelanto: adelantoReal, saldoPendiente: 0, estadoPago: 'Pendiente',
                     montoRecibido: montoRecibido, vuelto: montoRecibido > totalCalculado ? montoRecibido - totalCalculado : 0,
                     cliente: document.getElementById('cliente').value, metodo: metodoPago,
@@ -5524,27 +5524,21 @@
                 const reorder = parseInt(document.getElementById('nuevo-reorder').value) || 5;
                 const marca = document.getElementById('nuevo-marca-inv').value;
                 const precio = parseFloat(document.getElementById('nuevo-precio-inv').value) || 0;
+                const costo = parseFloat(document.getElementById('nuevo-costo-inv').value) || 0;
                 if (!sku || !nombre) { Swal.fire('Error', 'SKU y Nombre son obligatorios', 'error'); return; }
 
-                // Sincronización automática de Precio y Costo
-                if (precio > 0) {
-                    if (!Estado.costosProductos) Estado.costosProductos = {};
-                    const costoActual = Estado.costosProductos[sku] ? Estado.costosProductos[sku].costo : 0;
-                    const margen = precio - costoActual;
-                    Estado.costosProductos[sku] = { costo: costoActual, precioVenta: precio, margen: margen, porcentajeMargen: precio > 0 ? (margen / precio * 100) : 0 };
-                    Firebase.guardar('costos', Estado.costosProductos); // Guardado en segundo plano
-                }
                 const existente = Estado.inventario.find(x => x.sku === sku);
                 if (existente) {
                     existente.stock += stock; existente.nombre = nombre; existente.reorderThreshold = reorder;
+                    existente.precioVenta = precio; existente.costo = costo;
                     Toastify({ text: `📦 Stock actualizado: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
                 } else {
-                    Estado.inventario.push({ sku, nombre, stock, reorderThreshold: reorder });
+                    Estado.inventario.push({ sku, nombre, stock, reorderThreshold: reorder, precioVenta: precio, costo: costo });
                     Toastify({ text: `✅ Producto añadido: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
                 }
                 await Storage.guardarInventario();
                 this.cancelarNuevoItem();
-                ['nuevo-sku', 'nuevo-nombre', 'nuevo-precio-inv', 'nuevo-stock', 'nuevo-reorder'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                ['nuevo-sku', 'nuevo-nombre', 'nuevo-precio-inv', 'nuevo-costo-inv', 'nuevo-stock', 'nuevo-reorder'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
                 document.getElementById('nuevo-stock').value = '0';
                 document.getElementById('nuevo-reorder').value = '5';
             },
@@ -5553,7 +5547,7 @@
                 if (!c) return;
                 const inv = Estado.inventario;
                 if (!inv.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay productos en inventario. Añade productos o registra compras.</p>'; return; }
-                c.innerHTML = `<table><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Umbral</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
+                c.innerHTML = `<table><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Umbral</th><th>Costo</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
                     inv.map((item, idx) => {
                         const bajo = item.stock <= item.reorderThreshold;
                         const cero = item.stock === 0;
@@ -5563,6 +5557,8 @@
                         <td>${item.nombre}</td>
                         <td><strong>${item.stock}</strong></td>
                         <td>${item.reorderThreshold}</td>
+                        <td>S/${(item.costo || 0).toFixed(2)}</td>
+                        <td>S/${(item.precioVenta || 0).toFixed(2)}</td>
                         <td>${estado}</td>
                         <td>
                             <button class="small-btn" onclick="Inventario.ajustarStock(${idx})">✏️ Ajustar</button>
@@ -6129,6 +6125,9 @@
                 const totalCompras = compras.reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
                 const costoVentas = transacciones.reduce((s, v) => { 
                     if (v.isOrden) return s + (v.costoReal || 0);
+                    if (v.costoReal !== undefined) return s + v.costoReal;
+                    const invItem = Estado.inventario.find(i => i.sku === v.sku || i.nombre === v.producto);
+                    if (invItem && invItem.costo) return s + (invItem.costo * (v.cantidad || 1));
                     const c = costos[v.sku || v.producto]; 
                     return s + (c ? c.costo * v.cantidad : 0); 
                 }, 0);
@@ -6168,33 +6167,11 @@
                     `;
                 }
 
-                this.renderizarCostos();
+
                 this.renderizarProductosRentables();
                 this.calcularPuntoEquilibrio(totalGastos, margenBruto);
             },
-            mostrarFormCosto() {
-                Swal.fire({
-                    title: 'Configurar Costo de Producto', html: `
-                    <label>SKU o Nombre:</label><input id="s-sku" class="swal2-input" placeholder="SKU o Nombre del producto">
-                    <label>Costo (S/):</label><input id="s-costo" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00">
-                    <label>Precio Venta (S/):</label><input id="s-precio" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00">`,
-                    showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#4472C4',
-                    preConfirm: () => { const sku = document.getElementById('s-sku').value.trim(); const costo = parseFloat(document.getElementById('s-costo').value) || 0; const precio = parseFloat(document.getElementById('s-precio').value) || 0; if (!sku || costo <= 0) { Swal.showValidationMessage('SKU y costo son obligatorios'); return null; } return { sku, costo, precio }; }
-                }).then(async result => { if (!result.isConfirmed || !result.value) return; const { sku, costo, precio } = result.value; const margen = precio - costo; Estado.costosProductos[sku] = { costo, precioVenta: precio, margen, porcentajeMargen: precio > 0 ? (margen / precio * 100) : 0 }; await Storage.guardarCostos(); this.actualizar(); });
-            },
-            importarCostos() {
-                const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx,.csv';
-                input.onchange = async (e) => { const file = e.target.files[0]; if (!file) return; const data = await file.arrayBuffer(); const wb = XLSX.read(data); const ws = wb.Sheets[wb.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(ws); let count = 0; rows.forEach(row => { const sku = (row['SKU'] || row['Nombre'] || '').toString().trim(); const costo = parseFloat(row['Costo'] || 0); const precio = parseFloat(row['Precio'] || row['Precio Venta'] || 0); if (sku && costo > 0) { const margen = precio - costo; Estado.costosProductos[sku] = { costo, precioVenta: precio, margen, porcentajeMargen: precio > 0 ? (margen / precio * 100) : 0 }; count++; } }); await Storage.guardarCostos(); this.actualizar(); Swal.fire('✅', 'Se importaron ' + count + ' costos.', 'success'); };
-                input.click();
-            },
-            renderizarCostos() {
-                const c = document.getElementById('lista-costos'); if (!c) return;
-                const costos = Object.entries(Estado.costosProductos);
-                if (!costos.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">No hay costos configurados. Las compras se registran automáticamente.</p>'; return; }
-                c.innerHTML = `<table><thead><tr><th>SKU/Nombre</th><th>Costo</th><th>Precio Venta</th><th>Margen S/</th><th>Margen %</th><th>Acciones</th></tr></thead><tbody>` +
-                    costos.map(([sku, d]) => `<tr><td>${sku}</td><td>S/${d.costo.toFixed(2)}</td><td>S/${d.precioVenta.toFixed(2)}</td><td style="color:${d.margen >= 0 ? '#28a745' : '#dc3545'};font-weight:700;">S/${d.margen.toFixed(2)}</td><td style="color:${d.porcentajeMargen >= 20 ? '#28a745' : '#fd7e14'};">${d.porcentajeMargen.toFixed(1)}%</td><td><button class="delete-btn" onclick="Rentabilidad.eliminarCosto('${sku}')">🗑️</button></td></tr>`).join('') + `</tbody></table>`;
-            },
-            async eliminarCosto(sku) { delete Estado.costosProductos[sku]; await Storage.guardarCostos(); this.actualizar(); },
+
             renderizarProductosRentables() {
                 const c = document.getElementById('productos-rentables'); if (!c) return;
                 const productos = {};
