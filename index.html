@@ -322,10 +322,11 @@
                                     </div>
                                     <div class="form-group">
                                         <div class="utils-ed5954">
-                                            <label for="metodo" class="utils-a2d48c">Método de Pago</label>
-                                            <button type="button" onclick="MetodoPagoCustom.agregar('metodo')" class="utils-0458e0">➕
-                                                Nuevo método</button>
+                                            <label class="utils-a2d48c">Método de Pago</label>
+                                            <button type="button" onclick="MetodoPagoCustom.duplicar('metodo-container')" class="utils-0458e0">➕
+                                                Añadir método</button>
                                         </div>
+                                        <div id="metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%;">
                                         <select id="metodo">
                                             <option value="">Seleccionar...</option>
                                             <option>Efectivo</option>
@@ -335,6 +336,7 @@
                                             <option>Yape</option>
                                             <option>Otro</option>
                                         </select>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-row">
@@ -806,10 +808,11 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <div class="utils-ed5954">
-                                        <label for="os-metodo-pago" class="utils-a2d48c">Método de Pago</label>
-                                        <button type="button" onclick="MetodoPagoCustom.agregar('os-metodo-pago')" class="utils-0458e0">➕
-                                            Nuevo método</button>
+                                        <label class="utils-a2d48c">Método de Pago</label>
+                                        <button type="button" onclick="MetodoPagoCustom.duplicar('os-metodo-container')" class="utils-0458e0">➕
+                                            Añadir método</button>
                                     </div>
+                                    <div id="os-metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%;">
                                     <select id="os-metodo-pago">
                                         <option value="">Seleccionar...</option>
                                         <option>Efectivo</option>
@@ -819,6 +822,7 @@
                                         <option>Plin</option>
                                         <option>Otro</option>
                                     </select>
+                                    </div>
                                 </div>
                                 <div class="form-group"><label>Fecha Estimada de Entrega</label><input type="date"
                                         id="os-fecha-entrega"></div>
@@ -1342,41 +1346,88 @@
         };
 
         const MetodoPagoCustom = {
-            getDefaultMetodos() {
-                return ['Efectivo', 'Tarjeta', 'Transferencia', 'Plin', 'Yape', 'Otro'];
-            },
             cargarEnSelect() {
-                const defaults = this.getDefaultMetodos();
-                const custom = Estado.metodosPagoCustom || [];
-                const combined = [...new Set([...defaults, ...custom])].filter(c => c && c.toLowerCase() !== 'seleccionar...');
-
-                const updateSelect = (id, firstOpt) => {
-                    const sel = document.getElementById(id); if (!sel) return;
-                    const val = sel.value;
-                    sel.innerHTML = `<option value="">${firstOpt}</option>` + combined.map(c => `<option value="${c}">${c}</option>`).join('');
-                    if (val && combined.includes(val)) sel.value = val;
-                };
-                updateSelect('metodo', 'Seleccionar...');
-                updateSelect('filtro-metodo', 'Todos');
-                updateSelect('os-metodo-pago', 'Seleccionar...');
+                // Ya no cargamos desde Firebase, los métodos de pago están harcodeados
             },
-            async agregar(targetId) {
-                const { value: nombre } = await Swal.fire({ title: 'Nuevo Método de Pago', input: 'text', inputPlaceholder: 'Ej: Efectivo + Yape', showCancelButton: true, confirmButtonColor: '#10B981', confirmButtonText: 'Guardar' });
-                if (!nombre || !nombre.trim()) return;
-                const cleanNombre = nombre.trim();
-                if (!Estado.metodosPagoCustom) Estado.metodosPagoCustom = [];
-                const all = [...this.getDefaultMetodos(), ...Estado.metodosPagoCustom].map(c => c.toLowerCase());
+            duplicar(containerId) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
 
-                if (!all.includes(cleanNombre.toLowerCase())) {
-                    Estado.metodosPagoCustom.push(cleanNombre);
-                    await Firebase.guardar('metodosPagoCustom', Estado.metodosPagoCustom);
-                    Toastify({ text: `✅ Método de pago en la nube`, duration: 2500, backgroundColor: '#10B981' }).showToast();
+                const selects = container.querySelectorAll('select');
+                if (selects.length >= 3) {
+                    Toastify({ text: `⚠️ Máximo 3 métodos de pago permitidos`, duration: 2500, backgroundColor: '#f59e0b' }).showToast();
+                    return;
                 }
-                this.cargarEnSelect();
                 
-                if (targetId) {
-                    const targetSelect = document.getElementById(targetId);
-                    if (targetSelect) targetSelect.value = cleanNombre;
+                const originalSelect = selects[0];
+                const newSelect = originalSelect.cloneNode(true);
+                newSelect.removeAttribute('id');
+                newSelect.value = '';
+
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'flex';
+                wrapper.style.flex = '1';
+                wrapper.style.gap = '5px';
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '❌';
+                removeBtn.className = 'btn-secondary';
+                removeBtn.style.padding = '0 10px';
+                removeBtn.onclick = () => wrapper.remove();
+                
+                newSelect.style.flex = '1';
+                wrapper.appendChild(newSelect);
+                wrapper.appendChild(removeBtn);
+                
+                container.appendChild(wrapper);
+            },
+            obtenerValores(containerId, originalId) {
+                const container = document.getElementById(containerId);
+                if (!container) {
+                    const el = document.getElementById(originalId);
+                    return el ? el.value : '';
+                }
+                const selects = container.querySelectorAll('select');
+                const metodos = Array.from(selects).map(s => s.value).filter(v => v);
+                return [...new Set(metodos)].join(' + ');
+            },
+            limpiar(containerId, originalId) {
+                const container = document.getElementById(containerId);
+                if (!container) {
+                    const el = document.getElementById(originalId);
+                    if (el) el.value = '';
+                    return;
+                }
+                
+                const wrappers = container.querySelectorAll('div:not(.utils-ed5954)');
+                // The wrappers are direct children divs created dynamically
+                Array.from(container.children).forEach(child => {
+                    if (child.tagName.toLowerCase() === 'div') child.remove();
+                });
+                
+                const firstSelect = container.querySelector('select');
+                if (firstSelect) firstSelect.value = '';
+            },
+            setValores(containerId, originalId, valorStr) {
+                this.limpiar(containerId, originalId);
+                if (!valorStr) return;
+
+                const container = document.getElementById(containerId);
+                if (!container) {
+                    const el = document.getElementById(originalId);
+                    if (el) el.value = valorStr;
+                    return;
+                }
+
+                const parts = valorStr.split(' + ');
+                const firstSelect = container.querySelector('select');
+                if (firstSelect) firstSelect.value = parts[0] || '';
+
+                for (let i = 1; i < parts.length; i++) {
+                    this.duplicar(containerId);
+                    const selects = container.querySelectorAll('select');
+                    if (selects[i]) selects[i].value = parts[i];
                 }
             }
         };

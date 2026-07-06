@@ -928,11 +928,11 @@ const firebaseConfig = {
                     });
 
                     if (!isConfirmed) return;
-                    document.getElementById('metodo').value = posData.metodo;
+                    MetodoPagoCustom.setValores('metodo-container', 'metodo', posData.metodo);
                     document.getElementById('adelanto').value = totalVenta.toFixed(2);
                 }
 
-                const metodoPago = document.getElementById('metodo').value;
+                const metodoPago = MetodoPagoCustom.obtenerValores('metodo-container', 'metodo');
                 let sku = document.getElementById('sku').value.trim();
                 const cantidad = parseInt(document.getElementById('cantidad').value);
                 const categoria = document.getElementById('categoria').value;
@@ -1127,6 +1127,7 @@ const firebaseConfig = {
             },
             limpiarFormulario() {
                 document.getElementById('ventaForm').reset();
+                if (typeof MetodoPagoCustom !== 'undefined') MetodoPagoCustom.limpiar('metodo-container', 'metodo');
                 document.getElementById('fecha').valueAsDate = new Date();
                 document.getElementById('total-display').value = '';
                 document.getElementById('adelanto').value = '';
@@ -2935,6 +2936,7 @@ const firebaseConfig = {
                 ['os-dni', 'os-cliente', 'os-telefono', 'os-tipo-equipo', 'os-marca', 'os-modelo', 'os-serie', 'os-accesorios', 'os-problema', 'os-diagnostico', 'os-costo', 'os-adelanto', 'os-metodo-pago', 'os-fecha-entrega', 'os-notas'].forEach(id => {
                     const el = document.getElementById(id); if (el) el.value = '';
                 });
+                if (typeof MetodoPagoCustom !== 'undefined') MetodoPagoCustom.limpiar('os-metodo-container', 'os-metodo-pago');
                 document.getElementById('os-estado').value = 'Pendiente';
                 document.getElementById('os-fecha').valueAsDate = new Date();
                 
@@ -3089,7 +3091,7 @@ const firebaseConfig = {
                     costo: parseFloat(document.getElementById('os-costo').value) || 0,
                     repuestos: this.repuestosTemp.slice(),
                     adelanto: parseFloat(document.getElementById('os-adelanto').value) || 0,
-                    saldo: 0, metodo: document.getElementById('os-metodo-pago').value,
+                    saldo: 0, metodo: MetodoPagoCustom.obtenerValores('os-metodo-container', 'os-metodo-pago'),
                     fechaEntregaEstimada: document.getElementById('os-fecha-entrega').value,
                     notas: document.getElementById('os-notas').value.trim(),
                     fotos: this.fotosTemp.map(f => f.dataURL),
@@ -3219,7 +3221,7 @@ const firebaseConfig = {
                 document.getElementById('os-estado').value = orden.estado;
                 document.getElementById('os-costo').value = orden.costo || '';
                 document.getElementById('os-adelanto').value = orden.adelanto || '';
-                document.getElementById('os-metodo-pago').value = orden.metodo || '';
+                if (typeof MetodoPagoCustom !== 'undefined') MetodoPagoCustom.setValores('os-metodo-container', 'os-metodo-pago', orden.metodo || '');
                 document.getElementById('os-fecha-entrega').value = orden.fechaEntregaEstimada || '';
                 document.getElementById('os-notas').value = orden.notas || '';
                 this.repuestosTemp = orden.repuestos ? [...orden.repuestos] : [];
