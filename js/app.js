@@ -25,7 +25,7 @@
                                     duration: 4000,
                                     gravity: "top",
                                     position: "right",
-                                    backgroundColor: "var(--danger)"
+                                    style: { background: "var(--danger)" }
                                 }).showToast();
                             }
                             throw e; // Permitir que la app falle si debe, pero informando
@@ -458,7 +458,7 @@ const firebaseConfig = {
                 location.reload();
             },
             _notificar(texto, color) {
-                if (typeof Toastify !== 'undefined') Toastify({ text: texto, duration: 3500, gravity: "top", position: "right", backgroundColor: color }).showToast();
+                if (typeof Toastify !== 'undefined') Toastify({ text: texto, duration: 3500, gravity: "top", position: "right", style: { background: color } }).showToast();
             }
         };
 
