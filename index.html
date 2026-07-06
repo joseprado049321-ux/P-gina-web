@@ -4359,9 +4359,12 @@
                 const cantidad = parseInt(document.getElementById('cantidad').value);
                 const categoria = document.getElementById('categoria').value;
                 if (!sku) {
-                    Swal.fire({ icon: 'warning', title: 'SKU requerido', text: 'Debes generar un SKU antes de registrar el producto.', confirmButtonColor: '#7C3AED', confirmButtonText: '🏷️ Generar SKU' })
-                        .then(() => { document.getElementById('sku-inline-panel').style.display = 'block'; document.getElementById('skup-marca').focus(); });
-                    return;
+                    const nombreProd = document.getElementById('producto').value;
+                    sku = SkuGen.generarInteligente(nombreProd, categoria);
+                    document.getElementById('sku').value = sku;
+                    if(typeof Toastify !== 'undefined') {
+                        Toastify({ text: '🤖 SKU autogenerado: ' + sku, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#7C3AED,#5B21B6)' }).showToast();
+                    }
                 }
                 if (sku) {
                     let item = Estado.inventario.find(x => x.sku === sku);
