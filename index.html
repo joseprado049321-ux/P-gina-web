@@ -36,7 +36,7 @@
 
     <div id="login-screen" class="login-container">
         <div class="login-box">
-            <divPoppins', sans-serif; user-select:none; margin-bottom:20px;" class="utils-4e8333">
+            <div style="font-family: 'Poppins', sans-serif; user-select:none; margin-bottom:20px;" class="utils-4e8333">
                 <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect width="100" height="100" rx="22" fill="#000000" />
                     <text x="48" y="68" font-family="system-ui, -apple-system, sans-serif" font-size="46"
@@ -202,34 +202,7 @@
                     <div id="registro" class="tab-content active">
                         <div class="success-msg" id="success-msg">✅ Venta registrada correctamente</div>
                         <form id="ventaForm">
-                            <div class="form-group">
-                                <label for="sku">SKU (Código de Producto)</label>
-                                <div class="utils-63e984">
-                                    <input type="text" id="sku" placeholder="Ej: XXXX-XXXX-XXXX-XXXX" class="utils-a23d18">
-                                    <button type="button" onclick="SkuGen.togglePanel()" class="utils-f4dc5f">🏷️
-                                        Generar SKU</button>
-                                    <button type="button"
-                                        onclick="document.getElementById('sku').value = SkuGen.generarInteligente(document.getElementById('producto').value, document.getElementById('categoria').value)"
-                                        class="btn-secondary utils-f63b61"
-                                        title="Generar con IA">🪄 IA</button>
-                                </div>
-                                <small>Escribe un SKU o usa el generador para crearlo automáticamente.</small>
-                                <!-- PANEL INLINE GENERADOR DE SKU -->
-                                <div id="sku-inline-panel" class="utils-f95342">
-                                    <div class="utils-6fc89e">
-                                        <strong class="utils-973fa2">🏷️ Generador de SKU</strong>
-                                        <div id="sku-inline-output"Poppins',sans-serif;letter-spacing:0.04em;flex:1;text-align:center;padding:0 10px;word-break:break-all;" class="utils-da9311">
-                                            —</div>
-                                        <div class="utils-1952d6">
-                                            <button type="button" onclick="SkuGen.aplicarARegistro()" class="utils-51c6a6">✅
-                                                Aplicar</button>
-                                            <button type="button" onclick="SkuGen.limpiarPanel()" class="btn-secondary utils-28e8b8">🔄</button>
-                                        </div>
-                                    </div>
-                                    <div id="sku-fields-container" class="utils-057b7c">
-                                    </div>
-                                </div>
-                            </div>
+
                             <div class="form-group"><label for="producto">Nombre del Producto *</label><input
                                     type="text" id="producto" placeholder="Ej: Bolsa de Arroz" required
                                     autocomplete="off"></div>
@@ -246,6 +219,35 @@
                                 <div id="saldo-pendiente-display" class="utils-24b281">
                                     <strong class="utils-904698">Saldo Pendiente: <span
                                             id="saldo-valor">S/0.00</span></strong>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="sku">SKU (Código de Producto)</label>
+                                <div class="utils-63e984">
+                                    <input type="text" id="sku" placeholder="Ej: XXXX-XXXX-XXXX-XXXX" class="utils-a23d18">
+                                    <button type="button" onclick="SkuGen.togglePanel()" class="utils-f4dc5f">🏷️
+                                        Generar SKU</button>
+                                    <button type="button"
+                                        onclick="document.getElementById('sku').value = SkuGen.generarInteligente(document.getElementById('producto').value, document.getElementById('categoria').value)"
+                                        class="btn-secondary utils-f63b61"
+                                        title="Generar con IA">🪄 IA</button>
+                                </div>
+                                <small>Escribe un SKU o usa el generador para crearlo automáticamente.</small>
+                                <!-- PANEL INLINE GENERADOR DE SKU -->
+                                <div id="sku-inline-panel" class="utils-f95342">
+                                    <div class="utils-6fc89e">
+                                        <strong class="utils-973fa2">🏷️ Generador de SKU</strong>
+                                        <div id="sku-inline-output" style="font-family: 'Poppins',sans-serif;letter-spacing:0.04em;flex:1;text-align:center;padding:0 10px;word-break:break-all;" class="utils-da9311">
+                                            —</div>
+                                        <div class="utils-1952d6">
+                                            <button type="button" onclick="SkuGen.aplicarARegistro()" class="utils-51c6a6">✅
+                                                Aplicar</button>
+                                            <button type="button" onclick="SkuGen.limpiarPanel()" class="btn-secondary utils-28e8b8">🔄</button>
+                                        </div>
+                                    </div>
+                                    <div id="sku-fields-container" class="utils-057b7c">
+                                    </div>
                                 </div>
                             </div>
 
