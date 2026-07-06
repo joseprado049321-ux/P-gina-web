@@ -2280,6 +2280,42 @@ const firebaseConfig = {
         };
 
         const UI = {
+            actualizarAlertasCuentasCobrar() {
+                if (sessionStorage.getItem('ignorarCuentasCobrar') === 'true') {
+                    const existing = document.getElementById('alertas-globales-cuentas');
+                    if (existing) existing.remove();
+                    return;
+                }
+                
+                let container = document.getElementById('alertas-globales-cuentas');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'alertas-globales-cuentas';
+                    container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
+                    document.body.appendChild(container);
+                }
+                
+                const pendientes = (typeof Estado !== 'undefined' && Estado.ventas) ? Estado.ventas.filter(v => v.estadoPago === 'Pendiente' && v.saldoPendiente > 0) : [];
+                
+                if (!pendientes.length) {
+                    container.innerHTML = '';
+                    return;
+                }
+                
+                const totalPendiente = pendientes.reduce((s, v) => s + v.saldoPendiente, 0);
+
+                container.innerHTML = `
+                    <div style="background:rgba(220,53,69,0.15);border-left:4px solid var(--danger);padding:12px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:13px;color:#721c24;display:flex;align-items:center;gap:12px;pointer-events:auto;animation:fadeIn 0.3s ease; max-width: 350px;">
+                        <div style="font-size:1.5em;">💸</div>
+                        <div style="flex:1;">
+                            <strong style="display:block;margin-bottom:2px;">Cuentas por Cobrar</strong>
+                            ${pendientes.length} cuenta(s) pendiente(s) (S/ ${totalPendiente.toFixed(2)})
+                        </div>
+                        <button onclick="SidebarMenu.selectTab('cuentas-cobrar')" style="background:var(--danger);color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;">Ver</button>
+                        <button onclick="sessionStorage.setItem('ignorarCuentasCobrar', 'true'); UI.actualizarAlertasCuentasCobrar();" style="background:transparent;color:#dc3545;border:1px solid #dc3545;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;margin-left:5px;" title="Ignorar">❌</button>
+                    </div>
+                `;
+            },
             actualizarAlertasInventario() {
                 let container = document.getElementById('alertas-globales-inventario');
                 if (!container) {
@@ -2387,6 +2423,7 @@ const firebaseConfig = {
                 }
 
                 if (this.actualizarAlertasInventario) this.actualizarAlertasInventario();
+                if (this.actualizarAlertasCuentasCobrar) this.actualizarAlertasCuentasCobrar();
                 Dashboard.actualizar();
                 Filtros.aplicarFiltros();
                 CuentasCobrar.actualizar();
