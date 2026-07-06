@@ -357,6 +357,48 @@
             }
         }
 
+        @keyframes fadeInLeft {
+            0% {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* --- ANIMACIONES EN CASCADA --- */
+        .menu-item, .card, tbody tr {
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        
+        .menu-item {
+            animation-name: fadeInLeft;
+            animation-duration: 0.4s;
+            animation-timing-function: ease-out;
+        }
+        
+        .card, tbody tr {
+            animation-name: fadeInUp;
+            animation-duration: 0.4s;
+            animation-timing-function: ease-out;
+        }
+
+        /* Retardos progresivos para hijos directos */
+        .menu-item:nth-child(1), .card:nth-child(1), tbody tr:nth-child(1) { animation-delay: 0.05s; }
+        .menu-item:nth-child(2), .card:nth-child(2), tbody tr:nth-child(2) { animation-delay: 0.10s; }
+        .menu-item:nth-child(3), .card:nth-child(3), tbody tr:nth-child(3) { animation-delay: 0.15s; }
+        .menu-item:nth-child(4), .card:nth-child(4), tbody tr:nth-child(4) { animation-delay: 0.20s; }
+        .menu-item:nth-child(5), .card:nth-child(5), tbody tr:nth-child(5) { animation-delay: 0.25s; }
+        .menu-item:nth-child(6), .card:nth-child(6), tbody tr:nth-child(6) { animation-delay: 0.30s; }
+        .menu-item:nth-child(7), .card:nth-child(7), tbody tr:nth-child(7) { animation-delay: 0.35s; }
+        .menu-item:nth-child(8), .card:nth-child(8), tbody tr:nth-child(8) { animation-delay: 0.40s; }
+        .menu-item:nth-child(9), .card:nth-child(9), tbody tr:nth-child(9) { animation-delay: 0.45s; }
+        .menu-item:nth-child(10), .card:nth-child(10), tbody tr:nth-child(10) { animation-delay: 0.50s; }
+        .menu-item:nth-child(n+11), .card:nth-child(n+11), tbody tr:nth-child(n+11) { animation-delay: 0.55s; }
+
         .tab-content {
             display: none;
             padding: 32px;
@@ -406,7 +448,7 @@
             font-family: 'Poppins', sans-serif;
             background: var(--bg-input);
             color: var(--text-primary);
-            transition: border-color 0.25s, box-shadow 0.25s, background 0.35s;
+            transition: border-color 0.25s, box-shadow 0.25s, background 0.35s, transform 0.25s;
         }
 
         input:focus,
@@ -415,6 +457,7 @@
             outline: none;
             border-color: var(--border-focus);
             box-shadow: 0 0 0 3px rgba(43, 86, 165, 0.15);
+            transform: scale(1.01);
         }
 
         [data-theme="dark"] input:focus,
