@@ -326,16 +326,19 @@
                                             <button type="button" onclick="MetodoPagoCustom.duplicar('metodo-container')" class="utils-0458e0">➕
                                                 Añadir método</button>
                                         </div>
-                                        <div id="metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%;">
-                                        <select id="metodo" style="flex: 1;" onchange="MetodoPagoCustom.actualizarOpciones('metodo-container')">
-                                            <option value="">Seleccionar...</option>
-                                            <option>Efectivo</option>
-                                            <option>Tarjeta</option>
-                                            <option>Transferencia</option>
-                                            <option>Plin</option>
-                                            <option>Yape</option>
-                                            <option>Otro</option>
-                                        </select>
+                                        <div id="metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%; flex-wrap: wrap;">
+                                            <div id="metodo-wrapper" style="display: flex; flex: 1; min-width: 200px; gap: 5px;">
+                                                <select id="metodo" style="flex: 1;" onchange="MetodoPagoCustom.actualizarOpciones('metodo-container')">
+                                                    <option value="">Seleccionar...</option>
+                                                    <option>Efectivo</option>
+                                                    <option>Tarjeta</option>
+                                                    <option>Transferencia</option>
+                                                    <option>Plin</option>
+                                                    <option>Yape</option>
+                                                    <option>Otro</option>
+                                                </select>
+                                                <input type="number" step="0.01" min="0" placeholder="Monto" class="monto-metodo" style="width: 90px;" oninput="MetodoPagoCustom.calcularSuma('metodo-container')">
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -812,16 +815,19 @@
                                         <button type="button" onclick="MetodoPagoCustom.duplicar('os-metodo-container')" class="utils-0458e0">➕
                                             Añadir método</button>
                                     </div>
-                                    <div id="os-metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%;">
-                                    <select id="os-metodo-pago" style="flex: 1;" onchange="MetodoPagoCustom.actualizarOpciones('os-metodo-container')">
-                                        <option value="">Seleccionar...</option>
-                                        <option>Efectivo</option>
-                                        <option>Tarjeta</option>
-                                        <option>Transferencia</option>
-                                        <option>Yape</option>
-                                        <option>Plin</option>
-                                        <option>Otro</option>
-                                    </select>
+                                    <div id="os-metodo-container" class="utils-1952d6" style="display: flex; gap: 10px; width: 100%; flex-wrap: wrap;">
+                                        <div id="os-metodo-pago-wrapper" style="display: flex; flex: 1; min-width: 200px; gap: 5px;">
+                                            <select id="os-metodo-pago" style="flex: 1;" onchange="MetodoPagoCustom.actualizarOpciones('os-metodo-container')">
+                                                <option value="">Seleccionar...</option>
+                                                <option>Efectivo</option>
+                                                <option>Tarjeta</option>
+                                                <option>Transferencia</option>
+                                                <option>Yape</option>
+                                                <option>Plin</option>
+                                                <option>Otro</option>
+                                            </select>
+                                            <input type="number" step="0.01" min="0" placeholder="Monto" class="monto-metodo" style="width: 90px;" oninput="MetodoPagoCustom.calcularSuma('os-metodo-container')">
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-group"><label>Fecha Estimada de Entrega</label><input type="date"
@@ -1346,8 +1352,32 @@
         };
 
         const MetodoPagoCustom = {
-            cargarEnSelect() {
-                // Ya no cargamos desde Firebase, los métodos de pago están harcodeados
+            cargarEnSelect() {},
+            calcularSuma(containerId) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                
+                const inputs = container.querySelectorAll('.monto-metodo');
+                let suma = 0;
+                inputs.forEach(input => {
+                    const val = parseFloat(input.value);
+                    if (!isNaN(val)) suma += val;
+                });
+                
+                // Actualizar el campo de "Adelanto" o "Monto Recibido" correspondiente
+                if (containerId === 'metodo-container') {
+                    const adelantoEl = document.getElementById('adelanto');
+                    if (adelantoEl) {
+                        adelantoEl.value = suma > 0 ? suma.toFixed(2) : '';
+                        if (typeof Ventas !== 'undefined') Ventas.calcularSaldo();
+                    }
+                } else if (containerId === 'os-metodo-container') {
+                    const adelantoEl = document.getElementById('os-adelanto');
+                    if (adelantoEl) {
+                        adelantoEl.value = suma > 0 ? suma.toFixed(2) : '';
+                        if (typeof OrdenesServicio !== 'undefined') OrdenesServicio.calcularSaldo();
+                    }
+                }
             },
             actualizarOpciones(containerId) {
                 const container = document.getElementById(containerId);
@@ -1378,21 +1408,24 @@
                 const container = document.getElementById(containerId);
                 if (!container) return;
 
-                const selects = container.querySelectorAll('select');
-                if (selects.length >= 3) {
+                const wrappers = container.querySelectorAll('div[style*="display: flex"]');
+                if (wrappers.length >= 3) {
                     Toastify({ text: `⚠️ Máximo 3 métodos de pago permitidos`, duration: 2500, backgroundColor: '#f59e0b' }).showToast();
                     return;
                 }
                 
-                const originalSelect = selects[0];
-                const newSelect = originalSelect.cloneNode(true);
+                // Clonar todo el wrapper del primero
+                const firstWrapper = container.firstElementChild;
+                const newWrapper = firstWrapper.cloneNode(true);
+                newWrapper.removeAttribute('id');
+                
+                const newSelect = newWrapper.querySelector('select');
                 newSelect.removeAttribute('id');
                 newSelect.value = '';
-
-                const wrapper = document.createElement('div');
-                wrapper.style.display = 'flex';
-                wrapper.style.flex = '1';
-                wrapper.style.gap = '5px';
+                
+                const newInput = newWrapper.querySelector('.monto-metodo');
+                newInput.removeAttribute('id');
+                newInput.value = '';
                 
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
@@ -1400,66 +1433,91 @@
                 removeBtn.className = 'btn-secondary';
                 removeBtn.style.padding = '0 10px';
                 removeBtn.onclick = () => {
-                    wrapper.remove();
+                    newWrapper.remove();
                     this.actualizarOpciones(containerId);
+                    this.calcularSuma(containerId);
                 };
                 
-                newSelect.style.flex = '1';
-                wrapper.appendChild(newSelect);
-                wrapper.appendChild(removeBtn);
-                
-                container.appendChild(wrapper);
+                newWrapper.appendChild(removeBtn);
+                container.appendChild(newWrapper);
                 this.actualizarOpciones(containerId);
             },
             obtenerValores(containerId, originalId) {
                 const container = document.getElementById(containerId);
                 if (!container) {
                     const el = document.getElementById(originalId);
-                    return el ? el.value : '';
+                    return { string: el ? el.value : '', desglose: [] };
                 }
-                const selects = container.querySelectorAll('select');
-                const metodos = Array.from(selects).map(s => s.value).filter(v => v);
-                return [...new Set(metodos)].join(' + ');
+                
+                const wrappers = container.querySelectorAll('div[style*="display: flex"]');
+                const desglose = [];
+                const nombres = [];
+                
+                wrappers.forEach(w => {
+                    const sel = w.querySelector('select');
+                    const inp = w.querySelector('.monto-metodo');
+                    if (sel && sel.value) {
+                        const monto = parseFloat(inp.value) || 0;
+                        desglose.push({ metodo: sel.value, monto: monto });
+                        nombres.push(sel.value);
+                    }
+                });
+                
+                return {
+                    string: [...new Set(nombres)].join(' + '),
+                    desglose: desglose
+                };
             },
             limpiar(containerId, originalId) {
                 const container = document.getElementById(containerId);
-                if (!container) {
-                    const el = document.getElementById(originalId);
-                    if (el) el.value = '';
-                    return;
-                }
+                if (!container) return;
                 
-                const wrappers = container.querySelectorAll('div:not(.utils-ed5954)');
-                // The wrappers are direct children divs created dynamically
+                // Eliminar todos excepto el primero
                 Array.from(container.children).forEach(child => {
-                    if (child.tagName.toLowerCase() === 'div') child.remove();
+                    if (child.id !== originalId + '-wrapper') child.remove();
                 });
                 
-                const firstSelect = container.querySelector('select');
-                if (firstSelect) firstSelect.value = '';
+                const firstWrapper = container.firstElementChild;
+                if (firstWrapper) {
+                    const sel = firstWrapper.querySelector('select');
+                    const inp = firstWrapper.querySelector('.monto-metodo');
+                    if (sel) sel.value = '';
+                    if (inp) inp.value = '';
+                }
                 this.actualizarOpciones(containerId);
             },
-            setValores(containerId, originalId, valorStr) {
+            setValores(containerId, originalId, valorStr, historialObj = []) {
                 this.limpiar(containerId, originalId);
-                if (!valorStr) return;
-
                 const container = document.getElementById(containerId);
-                if (!container) {
-                    const el = document.getElementById(originalId);
-                    if (el) el.value = valorStr;
-                    return;
-                }
-
-                const parts = valorStr.split(' + ');
-                const firstSelect = container.querySelector('select');
-                if (firstSelect) firstSelect.value = parts[0] || '';
-
-                for (let i = 1; i < parts.length; i++) {
-                    this.duplicar(containerId);
-                    const selects = container.querySelectorAll('select');
-                    if (selects[i]) selects[i].value = parts[i];
+                if (!container) return;
+                
+                // Si tenemos un historial detallado, usamos eso
+                if (historialObj && historialObj.length > 0) {
+                    const partes = historialObj.filter(h => h.metodo && h.monto);
+                    partes.forEach((p, idx) => {
+                        if (idx > 0) this.duplicar(containerId);
+                        const wrappers = container.querySelectorAll('div[style*="display: flex"]');
+                        const curWrap = wrappers[idx];
+                        if (curWrap) {
+                            curWrap.querySelector('select').value = p.metodo;
+                            curWrap.querySelector('.monto-metodo').value = p.monto;
+                        }
+                    });
+                } 
+                // Si no, caemos en la heurística del string (ej: para compatibilidad antigua)
+                else if (valorStr) {
+                    const parts = valorStr.split(' + ');
+                    parts.forEach((p, idx) => {
+                        if (idx > 0) this.duplicar(containerId);
+                        const wrappers = container.querySelectorAll('div[style*="display: flex"]');
+                        const curWrap = wrappers[idx];
+                        if (curWrap) {
+                            curWrap.querySelector('select').value = p;
+                        }
+                    });
                 }
                 this.actualizarOpciones(containerId);
+                this.calcularSuma(containerId);
             }
         };
 

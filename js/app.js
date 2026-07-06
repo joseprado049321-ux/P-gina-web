@@ -932,7 +932,8 @@ const firebaseConfig = {
                     document.getElementById('adelanto').value = totalVenta.toFixed(2);
                 }
 
-                const metodoPago = MetodoPagoCustom.obtenerValores('metodo-container', 'metodo');
+                const metodoData = MetodoPagoCustom.obtenerValores('metodo-container', 'metodo');
+                const metodoPago = typeof metodoData === 'string' ? metodoData : metodoData.string;
                 let sku = document.getElementById('sku').value.trim();
                 const cantidad = parseInt(document.getElementById('cantidad').value);
                 const categoria = document.getElementById('categoria').value;
@@ -1043,7 +1044,23 @@ const firebaseConfig = {
                 };
                 venta.saldoPendiente = venta.total - venta.adelanto;
                 venta.estadoPago = venta.saldoPendiente <= 0 ? 'Pagado' : 'Pendiente';
-                if (adelantoReal > 0) venta.historialPagos.push({ monto: adelantoReal, metodo: metodoPago, fecha: new Date().toISOString() });
+                if (adelantoReal > 0) {
+                    if (metodoData.desglose && metodoData.desglose.length > 0) {
+                        let restante = adelantoReal;
+                        metodoData.desglose.forEach(d => {
+                            if (d.monto > 0 && restante > 0) {
+                                const cobrar = Math.min(d.monto, restante);
+                                venta.historialPagos.push({ monto: cobrar, metodo: d.metodo, fecha: new Date().toISOString() });
+                                restante -= cobrar;
+                            }
+                        });
+                        if (restante > 0) {
+                            venta.historialPagos.push({ monto: restante, metodo: metodoData.desglose[0].metodo, fecha: new Date().toISOString() });
+                        }
+                    } else {
+                        venta.historialPagos.push({ monto: adelantoReal, metodo: metodoPago, fecha: new Date().toISOString() });
+                    }
+                }
                 if (venta.sku) {
                     const item = Estado.inventario.find(x => x.sku === venta.sku);
                     if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.guardarInventario(); }
@@ -3075,7 +3092,9 @@ const firebaseConfig = {
                     const siguiente = ordenes.length > 0 ? Math.max(...ordenes.map(o => parseInt((o.numero || 'OS-0').split('-')[1]) || 0)) + 1 : 1;
                     numFinal = `OS-${String(siguiente).padStart(4, '0')}`;
                 }
-
+                const metodoData = MetodoPagoCustom.obtenerValores('os-metodo-container', 'os-metodo-pago');
+                const metodoPago = typeof metodoData === 'string' ? metodoData : metodoData.string;
+                
                 const orden = {
                     id: editandoId || Date.now().toString(),
                     numero: numFinal,
@@ -3091,7 +3110,9 @@ const firebaseConfig = {
                     costo: parseFloat(document.getElementById('os-costo').value) || 0,
                     repuestos: this.repuestosTemp.slice(),
                     adelanto: parseFloat(document.getElementById('os-adelanto').value) || 0,
-                    saldo: 0, metodo: MetodoPagoCustom.obtenerValores('os-metodo-container', 'os-metodo-pago'),
+                    saldo: 0, 
+                    metodo: metodoPago,
+                    metodoDesglose: metodoData.desglose || [],
                     fechaEntregaEstimada: document.getElementById('os-fecha-entrega').value,
                     notas: document.getElementById('os-notas').value.trim(),
                     fotos: this.fotosTemp.map(f => f.dataURL),
@@ -3221,7 +3242,7 @@ const firebaseConfig = {
                 document.getElementById('os-estado').value = orden.estado;
                 document.getElementById('os-costo').value = orden.costo || '';
                 document.getElementById('os-adelanto').value = orden.adelanto || '';
-                if (typeof MetodoPagoCustom !== 'undefined') MetodoPagoCustom.setValores('os-metodo-container', 'os-metodo-pago', orden.metodo || '');
+                if (typeof MetodoPagoCustom !== 'undefined') MetodoPagoCustom.setValores('os-metodo-container', 'os-metodo-pago', orden.metodo || '', orden.metodoDesglose || []);
                 document.getElementById('os-fecha-entrega').value = orden.fechaEntregaEstimada || '';
                 document.getElementById('os-notas').value = orden.notas || '';
                 this.repuestosTemp = orden.repuestos ? [...orden.repuestos] : [];
