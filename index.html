@@ -337,7 +337,7 @@
                                                     <option>Yape</option>
                                                     <option>Otro</option>
                                                 </select>
-                                                <input type="number" step="0.01" min="0" placeholder="Monto" class="monto-metodo" style="width: 90px;" oninput="MetodoPagoCustom.calcularSuma('metodo-container')">
+                                                <input type="number" step="0.01" min="0" placeholder="Monto" class="monto-metodo" style="width: 90px; display: none;" oninput="MetodoPagoCustom.calcularSuma('metodo-container')">
                                             </div>
                                         </div>
                                     </div>
@@ -826,7 +826,7 @@
                                                 <option>Plin</option>
                                                 <option>Otro</option>
                                             </select>
-                                            <input type="number" step="0.01" min="0" placeholder="Monto" class="monto-metodo" style="width: 90px;" oninput="MetodoPagoCustom.calcularSuma('os-metodo-container')">
+                                            <input type="number" step="0.01" min="0" placeholder="Monto" class="monto-metodo" style="width: 90px; display: none;" oninput="MetodoPagoCustom.calcularSuma('os-metodo-container')">
                                         </div>
                                     </div>
                                 </div>
@@ -1379,7 +1379,18 @@
                     }
                 }
             },
+            actualizarVisibilidadMontos(containerId) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                const montos = container.querySelectorAll('.monto-metodo');
+                if (montos.length > 1) {
+                    montos.forEach(m => m.style.display = 'inline-block');
+                } else {
+                    montos.forEach(m => m.style.display = 'none');
+                }
+            },
             actualizarOpciones(containerId) {
+                this.actualizarVisibilidadMontos(containerId);
                 const container = document.getElementById(containerId);
                 if (!container) return;
                 
