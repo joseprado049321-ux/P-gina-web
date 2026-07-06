@@ -2747,6 +2747,10 @@
                         </div>
                         <h2 style="margin-bottom:20px;color:var(--text-primary);">💰 Análisis de Rentabilidad</h2>
                         <div class="rentabilidad-grid" id="metricas-rentabilidad"></div>
+                        <div style="margin-bottom:30px; margin-top:30px;">
+                            <h3 style="margin-bottom:15px;color:var(--text-primary);">📉 Flujo de Salidas (Total Egresos)</h3>
+                            <div id="flujo-salidas" style="display:flex; gap:15px; flex-wrap:wrap;"></div>
+                        </div>
                         <div style="margin-bottom:30px;">
                             <h3 style="margin-bottom:15px;color:var(--text-primary);">⚙️ Configurar Costos de Productos</h3>
                             <div style="display:flex;gap:10px;margin-bottom:15px;">
@@ -6121,11 +6125,14 @@
                 const costos = Estado.costosProductos;
                 const ingresos = transacciones.reduce((s, v) => s + v.total, 0);
                 const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
+                const compras = Estado.compras || [];
+                const totalCompras = compras.reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
                 const costoVentas = transacciones.reduce((s, v) => { 
                     if (v.isOrden) return s + (v.costoReal || 0);
                     const c = costos[v.sku || v.producto]; 
                     return s + (c ? c.costo * v.cantidad : 0); 
                 }, 0);
+                const totalEgresosReales = totalGastos + costoVentas + totalCompras;
                 const utilidadBruta = ingresos - costoVentas;
                 const utilidadNeta = ingresos - totalGastos - costoVentas;
                 const margenBruto = ingresos > 0 ? (utilidadBruta / ingresos * 100) : 0;
@@ -6138,6 +6145,29 @@
                     <div class="rentabilidad-card" style="border-left-color:#fd7e14;"><div class="rentabilidad-label">💸 Total Gastos</div><div class="rentabilidad-valor negativo">S/${totalGastos.toFixed(2)}</div></div>
                     <div class="rentabilidad-card" style="border-left-color:#17a2b8;"><div class="rentabilidad-label">🎯 Utilidad Neta</div><div class="rentabilidad-valor ${utilidadNeta >= 0 ? 'positivo' : 'negativo'}">S/${utilidadNeta.toFixed(2)}</div></div>
                     <div class="rentabilidad-card" style="border-left-color:#6f42c1;"><div class="rentabilidad-label">📈 Margen Neto</div><div class="rentabilidad-valor ${margenNeto >= 0 ? 'positivo' : 'negativo'}">${margenNeto.toFixed(1)}%</div></div>`;
+                
+                const flujo = document.getElementById('flujo-salidas');
+                if (flujo) {
+                    flujo.innerHTML = `
+                        <div class="card" style="border-left:4px solid #17a2b8; flex:1; min-width:200px; padding:15px; border-radius:10px; background:var(--bg-surface);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#17a2b8;">📦 Compras de Inventario</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:var(--text-primary);">S/${totalCompras.toFixed(2)}</div>
+                        </div>
+                        <div class="card" style="border-left:4px solid #dc3545; flex:1; min-width:200px; padding:15px; border-radius:10px; background:var(--bg-surface);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#dc3545;">💸 Costo de Ventas/Servicios</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:var(--text-primary);">S/${costoVentas.toFixed(2)}</div>
+                        </div>
+                        <div class="card" style="border-left:4px solid #fd7e14; flex:1; min-width:200px; padding:15px; border-radius:10px; background:var(--bg-surface);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#fd7e14;">📉 Gastos Operativos</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:var(--text-primary);">S/${totalGastos.toFixed(2)}</div>
+                        </div>
+                        <div class="card" style="border-left:4px solid #6f42c1; flex:1; min-width:200px; padding:15px; border-radius:10px; background:rgba(111, 66, 193, 0.05);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#6f42c1;">💰 TOTAL EGRESOS (SALIDAS)</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:#6f42c1;">S/${totalEgresosReales.toFixed(2)}</div>
+                        </div>
+                    `;
+                }
+
                 this.renderizarCostos();
                 this.renderizarProductosRentables();
                 this.calcularPuntoEquilibrio(totalGastos, margenBruto);
