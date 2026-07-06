@@ -1,0 +1,4581 @@
+
+// --- MONKEY PATCH FIREBASE PARA MANEJO GLOBAL DE ERRORES ---
+(function() {
+    if (typeof firebase !== 'undefined' && firebase.firestore) {
+        const methods = ['get', 'set', 'update', 'delete', 'add'];
+        
+        // Parcheamos CollectionReference y DocumentReference
+        const refs = [
+            firebase.firestore.CollectionReference.prototype,
+            firebase.firestore.DocumentReference.prototype
+        ];
+        
+        refs.forEach(ref => {
+            methods.forEach(method => {
+                if (ref[method]) {
+                    const original = ref[method];
+                    ref[method] = async function(...args) {
+                        try {
+                            return await original.apply(this, args);
+                        } catch (e) {
+                            console.error(`Firebase Error en ${method}:`, e);
+                            if (window.Toastify) {
+                                Toastify({
+                                    text: "Error de conexión o permisos. Revisa tu internet.",
+                                    duration: 4000,
+                                    gravity: "top",
+                                    position: "right",
+                                    backgroundColor: "var(--danger)"
+                                }).showToast();
+                            }
+                            throw e; // Permitir que la app falle si debe, pero informando
+                        }
+                    };
+                }
+            });
+        });
+    }
+})();
+// --- FIN DEL PARCHE ---
+
+const firebaseConfig = {
+            apiKey: "AIzaSyDJhXNwH_kvXaeGTFnde2gCjc96RfCUVAs",
+            authDomain: "paginawebventas-2be07.firebaseapp.com",
+            projectId: "paginawebventas-2be07",
+            storageBucket: "paginawebventas-2be07.firebasestorage.app",
+            messagingSenderId: "507118108507",
+            appId: "1:507118108507:web:9a740c69622401fb3a647e"
+        };
+
+        let db = null;
+        let firebaseOK = false;
+
+        function _mostrarEstadoFirebase(msg, color) {
+            let banner = document.getElementById('fb-status-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'fb-status-banner';
+                banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;padding:10px 24px;border-radius:24px;font-size:13px;font-weight:700;font-family:sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.25);transition:opacity 0.5s;';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = msg;
+            banner.style.background = color;
+            banner.style.color = '#fff';
+            banner.style.opacity = '1';
+            if (color === '#28a745') setTimeout(() => { banner.style.opacity = '0'; }, 5000);
+        }
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            firebaseOK = true;
+            window.firebaseOK = true;
+        } catch (e) {
+            console.error("Error Firebase:", e);
+            window.firebaseOK = false;
+        }
+
+        const Firebase = {
+            _col() {
+                const tenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
+                return db ? db.collection('empresas').doc(tenant).collection('datos') : null;
+            },
+            async leer(clave) {
+                if (!window.firebaseOK || (typeof Auth !== 'undefined' && Auth.modoInvitado)) return null;
+                try {
+                    const doc = await this._col().doc(clave).get();
+                    return doc.exists ? doc.data().datos : null;
+                } catch (e) { return null; }
+            },
+            async guardar(clave, datos) {
+                if (!window.firebaseOK || (typeof Auth !== 'undefined' && Auth.modoInvitado)) return;
+                try {
+                    await this._col().doc(clave).set({ datos });
+                    _mostrarEstadoFirebase('☁️ Guardado: ' + clave, '#28a745');
+                } catch (e) {
+                    _mostrarEstadoFirebase('❌ Error Firebase: ' + e.message, '#dc3545');
+                    throw e;
+                }
+            }
+        };
+
+        const Config = { USUARIO_CORRECTO: 'Jose', CONTRASENA_CORRECTA: '12345678' };
+
+        const Estado = {
+            ventas: [], ventasFiltradas: [], inventario: [], clientes: [], gastos: [], costosProductos: {},
+            ordenesServicio: [], proveedores: [], compras: [], devoluciones: [], cotizaciones: [], cierresCaja: [], estadoCaja: null,
+            metodoChart: null, graficos: { linea: null, pastel: null, area: null, barras: null, dona: null }, configuracion: null, papelera: []
+        };
+
+        // ════════════════════════════════════════════════════════════════
+        // VARIABLES GLOBALES DE VISTAS (MODO DE DATOS)
+        // ════════════════════════════════════════════════════════════════
+        window._modoDatos = 'VENTAS'; // 'VENTAS' | 'ORDENES' | 'AMBOS'
+        
+        window.cambiarModoDatos = function(modo) {
+            window._modoDatos = modo;
+            
+            // Actualizar botones UI en todas las pestañas
+            document.querySelectorAll('.modo-datos-btn').forEach(btn => {
+                btn.classList.remove('btn-active', 'btn-inactive');
+                if (btn.dataset.modo === modo) {
+                    btn.classList.add('btn-active');
+                } else {
+                    btn.classList.add('btn-inactive');
+                }
+            });
+
+            // Refrescar vistas si los objetos ya están definidos
+            if (typeof Filtros !== 'undefined' && Filtros.aplicarFiltros) Filtros.aplicarFiltros();
+            if (typeof Reportes !== 'undefined' && Reportes.actualizar) Reportes.actualizar();
+            if (typeof Rentabilidad !== 'undefined' && Rentabilidad.actualizar) Rentabilidad.actualizar();
+            if (typeof Dashboard !== 'undefined' && Dashboard.actualizar) Dashboard.actualizar();
+            if (typeof Clientes !== 'undefined' && Clientes.actualizar) Clientes.actualizar();
+        };
+
+        window.obtenerDatosFiltradosGlobales = function() {
+            // Check si OrdenesServicio ya se inicializó
+            const ordenes = (typeof OrdenesServicio !== 'undefined' && OrdenesServicio.cargar) ? OrdenesServicio.cargar() : (Estado.ordenesServicio || []);
+            
+            // Normalizamos órdenes de servicio para que se comporten como "Ventas" en las tablas y gráficas
+            const ordenesNormalizadas = ordenes.map(o => {
+                const costoRepuestos = o.repuestos ? o.repuestos.reduce((sum, r) => sum + (parseFloat(r.precio) || 0), 0) : 0;
+                return {
+                    ...o,
+                    id: o.id || o.numero,
+                    isOrden: true,
+                    producto: `[OS] ${o.tipoEquipo || 'Equipo'} - ${o.problema || ''}`,
+                    categoria: 'Servicios',
+                    sku: o.numero || '',
+                    cantidad: 1,
+                    precio: parseFloat(o.costo) || 0,
+                    total: parseFloat(o.costo) || 0,
+                    costoReal: costoRepuestos, // Se usa en Rentabilidad
+                    estado: o.estado === 'Entregado' ? 'Pagado' : 'Pendiente' 
+                };
+            });
+
+            if (window._modoDatos === 'VENTAS') return Estado.ventas;
+            if (window._modoDatos === 'ORDENES') return ordenesNormalizadas;
+            
+            // Si es AMBOS, combinamos y ordenamos por fecha descendente
+            const combinados = [...Estado.ventas, ...ordenesNormalizadas];
+            combinados.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            return combinados;
+        };
+
+        // ════════════════════════════════════════════════════════════════
+        // MÓDULO: AUTENTICACIÓN
+        // ════════════════════════════════════════════════════════════════
+
+        const Auth = {
+            ADMIN_EMAIL: "joseprado049321@gmail.com",
+            esAdmin: false,
+            modoInvitado: false,
+            usuarioActual: null,
+            init() {
+                if (window.firebaseOK) {
+                    firebase.auth().onAuthStateChanged((user) => { if (user) this.manejarAcceso(user); });
+                }
+                const form = document.getElementById('loginForm');
+                if (form) form.addEventListener('submit', (e) => this.loginTradicional(e));
+                if (localStorage.getItem('sesionInvitado') === 'true') this.entrarComoInvitado(true);
+            },
+            async loginConGoogle() {
+                if (!window.firebaseOK) return this._notificar("❌ Firebase no conectado", "#ff5f6d");
+                const provider = new firebase.auth.GoogleAuthProvider();
+                try { await firebase.auth().signInWithPopup(provider); } catch (error) { this._notificar("❌ Error Google: " + error.message, "#ff5f6d"); }
+            },
+            async loginTradicional(e) {
+                e.preventDefault();
+                const user = document.getElementById('username').value.trim();
+                const pass = document.getElementById('password').value.trim();
+
+                const btnSubmit = document.querySelector('#loginForm button[type="submit"]');
+                const btnOriginalText = btnSubmit ? btnSubmit.innerHTML : '🚀 Ingresar';
+                if (btnSubmit) { btnSubmit.innerHTML = '⏳ Verificando...'; btnSubmit.disabled = true; }
+
+                if (user === this.ADMIN_EMAIL && pass === "12345678") {
+                    this.esAdmin = true; this.modoInvitado = false;
+                    localStorage.setItem('superAdmin', 'true');
+                    localStorage.setItem('sesionActiva', 'true');
+                    localStorage.removeItem('sesionInvitado');
+                    this.mostrarPantallaPrincipal();
+                    this._notificar("✅ Bienvenido Administrador", "linear-gradient(to right,#4472C4,#2c5aa0)");
+                } else {
+                    try {
+                        const snapshot = await db.collection('usuarios_acceso').where('username', '==', user).where('password', '==', pass).get();
+                        if (!snapshot.empty) {
+                            const userData = snapshot.docs[0].data();
+                            if (userData.estado !== 'aprobado') {
+                                this._notificar("❌ Tu cuenta no está aprobada", "#ff5f6d");
+                                return;
+                            }
+                            this.esAdmin = (userData.rol === 'admin');
+                            this.modoInvitado = false;
+                            this.usuarioActual = userData;
+                            localStorage.setItem('sesionActiva', 'true');
+                            // Si el Súper Admin le asignó un Tenant a este usuario, lo cargamos
+                            if (userData.tenantId) localStorage.setItem('tenantId', userData.tenantId);
+                            this.mostrarPantallaPrincipal();
+                            this._notificar(`✅ Bienvenido, ${userData.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
+                        } else {
+                            this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        this._notificar("❌ Error conectando a la base de datos", "#ff5f6d");
+                    }
+                }
+
+                if (btnSubmit) { btnSubmit.innerHTML = btnOriginalText; btnSubmit.disabled = false; }
+            },
+            entrarComoInvitado(auto = false) {
+                this.modoInvitado = true; this.esAdmin = false;
+                localStorage.setItem('sesionInvitado', 'true');
+                localStorage.removeItem('sesionActiva');
+                this.mostrarPantallaPrincipal();
+                if (!auto) this._notificar("👤 Modo Invitado: solo datos locales", "#6c757d");
+            },
+            async manejarAcceso(user) {
+                const isSuperAdminAccount = (user.email === this.ADMIN_EMAIL);
+
+                // 1. EL PASE VIP DEL SÚPER ADMIN (Evita que quede en "Pendiente")
+                if (isSuperAdminAccount) {
+                    localStorage.setItem('superAdmin', 'true');
+                    localStorage.setItem('sesionActiva', 'true');
+                    this.esAdmin = true;
+                    this.modoInvitado = false;
+                    this.usuarioActual = { email: user.email, nombre: user.displayName || 'Súper Admin', rol: 'admin', uid: user.uid };
+                    if (typeof this.cargarEmpresas === 'function') this.cargarEmpresas();
+                    this.mostrarPantallaPrincipal();
+                    this._notificar(`👑 Bienvenido Súper Administrador`, "linear-gradient(to right,#4472C4,#2c5aa0)");
+                    return;
+                }
+
+                try {
+                    const docRef = db.collection('usuarios_acceso').doc(user.uid);
+                    const docSnap = await docRef.get();
+
+                    if (!docSnap.exists) {
+                        // Ocultar interfaz gráfica para bloquear "Sesiones Fantasma" de cuentas eliminadas
+                        const appCont = document.getElementById('app-container');
+                        const logCont = document.getElementById('login-container');
+                        if (appCont) appCont.style.display = 'none';
+                        if (logCont) logCont.style.display = 'flex';
+
+                        const { value: tipoUsuario } = await Swal.fire({
+                            title: '👋 ¡Bienvenido a LisPro POS!',
+                            text: '¿Qué tipo de cuenta deseas crear?',
+                            icon: 'question',
+                            showDenyButton: true, showCancelButton: true,
+                            confirmButtonText: '🏢 Soy Dueño', denyButtonText: '👤 Soy Empleado', cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#2B56A5', denyButtonColor: '#10B981', allowOutsideClick: false
+                        });
+
+                        if (!tipoUsuario && tipoUsuario !== false) { await firebase.auth().signOut(); return; }
+
+                        if (tipoUsuario) {
+                            await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'admin', estado: 'pendiente', tenantId: user.uid, fechaCreacion: new Date().toISOString() });
+                            this._mostrarPantalla('pending-screen');
+                            this._escucharAprobacion(docRef);
+                        } else {
+                            const { value: codigoTienda } = await Swal.fire({
+                                title: '🔗 Conectar a Tienda',
+                                text: 'Ingresa el Identificador que te proporcionó el administrador:',
+                                input: 'text', inputPlaceholder: 'Ej: NEX-ABCD-1234',
+                                showCancelButton: true, confirmButtonText: 'Siguiente',
+                                preConfirm: async (codigo) => {
+                                    if (!codigo) { Swal.showValidationMessage('Ingresa un código'); return false; }
+                                    const snapshot = await db.collection('empresas').where('storeId', '==', codigo.trim().toUpperCase()).get();
+                                    if (snapshot.empty) { Swal.showValidationMessage('Identificador no válido'); return false; }
+                                    return snapshot.docs[0].id;
+                                }
+                            });
+
+                            if (codigoTienda) {
+                                await docRef.set({ email: user.email, nombre: user.displayName || '', rol: 'empleado', estado: 'pendiente', tenantId: codigoTienda, fechaCreacion: new Date().toISOString() });
+                                this._mostrarPantalla('pending-screen');
+                                this._escucharAprobacion(docRef);
+                            } else { await firebase.auth().signOut(); }
+                        }
+                        return;
+                    }
+
+                    const data = docSnap.data();
+                    if (data.estado === 'pendiente') { this._mostrarPantalla('pending-screen'); this._escucharAprobacion(docRef); return; }
+                    if (data.estado === 'rechazado') { this._mostrarPantalla('denied-screen'); return; }
+
+                    if (data.estado === 'aprobado') {
+                        // Solo pedir crear tienda si es el Dueño original (su tenantId es su propio UID)
+                        if (data.rol === 'admin' && data.tenantId === user.uid && !data.storeId && !isSuperAdminAccount) {
+                            const { value: nombreTienda } = await Swal.fire({
+                                title: '🎉 ¡Cuenta Aprobada!',
+                                text: 'Ingresa el nombre de tu negocio para configurar tu espacio:',
+                                input: 'text', inputPlaceholder: 'Ej: Minimarket El Sol', allowOutsideClick: false, confirmButtonText: 'Comenzar 🚀',
+                                preConfirm: (val) => { if (!val) { Swal.showValidationMessage('Requerido'); return false; } return val.trim(); }
+                            });
+                            if (nombreTienda) {
+                                const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+                                const p1 = nombreTienda.replace(/[^A-Z]/ig, '').substring(0, 4).toUpperCase().padEnd(4, 'X');
+                                const storeId = `NEX-${p1}-${random}`;
+
+                                await docRef.update({ storeId: storeId, nombreTienda: nombreTienda });
+                                await db.collection('empresas').doc(user.uid).set({ storeId: storeId, nombreTienda: nombreTienda });
+                                data.storeId = storeId;
+
+                                await Swal.fire({ title: '🏢 Tu tienda está lista', html: `El identificador de tu tienda es:<br><b style="font-size:1.6em;color:#2B56A5;letter-spacing:2px;display:block;margin:15px 0;">${storeId}</b><span style="font-size:0.9em;color:#666;">Comparte este código con tus empleados para que se unan a tu tienda.</span>`, icon: 'success' });
+                            }
+                        }
+
+                        this.esAdmin = (data.rol === 'admin');
+                        this.usuarioActual = data;
+                        localStorage.setItem('sesionActiva', 'true');
+                        localStorage.setItem('tenantId', data.tenantId || user.uid);
+
+                        if (!isSuperAdminAccount) localStorage.removeItem('superAdminTenant');
+                        else if (typeof this.cargarEmpresas === 'function') this.cargarEmpresas();
+
+                        this.mostrarPantallaPrincipal();
+                        this._notificar(`✅ Bienvenido, ${data.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
+                        if (typeof Storage !== 'undefined') Storage.sincronizarDesdeFirebase();
+
+                        // MOTOR DE SEGURIDAD: Expulsar al instante si es eliminado o actualizar menú si cambian permisos
+                        docRef.onSnapshot(snap => {
+                            if (!snap.exists) {
+                                Swal.fire('Cuenta Eliminada', 'Tu acceso ha sido revocado por el dueño de la tienda.', 'error').then(() => this.cerrarSesion());
+                            } else {
+                                const actualData = snap.data();
+                                if (actualData.estado !== 'aprobado') {
+                                    Swal.fire('Acceso Suspendido', 'Tu cuenta ha sido deshabilitada.', 'warning').then(() => this.cerrarSesion());
+                                } else if (this.usuarioActual && (JSON.stringify(this.usuarioActual.modulos) !== JSON.stringify(actualData.modulos) || this.usuarioActual.rol !== actualData.rol)) {
+                                    this.esAdmin = (actualData.rol === 'admin');
+                                    this.usuarioActual = actualData;
+                                    if (typeof this.aplicarRestricciones === 'function') this.aplicarRestricciones();
+                                }
+                            }
+                        });
+                    }
+                } catch (error) { console.error(error); Swal.fire('Error', 'Problema de conexión', 'error'); }
+            },
+            _escucharAprobacion(docRef) {
+                // onSnapshot mantiene una conexión abierta en tiempo real con la nube
+                const unsubscribe = docRef.onSnapshot((doc) => {
+                    const data = doc.data();
+                    if (data && data.estado === 'aprobado') {
+                        unsubscribe(); // Dejamos de escuchar para no consumir memoria
+                        Swal.fire({
+                            icon: 'success',
+                            title: '🎉 ¡Aprobado!',
+                            text: 'El administrador ha autorizado tu acceso. Preparando tu espacio...',
+                            timer: 2500,
+                            showConfirmButton: false,
+                            allowOutsideClick: false
+                        }).then(() => {
+                            location.reload(); // Recarga automática que disparará el prompt del nombre de la tienda
+                        });
+                    } else if (data && data.estado === 'rechazado') {
+                        unsubscribe();
+                        this._mostrarPantalla('denied-screen');
+                    }
+                });
+            },
+            _mostrarPantallaPendiente(estado, email) {
+                if (estado === 'rechazado') {
+                    this._mostrarPantalla('denied-screen');
+                    const infoEl = document.getElementById('denied-user-info');
+                    if (infoEl) infoEl.innerHTML = `<strong>📧 ${email || ''}</strong><br>Tu acceso fue denegado.`;
+                } else {
+                    this._mostrarPantalla('pending-screen');
+                    const infoEl = document.getElementById('pending-user-info');
+                    if (infoEl) infoEl.innerHTML = `<strong>📧 ${email || ''}</strong><br>Tu solicitud sigue pendiente o fue enviada al administrador.`;
+                }
+            },
+            _mostrarPantalla(idVisible) {
+                ['login-screen', 'pending-screen', 'denied-screen', 'main-screen'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { if (id === idVisible) el.classList.remove('hidden'); else el.classList.add('hidden'); }
+                });
+            },
+            mostrarPantallaPrincipal() {
+                this._mostrarPantalla('main-screen');
+                if (this.modoInvitado) { Storage.cargarVentas(); Storage.cargarInventario(); }
+                else { Storage.sincronizarDesdeFirebase(); }
+                this.aplicarRestricciones();
+            },
+            aplicarRestricciones() {
+                // Si es administrador (o Súper Admin), forzamos que todos los botones sean visibles
+                if (this.esAdmin) {
+                    document.querySelectorAll('.menu-item').forEach(el => el.style.display = 'flex');
+                    return;
+                }
+
+                // Si es empleado, recuperamos sus permisos
+                const modulos = (this.usuarioActual && this.usuarioActual.modulos) ? this.usuarioActual.modulos : [];
+
+                // Pestañas críticas prohibidas por defecto para empleados
+                const prohibidosSiempre = ['configuracion', 'usuarios', 'rentabilidad', 'reportes', 'gastos', 'resumen', 'compras', 'proveedores', 'cotizaciones'];
+
+                document.querySelectorAll('.menu-item').forEach(el => {
+                    const tabId = el.id.replace('sidebarTab-', '');
+                    if (prohibidosSiempre.includes(tabId)) {
+                        el.style.display = 'none';
+                    } else if (modulos.includes(tabId)) {
+                        el.style.display = 'flex';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                });
+            },
+            async cerrarSesion() {
+                if (window.firebaseOK) await firebase.auth().signOut();
+                // Solo removemos las credenciales de la sesión actual
+                localStorage.removeItem('sesionActiva');
+                localStorage.removeItem('sesionInvitado');
+                localStorage.removeItem('superAdmin');
+                location.reload();
+            },
+            async cargarEmpresas() {
+                try {
+                    const snap = await db.collection('usuarios_acceso').get();
+                    const select = document.getElementById('select-empresas');
+                    if (!select) return;
+                    select.innerHTML = '<option value="super_admin">Mi Espacio Principal</option>' +
+                        snap.docs.filter(d => d.data().estado === 'aprobado' && d.data().rol === 'admin')
+                            .map(d => `<option value="${d.id}">${d.data().email} (${d.data().nombre || 'Sin nombre'})</option>`).join('');
+
+                    const actual = localStorage.getItem('superAdminTenant');
+                    if (actual) select.value = actual;
+
+                    document.getElementById('panel-superadmin').style.display = 'block';
+                } catch (e) { console.error("Error cargando empresas", e); }
+            },
+            async cambiarTenant(uid) {
+                localStorage.setItem('superAdminTenant', uid);
+                // Al cambiar de empresa, limpiamos la memoria caché local y recargamos para descargar la nueva BD
+                const clavesLimpiar = ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'localUsersDB'];
+                clavesLimpiar.forEach(k => localStorage.removeItem(k));
+                location.reload();
+            },
+            _notificar(texto, color) {
+                if (typeof Toastify !== 'undefined') Toastify({ text: texto, duration: 3500, gravity: "top", position: "right", backgroundColor: color }).showToast();
+            }
+        };
+
+        const GestionUsuarios = {
+            async cargarTodos() {
+                if (!Auth.esAdmin) return;
+
+                if (!window.firebaseOK || (typeof Auth !== 'undefined' && Auth.modoInvitado)) return;
+                try {
+                    const isSuperAdmin = localStorage.getItem('superAdmin') === 'true';
+                    const curTenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId');
+                    let query;
+
+                    if (isSuperAdmin && (!curTenant || curTenant === 'super_admin')) {
+                        // Súper Admin ve a los Dueños para aprobarlos
+                        query = db.collection('usuarios_acceso').where('rol', '==', 'admin');
+                    } else {
+                        // Dueño normal ve a sus empleados
+                        query = db.collection('usuarios_acceso').where('tenantId', '==', curTenant);
+                    }
+                    const snap = await query.get();
+
+                    const todos = [];
+                    snap.docs.forEach(doc => {
+                        if (doc.id === curTenant || doc.id === Auth.usuarioActual?.uid) return;
+                        todos.push({ id: doc.id, ...doc.data() });
+                    });
+                    const pendientes = todos.filter(u => u.estado === 'pendiente');
+                    const aprobados = todos.filter(u => u.estado === 'aprobado');
+                    const rechazados = todos.filter(u => u.estado === 'rechazado');
+                    document.getElementById('usuarios-cards').innerHTML = `
+                        <div class="card" style="border-left:4px solid #fd7e14;"><h3>⏳ Pendientes</h3><div class="value" style="color:#fd7e14;">${pendientes.length}</div></div>
+                        <div class="card" style="border-left:4px solid #28a745;"><h3>✅ Aprobados</h3><div class="value" style="color:#28a745;">${aprobados.length}</div></div>
+                        <div class="card" style="border-left:4px solid #dc3545;"><h3>🚫 Rechazados</h3><div class="value" style="color:#dc3545;">${rechazados.length}</div></div>`;
+                    this._renderLista('usuarios-pendientes-lista', pendientes, 'pendiente');
+                    this._renderLista('usuarios-aprobados-lista', aprobados, 'aprobado');
+                    this._renderLista('usuarios-rechazados-lista', rechazados, 'rechazado');
+                } catch (e) { console.error("Error cargando usuarios:", e); }
+            },
+
+            _renderLista(containerId, usuarios, tipo) {
+                const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
+                const c = document.getElementById(containerId);
+                if (!c) return;
+                if (!usuarios.length) { c.innerHTML = '<p style="text-align:center;color:#aaa;padding:15px;">Sin usuarios</p>'; return; }
+                c.innerHTML = usuarios.map(u => {
+                    const fecha = u.fechaSolicitud ? new Date(u.fechaSolicitud).toLocaleDateString('es-PE') : '-';
+                    let botonesHtml = '';
+                    if (esSuperAdmin) {
+                        if (tipo === 'pendiente') botonesHtml = `<button class="btn" style="background:var(--success);padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')">✅ Aprobar</button><button class="btn btn-danger" style="padding:6px 12px;font-size:13px;margin-left:8px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')">🚫 Rechazar</button>`;
+                        else if (tipo === 'aprobado') botonesHtml = `<button class="btn btn-danger" style="padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','rechazado')">🚫 Revocar</button>`;
+                        else botonesHtml = `<button class="btn" style="background:var(--success);padding:6px 12px;font-size:13px;" onclick="GestionUsuarios.cambiarEstado('${u.id}','aprobado')">✅ Aprobar</button>`;
+                    }
+                    const botonesAdmin = esSuperAdmin ? `
+                        <button class="btn" style="background:var(--warning); color:#000; padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.editarRol('${u.id}')">✏️ Editar</button>
+                        <button class="btn btn-danger" style="padding:6px 12px; font-size:13px;" onclick="GestionUsuarios.eliminarFirebase('${u.id}', '${u.nombre || u.email || u.username}')">🗑️ Eliminar</button>
+                    ` : '';
+                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;flex-wrap:wrap;gap:10px;color:var(--text-primary);">
+                        <div><div style="font-weight:700;color:var(--text-primary);">${u.nombre || 'Sin nombre'}</div><div style="font-size:0.85em;color:var(--text-secondary);">📧 ${u.email || u.username || 'Sin email'}</div><div style="font-size:0.8em;color:var(--text-secondary);">📅 ${fecha}</div></div>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${botonesHtml}${botonesAdmin}</div></div>`;
+                }).join('');
+            },
+            async cambiarEstado(uid, nuevoEstado) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Acceso Denegado', 'Solo el administrador principal (joseprado049321@gmail.com) tiene permiso para eliminar usuarios o modificar accesos.', 'error'); return; }
+                const result = await Swal.fire({ title: nuevoEstado === 'aprobado' ? '✅ ¿Aprobar acceso?' : '🚫 ¿Rechazar acceso?', icon: 'question', showCancelButton: true, confirmButtonColor: nuevoEstado === 'aprobado' ? '#28a745' : '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, confirmar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                try {
+                    await db.collection('usuarios_acceso').doc(uid).update({ estado: nuevoEstado, fechaRespuesta: new Date().toISOString() });
+                    Toastify({ text: nuevoEstado === 'aprobado' ? '✅ Usuario aprobado' : '🚫 Usuario rechazado', duration: 3000, gravity: 'top', position: 'right', backgroundColor: nuevoEstado === 'aprobado' ? 'linear-gradient(to right,#28a745,#20c997)' : 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+                    this.cargarTodos();
+                } catch (e) { Swal.fire('Error', e.message, 'error'); }
+            },
+            async eliminarFirebase(uid, nombreMostrar) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Acceso Denegado', 'Solo el administrador principal (joseprado049321@gmail.com) tiene permiso para eliminar usuarios o modificar accesos.', 'error'); return; }
+                const result = await Swal.fire({ title: `🗑️ ¿Eliminar a ${nombreMostrar}?`, text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                try {
+                    await db.collection('usuarios_acceso').doc(uid).delete();
+                    Toastify({ text: `🗑️ Usuario eliminado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+                    this.cargarTodos();
+                } catch (e) { Swal.fire('Error', e.message, 'error'); }
+            },
+            async editarRol(id) {
+                if (localStorage.getItem('superAdmin') !== 'true') { Swal.fire('⛔ Denegado', 'Solo Súper Admin', 'error'); return; }
+                try {
+                    const docRef = db.collection('usuarios_acceso').doc(id);
+                    const docSnap = await docRef.get();
+                    if (!docSnap.exists) return;
+                    const data = docSnap.data();
+                    const rolActual = data.rol || 'empleado';
+                    const modulosGuardados = data.modulos || [];
+                    const isChecked = (mod) => modulosGuardados.includes(mod) ? 'checked' : '';
+
+                    const { value: formValues } = await Swal.fire({
+                        title: '✏️ Editar Acceso',
+                        html: `
+                            <select id="swal-edit-rol" class="swal2-input" style="width:100%; margin-bottom:15px;" onchange="document.getElementById('edit-modulos-container').style.display = this.value === 'empleado' ? 'block' : 'none';">
+                                <option value="empleado" ${rolActual === 'empleado' ? 'selected' : ''}>Empleado / Vendedor</option>
+                                <option value="admin" ${rolActual === 'admin' ? 'selected' : ''}>Administrador</option>
+                            </select>
+                            <div id="edit-modulos-container" style="display:${rolActual === 'empleado' ? 'block' : 'none'}; border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-surface-hover); text-align:left;">
+                                <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos:</label>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
+                                    <label><input type="checkbox" value="registro" class="swal-edit-modulos" ${isChecked('registro')}> 📝 Registro</label>
+                                    <label><input type="checkbox" value="historial" class="swal-edit-modulos" ${isChecked('historial')}> 📋 Historial</label>
+                                    <label><input type="checkbox" value="inventario" class="swal-edit-modulos" ${isChecked('inventario')}> 📦 Inventario</label>
+                                    <label><input type="checkbox" value="ordenes-servicio" class="swal-edit-modulos" ${isChecked('ordenes-servicio')}> 🔧 Órdenes Serv.</label>
+                                    <label><input type="checkbox" value="cuentas-cobrar" class="swal-edit-modulos" ${isChecked('cuentas-cobrar')}> 💰 Ctas. Cobrar</label>
+                                    <label><input type="checkbox" value="clientes" class="swal-edit-modulos" ${isChecked('clientes')}> 👥 Clientes</label>
+                                    <label><input type="checkbox" value="cierre-caja" class="swal-edit-modulos" ${isChecked('cierre-caja')}> 🏧 Cierre Caja</label>
+                                </div>
+                            </div>`,
+                        showCancelButton: true, confirmButtonText: '💾 Guardar Cambios',
+                        preConfirm: () => {
+                            const rol = document.getElementById('swal-edit-rol').value;
+                            const modulos = Array.from(document.querySelectorAll('.swal-edit-modulos:checked')).map(cb => cb.value);
+                            return { rol, modulos };
+                        }
+                    });
+
+                    if (!formValues) return;
+                    await docRef.update({ rol: formValues.rol, modulos: formValues.rol === 'empleado' ? formValues.modulos : [] });
+                    Toastify({ text: '✅ Accesos actualizados', duration: 3000, backgroundColor: '#28a745' }).showToast();
+                    this.cargarTodos();
+                } catch (e) { Swal.fire('❌ Error', 'Hubo un error de conexión.', 'error'); }
+            },
+            mostrarModalAgregarLocal() {
+                const esSuperAdmin = localStorage.getItem('superAdmin') === 'true';
+                Swal.fire({
+                    title: '➕ Nuevo Usuario Local',
+                    html: `
+                        <div style="text-align:left;margin-bottom:10px;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">👤 Nombre de usuario</label>
+                            <input id="swal-new-username" class="swal2-input" placeholder="Ej: Juan" style="margin:0 0 12px 0;width:100%;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">🔒 Contraseña</label>
+                            <input id="swal-new-password" type="password" class="swal2-input" placeholder="Contraseña segura" style="margin:0 0 12px 0;width:100%;">
+                            <label style="font-weight:600;display:block;margin-bottom:4px;">🎭 Rol del Usuario</label>
+                            <select id="swal-new-rol" class="swal2-input" style="margin:0 0 12px 0;width:100%;" onchange="document.getElementById('modulos-container').style.display = this.value === 'empleado' ? 'block' : 'none';">
+                                <option value="empleado">Empleado / Vendedor</option>
+                                ${esSuperAdmin ? '<option value="admin">Administrador</option>' : ''}
+                            </select>
+                            <div id="modulos-container" style="border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-surface-hover);">
+                                <label style="font-weight:600;display:block;margin-bottom:8px;font-size:13px;color:#2B56A5;">✅ Módulos permitidos (Solo Empleado):</label>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:13px;">
+                                    <label><input type="checkbox" value="registro" class="swal-modulos" checked> 📝 Registro</label>
+                                    <label><input type="checkbox" value="historial" class="swal-modulos" checked> 📋 Historial</label>
+                                    <label><input type="checkbox" value="inventario" class="swal-modulos" checked> 📦 Inventario</label>
+                                    <label style="${localStorage.getItem('giroNegocio') === 'general' ? 'display:none;' : ''}"><input type="checkbox" value="ordenes-servicio" class="swal-modulos"> 🔧 Órdenes Serv.</label>
+                                    <label><input type="checkbox" value="cuentas-cobrar" class="swal-modulos"> 💰 Ctas. Cobrar</label>
+                                    <label><input type="checkbox" value="clientes" class="swal-modulos"> 👥 Clientes</label>
+                                    <label><input type="checkbox" value="cierre-caja" class="swal-modulos"> 🏧 Cierre Caja</label>
+                                    <label><input type="checkbox" value="cotizaciones" class="swal-modulos"> 📄 Cotizaciones</label>
+                                    <label><input type="checkbox" value="devoluciones" class="swal-modulos"> ↩️ Devoluciones</label>
+                                </div>
+                            </div>
+                        </div>`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#2B56A5',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '✅ Crear usuario',
+                    cancelButtonText: 'Cancelar',
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        const username = document.getElementById('swal-new-username').value.trim();
+                        const password = document.getElementById('swal-new-password').value.trim();
+                        const rol = document.getElementById('swal-new-rol').value;
+                        const modulos = Array.from(document.querySelectorAll('.swal-modulos:checked')).map(cb => cb.value);
+
+                        if (!username || !password) { Swal.showValidationMessage('⚠️ Completa ambos campos'); return false; }
+                        if (password.length < 6) { Swal.showValidationMessage('⚠️ La contraseña debe tener al menos 6 caracteres'); return false; }
+                        if (rol === 'empleado' && modulos.length === 0) { Swal.showValidationMessage('⚠️ Selecciona al menos un módulo de acceso'); return false; }
+
+                        return { username, password, rol, modulos };
+                    }
+                }).then(async result => {
+                    if (!result.isConfirmed) return;
+                    const { username, password, rol, modulos } = result.value;
+                    try {
+                        // Verificar si ya existe en Firebase
+                        const existe = await db.collection('usuarios_acceso').where('username', '==', username).get();
+                        if (!existe.empty) { Swal.fire('❌ Error', 'El usuario ya existe.', 'error'); return; }
+
+                        await db.collection('usuarios_acceso').add({
+                            tipo: 'local',
+                            nombre: username,
+                            username: username,
+                            password: password,
+                            rol: rol,
+                            modulos: rol === 'empleado' ? modulos : [],
+                            estado: 'aprobado', // Los creados por el admin nacen aprobados
+                            fechaSolicitud: new Date().toISOString()
+                        });
+                        Toastify({ text: `✅ Usuario "${username}" guardado en la nube`, duration: 3000, backgroundColor: '#28a745' }).showToast();
+                        this.cargarTodos();
+                    } catch (error) {
+                        Swal.fire('❌ Error', 'No se pudo guardar en la nube', 'error');
+                    }
+                });
+
+            }
+        };
+
+        const Storage = {
+            cargarVentas() { },
+            cargarInventario() { },
+            cargarClientes() { },
+            cargarGastos() { },
+            cargarCostos() { },
+
+            _normalizarVentas(lista) {
+                if (!lista) return [];
+                return lista.map(v => {
+                    const adelanto = v.adelanto !== undefined ? v.adelanto : v.total;
+                    const saldoPendiente = v.saldoPendiente !== undefined ? v.saldoPendiente : 0;
+                    const estadoPago = v.estadoPago || 'Pagado';
+                    let historialPagos = v.historialPagos || [];
+                    if (!historialPagos.length && adelanto > 0) historialPagos = [{ monto: adelanto, metodo: v.metodo || 'Sin método', fecha: v.createdAt || v.fecha || new Date().toISOString() }];
+                    return { ...v, adelanto, saldoPendiente, estadoPago, historialPagos };
+                }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            },
+            async guardarVentas() { await Firebase.guardar('ventas', Estado.ventas); },
+            async guardarInventario() { await Firebase.guardar('inventario', Estado.inventario); Inventario.actualizarTabla(); },
+            async guardarClientes() { await Firebase.guardar('clientes', Estado.clientes); },
+            async guardarGastos() { await Firebase.guardar('gastos', Estado.gastos); },
+            async guardarCostos() { await Firebase.guardar('costos', Estado.costosProductos); },
+            async sincronizarDesdeFirebase() {
+                if (!window.firebaseOK) return;
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+
+                const claves = ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom'];
+
+                claves.forEach(clave => {
+                    tenantRef.doc(clave).onSnapshot(docSnap => {
+                        const data = docSnap.exists ? docSnap.data().datos : null;
+
+                        // (Dentro del onSnapshot, antes de la actualización reactiva)
+                        if (typeof CategoriaCustom !== 'undefined') CategoriaCustom.cargarEnSelect();
+                        if (typeof MarcasCustom !== 'undefined') MarcasCustom.cargarEnSelect();
+
+                        // Mapeo dinámico al objeto Estado
+                        if (clave === 'categoriasCustom') {
+                            Estado.categoriasCustom = data || [];
+                        } else if (clave === 'configuracion') {
+                            Estado.configuracion = data || null;
+                            if (typeof ConfiguracionNegocio !== 'undefined') ConfiguracionNegocio.cargar();
+                        } else if (clave === 'costos') {
+                            Estado.costosProductos = data || {};
+                        } else if (clave === 'estadoCaja') {
+                            if (data) {
+                                Estado.cajaAbierta = data.abierta;
+                                Estado.datosCaja = data.datos;
+                            } else {
+                                Estado.cajaAbierta = false;
+                                Estado.datosCaja = null;
+                            }
+                        } else {
+                            Estado[clave] = data || [];
+                        }
+
+                        // Actualización reactiva de la interfaz (Debounce de 150ms para evitar parpadeos)
+                        clearTimeout(this._uiUpdateTimer);
+                        this._uiUpdateTimer = setTimeout(() => {
+                            if (typeof UI !== 'undefined' && UI.actualizarVistas) UI.actualizarVistas();
+                        }, 150);
+
+                    }, error => {
+                        console.error(`Error escuchando en tiempo real ${clave}:`, error);
+                    });
+                });
+
+                // Ocultar cualquier pantalla de carga que tengas activa tras 1 segundo
+                setTimeout(() => {
+                    const loader = document.getElementById('loading-overlay'); // Ajusta el ID si usas otro
+                    if (loader) loader.style.display = 'none';
+                    if (typeof BackupManager !== 'undefined') BackupManager.verificarRespaldoDiario();
+                }, 1000);
+            }
+        };
+
+        const Autocomplete = {
+            currentFocus: -1,
+            init() {
+                const input = document.getElementById('producto');
+                input.addEventListener('input', (e) => this.mostrarSugerencias(e.target));
+                input.addEventListener('keydown', (e) => this.handleKeydown(e));
+                document.addEventListener('click', (e) => this.cerrarSugerencias(e));
+            },
+            mostrarSugerencias(input) {
+                const val = input.value;
+                this.cerrarSugerencias();
+                if (!val || val.length < 2) return;
+                this.currentFocus = -1;
+                const productosVentas = Estado.ventas.map(v => v.producto);
+                const productosInventario = Estado.inventario.map(i => i.nombre);
+                const todosProductos = [...new Set([...productosVentas, ...productosInventario])];
+                const sugerencias = todosProductos.filter(p => p.toLowerCase().includes(val.toLowerCase()));
+                if (!sugerencias.length) return;
+                const container = document.createElement('div');
+                container.setAttribute('id', 'autocomplete-list');
+                container.setAttribute('class', 'autocomplete-items');
+                input.parentNode.appendChild(container);
+                sugerencias.forEach(producto => {
+                    const item = document.createElement('div');
+                    const pos = producto.toLowerCase().indexOf(val.toLowerCase());
+                    item.innerHTML = producto.substr(0, pos) + '<strong>' + producto.substr(pos, val.length) + '</strong>' + producto.substr(pos + val.length);
+                    item.addEventListener('click', () => {
+                        input.value = producto;
+                        let precio = 0;
+                        const itemInv = Estado.inventario.find(i => i.nombre === producto);
+                        if (itemInv) {
+                            document.getElementById('sku').value = itemInv.sku;
+                            if (itemInv.categoria) document.getElementById('categoria').value = itemInv.categoria;
+                            const costoInfo = Estado.costosProductos ? Estado.costosProductos[itemInv.sku] : null;
+                            if (costoInfo && costoInfo.precioVenta) precio = costoInfo.precioVenta;
+                        }
+                        
+                        if (!precio) {
+                            const lastSale = Estado.ventas.find(v => v.producto === producto);
+                            if (lastSale) {
+                                if (!document.getElementById('sku').value && lastSale.sku) {
+                                    document.getElementById('sku').value = lastSale.sku;
+                                }
+                                if (!document.getElementById('categoria').value && lastSale.categoria) {
+                                    document.getElementById('categoria').value = lastSale.categoria;
+                                }
+                                precio = lastSale.precio || 0;
+                            }
+                        }
+
+                        if (precio > 0) {
+                            document.getElementById('precio').value = precio.toFixed(2);
+                            document.getElementById('cantidad').value = 1;
+                            document.getElementById('total-display').value = `S/${precio.toFixed(2)}`;
+                        }
+                        this.cerrarSugerencias();
+                    });
+                    container.appendChild(item);
+                });
+            },
+            handleKeydown(e) {
+                const container = document.getElementById('autocomplete-list');
+                if (!container) return;
+                const items = container.getElementsByTagName('div');
+                if (e.keyCode === 40) { this.currentFocus++; this.activarItem(items); }
+                else if (e.keyCode === 38) { this.currentFocus--; this.activarItem(items); }
+                else if (e.keyCode === 13) { e.preventDefault(); if (this.currentFocus > -1 && items) items[this.currentFocus].click(); }
+            },
+            activarItem(items) {
+                if (!items) return;
+                this.removerActivos(items);
+                if (this.currentFocus >= items.length) this.currentFocus = 0;
+                if (this.currentFocus < 0) this.currentFocus = items.length - 1;
+                items[this.currentFocus].classList.add('autocomplete-active');
+            },
+            removerActivos(items) { for (let i = 0; i < items.length; i++) items[i].classList.remove('autocomplete-active'); },
+            cerrarSugerencias(e) {
+                const container = document.getElementById('autocomplete-list');
+                if (container && (!e || e.target !== document.getElementById('producto'))) container.parentNode.removeChild(container);
+            },
+            initClientes() {
+                const input = document.getElementById('cliente');
+                input.addEventListener('input', (e) => this.mostrarSugerenciasClientes(e.target));
+                document.addEventListener('click', (e) => this.cerrarSugerenciasClientes(e));
+            },
+            mostrarSugerenciasClientes(input) {
+                const val = input.value;
+                this.cerrarSugerenciasClientes();
+                if (!val || val.length < 1) return;
+                const sugerencias = Estado.clientes.filter(c => c.nombre.toLowerCase().includes(val.toLowerCase()));
+                if (!sugerencias.length) return;
+                const container = document.createElement('div');
+                container.setAttribute('id', 'autocomplete-list-clientes');
+                container.setAttribute('class', 'autocomplete-items');
+                input.parentNode.appendChild(container);
+                sugerencias.forEach(cliente => {
+                    const item = document.createElement('div');
+                    item.textContent = cliente.nombre;
+                    item.addEventListener('click', () => { input.value = cliente.nombre; this.cerrarSugerenciasClientes(); });
+                    container.appendChild(item);
+                });
+            },
+            cerrarSugerenciasClientes(e) {
+                const container = document.getElementById('autocomplete-list-clientes');
+                if (container && (!e || e.target !== document.getElementById('cliente'))) container.parentNode.removeChild(container);
+            }
+        };
+
+        const Ventas = {
+            init() {
+                document.getElementById('ventaForm').addEventListener('submit', (e) => this.registrarVenta(e));
+
+                document.getElementById('sku').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const sku = e.target.value.trim().toUpperCase();
+                        if (!sku) return;
+                        const item = Estado.inventario.find(i => i.sku === sku);
+                        if (item) {
+                            document.getElementById('producto').value = item.nombre;
+                            const costoInfo = Estado.costosProductos[sku];
+                            const precio = costoInfo ? costoInfo.precioVenta : 0;
+                            document.getElementById('precio').value = precio.toFixed(2);
+                            document.getElementById('cantidad').value = 1;
+                            document.getElementById('total-display').value = `S/${precio.toFixed(2)}`;
+                            document.querySelector('#ventaForm button[type="submit"]').focus();
+                        } else {
+                            Toastify({ text: "⚠️ SKU no encontrado", backgroundColor: "#dc3545" }).showToast();
+                        }
+                    }
+                });
+
+                const calcularTotal = () => {
+                    const cantidad = parseFloat(document.getElementById('cantidad').value) || 0;
+                    const precio = parseFloat(document.getElementById('precio').value) || 0;
+                    document.getElementById('total-display').value = `S/${(cantidad * precio).toFixed(2)}`;
+                    this.calcularSaldo();
+                };
+                document.getElementById('cantidad').addEventListener('input', calcularTotal);
+                document.getElementById('precio').addEventListener('input', calcularTotal);
+                document.getElementById('adelanto').addEventListener('input', () => this.calcularSaldo());
+            },
+            calcularSaldo() {
+                const cantidad = parseFloat(document.getElementById('cantidad').value) || 0;
+                const precio = parseFloat(document.getElementById('precio').value) || 0;
+                const total = cantidad * precio;
+                const adelanto = parseFloat(document.getElementById('adelanto').value) || 0;
+                const saldo = total - adelanto;
+                const saldoDisplay = document.getElementById('saldo-pendiente-display');
+                if (saldo > 0 && adelanto > 0) { saldoDisplay.style.display = 'block'; document.getElementById('saldo-valor').textContent = `S/${saldo.toFixed(2)}`; }
+                else saldoDisplay.style.display = 'none';
+            },
+            async registrarVenta(e) {
+                e.preventDefault();
+
+                if (!document.getElementById('fecha').value) document.getElementById('fecha').valueAsDate = new Date();
+                if (!document.getElementById('categoria').value) document.getElementById('categoria').value = 'Otros';
+                if (!document.getElementById('cliente').value) document.getElementById('cliente').value = 'Público General';
+
+                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
+                if (giro === 'general') {
+                    const totalVenta = (parseFloat(document.getElementById('precio').value) || 0) * (parseInt(document.getElementById('cantidad').value) || 1);
+                    const { value: posData, isConfirmed } = await Swal.fire({
+                        title: '💵 Cobro Rápido',
+                        html: `
+                            <div style="font-size:2.2em; font-weight:800; color:var(--primary); margin-bottom:15px; font-family:'Poppins',sans-serif;">Total: S/${totalVenta.toFixed(2)}</div>
+                            <label style="display:block;text-align:left;font-weight:600;margin-bottom:5px;">Método de Pago:</label>
+                            <select id="swal-pos-metodo" class="swal2-input" style="width:100%;margin:0;" onchange="const isEf = this.value==='Efectivo'; document.getElementById('swal-pos-efectivo-container').style.display = isEf ? 'block' : 'none';">
+                                <option value="Efectivo">💵 Efectivo</option>
+                                <option value="Yape">📱 Yape / Plin</option>
+                                <option value="Tarjeta">💳 Tarjeta</option>
+                            </select>
+                            <div id="swal-pos-efectivo-container" style="display:block; text-align:left; margin-top:15px; background:var(--bg-body); padding:15px; border-radius:10px; border:1px solid var(--border);">
+                                <label style="display:block;font-weight:600;margin-bottom:5px;">¿Con cuánto paga? (S/)</label>
+                                <input type="number" id="swal-pos-paga" class="swal2-input" style="width:100%;margin:0;font-size:1.2em;font-weight:bold;color:var(--success);" step="0.01" min="${totalVenta}" placeholder="Ej: 50" oninput="const paga=parseFloat(this.value)||0; const vuelto=paga-${totalVenta}; const el=document.getElementById('swal-pos-vuelto'); el.textContent = vuelto>=0 ? 'S/'+vuelto.toFixed(2) : 'S/0.00'; el.style.color = vuelto>=0 ? 'var(--success)' : 'var(--danger)';">
+                                <div style="margin-top:10px; font-size:1.6em; font-weight:800;">VUELTO: <span id="swal-pos-vuelto" style="color:var(--danger);">S/0.00</span></div>
+                            </div>`,
+                        showCancelButton: true, confirmButtonText: '✅ Confirmar Pago (Enter)', cancelButtonText: 'Cancelar', confirmButtonColor: '#10B981',
+                        didOpen: () => { setTimeout(() => document.getElementById('swal-pos-paga').focus(), 100); },
+                        preConfirm: () => {
+                            const met = document.getElementById('swal-pos-metodo').value.replace('📱 ', '').replace('💳 ', '').replace('💵 ', '').trim();
+                            const paga = parseFloat(document.getElementById('swal-pos-paga').value) || 0;
+                            if (met === 'Efectivo' && paga < totalVenta) { Swal.showValidationMessage('El monto pagado es insuficiente'); return false; }
+                            return { metodo: met, paga: met === 'Efectivo' ? paga : totalVenta };
+                        }
+                    });
+
+                    if (!isConfirmed) return;
+                    document.getElementById('metodo').value = posData.metodo;
+                    document.getElementById('adelanto').value = totalVenta.toFixed(2);
+                }
+
+                const metodoPago = document.getElementById('metodo').value;
+                let sku = document.getElementById('sku').value.trim();
+                const cantidad = parseInt(document.getElementById('cantidad').value);
+                const categoria = document.getElementById('categoria').value;
+                if (!sku) {
+                    const nombreProd = document.getElementById('producto').value;
+                    sku = SkuGen.generarInteligente(nombreProd, categoria);
+                    document.getElementById('sku').value = sku;
+                    if(typeof Toastify !== 'undefined') {
+                        Toastify({ text: '🤖 SKU autogenerado: ' + sku, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#7C3AED,#5B21B6)' }).showToast();
+                    }
+                }
+                if (sku) {
+                    let item = Estado.inventario.find(x => x.sku === sku);
+                    if (!item) {
+                        const result = await Swal.fire({
+                            title: '¡Nuevo SKU!',
+                            text: 'Ingrese el Inventario existente',
+                            icon: 'info',
+                            input: 'number',
+                            inputAttributes: { min: 0, step: 1 },
+                            showDenyButton: true,
+                            showCancelButton: true,
+                            confirmButtonText: '✅ Confirmar',
+                            denyButtonText: '🕒 Lo ingresaré luego',
+                            cancelButtonText: 'Cancelar',
+                            confirmButtonColor: '#28a745',
+                            denyButtonColor: '#ffc107',
+                            cancelButtonColor: '#6c757d',
+                            preConfirm: (stockValue) => {
+                                if (stockValue === '' || stockValue === null) {
+                                    Swal.showValidationMessage('Falta poner el Inventario');
+                                    return false;
+                                }
+                                return parseInt(stockValue);
+                            }
+                        });
+
+                        let stockInicial = 0;
+                        let faltaInventario = false;
+
+                        if (result.isConfirmed) {
+                            stockInicial = result.value;
+                        } else if (result.isDenied) {
+                            faltaInventario = true;
+                        } else {
+                            Swal.fire('Cancelado', 'No se registró la venta.', 'info');
+                            return;
+                        }
+
+                        const nuevoNombre = document.getElementById('producto').value || sku;
+                        item = { sku: sku, nombre: nuevoNombre, stock: stockInicial, reorderThreshold: 5, faltaInventario: faltaInventario };
+                        Estado.inventario.push(item);
+                        await Storage.guardarInventario();
+                        if (typeof UI.actualizarAlertasInventario === 'function') UI.actualizarAlertasInventario();
+                    }
+
+                    if (!item.faltaInventario && item.stock < cantidad) {
+                        Swal.fire({
+                            title: 'Stock insuficiente',
+                            text: `Stock: ${item.stock} disponibles.`,
+                            icon: 'error',
+                            showCancelButton: true,
+                            confirmButtonText: 'OK',
+                            cancelButtonText: '➕ Ingresar Inventario',
+                            cancelButtonColor: 'var(--primary)'
+                        }).then(result => {
+                            if (result.dismiss === Swal.DismissReason.cancel) {
+                                const idx = Estado.inventario.indexOf(item);
+                                if (idx !== -1) Inventario.ajustarStock(idx);
+                            }
+                        });
+                        return;
+                    }
+                }
+                const montoRecibido = parseFloat(document.getElementById('adelanto').value) || 0;
+                const totalCalculado = Math.round(cantidad * parseFloat(document.getElementById('precio').value) * 100) / 100;
+                
+                if (montoRecibido < totalCalculado) {
+                    const { isConfirmed } = await Swal.fire({
+                        title: 'Saldo Pendiente',
+                        text: `El monto recibido (S/${montoRecibido.toFixed(2)}) es menor al total (S/${totalCalculado.toFixed(2)}). ¿Deseas registrar esta venta con saldo pendiente?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, guardar',
+                        cancelButtonText: 'No, corregir'
+                    });
+                    if (!isConfirmed) return;
+                } else if (montoRecibido > totalCalculado) {
+                    await Swal.fire('Vuelto a entregar', `S/${(montoRecibido - totalCalculado).toFixed(2)}`, 'info');
+                }
+                
+                const adelantoReal = Math.min(montoRecibido, totalCalculado);
+                let costoItem = 0;
+                if (sku) {
+                    const invItem = Estado.inventario.find(x => x.sku === sku);
+                    if (invItem) costoItem = invItem.costo || 0;
+                }
+                const venta = {
+                    id: Date.now(), fecha: document.getElementById('fecha').value,
+                    producto: document.getElementById('producto').value, categoria,
+                    cantidad, precio: parseFloat(document.getElementById('precio').value),
+                    total: totalCalculado, costoReal: costoItem * cantidad,
+                    adelanto: adelantoReal, saldoPendiente: 0, estadoPago: 'Pendiente',
+                    montoRecibido: montoRecibido, vuelto: montoRecibido > totalCalculado ? montoRecibido - totalCalculado : 0,
+                    cliente: document.getElementById('cliente').value, metodo: metodoPago,
+                    historialPagos: [], vendedor: (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : document.getElementById('vendedor').value.trim(),
+                    notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString()
+                };
+                venta.saldoPendiente = venta.total - venta.adelanto;
+                venta.estadoPago = venta.saldoPendiente <= 0 ? 'Pagado' : 'Pendiente';
+                if (adelantoReal > 0) venta.historialPagos.push({ monto: adelantoReal, metodo: metodoPago, fecha: new Date().toISOString() });
+                if (venta.sku) {
+                    const item = Estado.inventario.find(x => x.sku === venta.sku);
+                    if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.guardarInventario(); }
+                }
+                Estado.ventas.unshift(venta);
+                await Storage.guardarVentas();
+                UI.actualizarVistas();
+                const msg = document.getElementById('success-msg');
+                msg.classList.add('show');
+                setTimeout(() => msg.classList.remove('show'), 3000);
+                Toastify({ text: "✅ Venta registrada", duration: 3000, gravity: "top", position: "right", style: { background: "linear-gradient(to right,#00b09b,#96c93d)" } }).showToast();
+                const ventaGuardada = venta;
+                this.limpiarFormulario();
+                // Ofrecer generar boleta
+                const { isConfirmed: hacerBoleta } = await Swal.fire({
+                    icon: 'success',
+                    title: '✅ Venta Registrada',
+                    html: `<p>¿Deseas generar una boleta electrónica para esta venta?</p>`,
+                    showCancelButton: true,
+                    confirmButtonText: '🧾 Generar Boleta',
+                    cancelButtonText: 'No, gracias',
+                    confirmButtonColor: '#1E3A6E',
+                    cancelButtonColor: '#6c757d',
+                    timer: 8000,
+                    timerProgressBar: true
+                });
+                if (hacerBoleta) {
+                    await Boletas.generarDesdeVenta(ventaGuardada.id);
+                }
+                const nombreCliente = venta.cliente ? venta.cliente.trim() : '';
+                if (nombreCliente) {
+                    const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === nombreCliente.toLowerCase());
+                    if (!clienteExistente) {
+                        const dniActual = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
+                        const { value: formData, isConfirmed } = await Swal.fire({
+                            title: 'Registrar Cliente Nuevo',
+                            html: `
+                                <div style="text-align:left;font-size:14px;">
+                                    <p style="margin-bottom:10px;">Agregar a <strong>${nombreCliente}</strong> a la base de datos:</p>
+                                    <input id="swal-dni" class="swal2-input" placeholder="DNI / RUC (Opcional)" value="${dniActual}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                    <input id="swal-tel" class="swal2-input" placeholder="Teléfono (Opcional)" style="width:100%; max-width:100%; margin: 5px 0;">
+                                </div>
+                            `,
+                            showCancelButton: true,
+                            confirmButtonText: 'Guardar y Continuar',
+                            cancelButtonText: 'Solo continuar sin guardar',
+                            confirmButtonColor: '#2B56A5',
+                            preConfirm: () => {
+                                return {
+                                    dni: document.getElementById('swal-dni').value.trim(),
+                                    telefono: document.getElementById('swal-tel').value.trim()
+                                }
+                            }
+                        });
+                        
+                        if (isConfirmed) {
+                            const nuevoCliente = {
+                                id: Date.now().toString(),
+                                nombre: nombreCliente,
+                                dni: formData.dni,
+                                telefono: formData.telefono,
+                                direccion: '',
+                                correo: '',
+                                fechaRegistro: new Date().toISOString()
+                            };
+                            if(!Estado.clientes) Estado.clientes = [];
+                            Estado.clientes.push(nuevoCliente);
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
+                    } else {
+                        // Actualización silenciosa de DNI si falta
+                        const dniIngresado = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
+                        if (dniIngresado && !clienteExistente.dni) {
+                            clienteExistente.dni = dniIngresado;
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
+                    }
+                }
+            },
+            limpiarFormulario() {
+                document.getElementById('ventaForm').reset();
+                document.getElementById('fecha').valueAsDate = new Date();
+                document.getElementById('total-display').value = '';
+                document.getElementById('adelanto').value = '';
+                document.getElementById('saldo-pendiente-display').style.display = 'none';
+            },
+            async eliminar(id) {
+                const result = await Swal.fire({ title: '¿Eliminar venta?', text: "Esta acción no se puede deshacer", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                const venta = Estado.ventas.find(v => v.id === id);
+                if (venta) await Papelera.moverA('ventas', venta, `Venta - Total: S/ ${venta.total || 0}`);
+                if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.guardarInventario(); } }
+                Estado.ventas = Estado.ventas.filter(v => v.id !== id);
+                await Storage.guardarVentas();
+                UI.actualizarVistas();
+                Toastify({ text: "🗑️ Venta eliminada", duration: 3000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#ff5f6d,#ffc371)" }).showToast();
+            },
+            calcularMetodoCombinado(historialPagos) {
+                if (!historialPagos || !historialPagos.length) return 'Sin método';
+                if (historialPagos.length === 1) return historialPagos[0].metodo;
+                const metodosOrdenados = historialPagos.map(p => p.metodo);
+                const metodosUnicos = [...new Set(metodosOrdenados)];
+                if (metodosUnicos.length === 1) return metodosUnicos[0];
+                return `${metodosOrdenados[0]}/${metodosOrdenados[metodosOrdenados.length - 1]}`;
+            },
+            async actualizarPago(id) {
+                const venta = Estado.ventas.find(v => v.id === id);
+                if (!venta) return;
+                if (!venta.historialPagos) venta.historialPagos = [{ monto: venta.adelanto, metodo: venta.metodo, fecha: venta.createdAt }];
+                const { value: formValues } = await Swal.fire({
+                    title: 'Actualizar Pago',
+                    html: `<div style="text-align:left;margin-bottom:15px;"><strong>Total:</strong> S/${venta.total.toFixed(2)}<br><strong>Adelanto:</strong> S/${venta.adelanto.toFixed(2)}<br><strong>Saldo:</strong> S/${venta.saldoPendiente.toFixed(2)}</div>
+                        <label>Monto adicional:</label><input id="swal-pago" class="swal2-input" type="number" step="0.01" value="${venta.saldoPendiente.toFixed(2)}">
+                        <label style="margin-top:15px;">Método:</label><select id="swal-metodo" class="swal2-input"><option>Efectivo</option><option>Plin</option><option>Yape</option><option>Transferencia</option><option>Tarjeta</option><option>Otro</option></select>`,
+                    focusConfirm: false, showCancelButton: true, confirmButtonText: 'Registrar Pago', cancelButtonText: 'Cancelar', confirmButtonColor: '#4472C4',
+                    preConfirm: () => {
+                        const montoPago = parseFloat(document.getElementById('swal-pago').value) || 0;
+                        const metodoPago = document.getElementById('swal-metodo').value;
+                        if (montoPago <= 0) { Swal.showValidationMessage('El monto debe ser > 0'); return null; }
+                        if (montoPago > venta.saldoPendiente + 0.01) { Swal.showValidationMessage(`Máximo S/${venta.saldoPendiente.toFixed(2)}`); return null; }
+                        return { montoPago, metodoPago };
+                    }
+                });
+                if (!formValues) return;
+                const { montoPago, metodoPago } = formValues;
+                venta.historialPagos.push({ monto: montoPago, metodo: metodoPago, fecha: new Date().toISOString() });
+                venta.adelanto += montoPago;
+                venta.saldoPendiente = venta.total - venta.adelanto;
+                venta.estadoPago = venta.saldoPendiente <= 0.01 ? 'Pagado' : 'Pendiente';
+                venta.metodo = Ventas.calcularMetodoCombinado(venta.historialPagos);
+                await Storage.guardarVentas();
+                UI.actualizarVistas();
+                if (venta.estadoPago === 'Pagado') await Swal.fire({ icon: 'success', title: '¡Pago Completo!', html: `<p>Total pagado. Método: ${venta.metodo}</p>`, confirmButtonColor: '#4472C4' });
+                else Toastify({ text: `💰 Saldo restante: S/${venta.saldoPendiente.toFixed(2)}`, duration: 4000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#17a2b8,#138496)" }).showToast();
+            }
+        };
+        // ========================================
+        // MÓDULO: CONFIGURACIÓN
+        // ========================================
+        const ConfiguracionNegocio = {
+            cambiarEscala(escala) {
+                document.body.style.zoom = escala;
+                localStorage.setItem('lispro_escala', escala);
+                Toastify({ text: `🔍 Escala cambiada a ${escala}`, duration: 2000, style: { background: 'linear-gradient(135deg,#3B82F6,#2563EB)' } }).showToast();
+            },
+            aplicarColor(hex) {
+                let styleEl = document.getElementById('custom-theme-style');
+                if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = 'custom-theme-style';
+                    document.head.appendChild(styleEl);
+                }
+                if (!hex || hex.toUpperCase() === '#2B56A5') {
+                    styleEl.innerHTML = '';
+                    return;
+                }
+                // Calcular una variante más oscura para los degradados
+                let c = hex.substring(1);
+                let r = Math.max(0, parseInt(c.substring(0, 2), 16) - 35).toString(16).padStart(2, '0');
+                let g = Math.max(0, parseInt(c.substring(2, 4), 16) - 35).toString(16).padStart(2, '0');
+                let b = Math.max(0, parseInt(c.substring(4, 6), 16) - 35).toString(16).padStart(2, '0');
+                let dark = '#' + r + g + b;
+
+                styleEl.innerHTML = `
+                    :root {
+                        --primary: ${hex} !important;
+                        --primary-dark: ${dark} !important;
+                        --bg-header: linear-gradient(135deg, ${dark} 0%, ${hex} 100%) !important;
+                        --bg-sidebar-hd: linear-gradient(135deg, ${dark} 0%, ${hex} 100%) !important;
+                        --bg-thead: linear-gradient(135deg, ${dark} 0%, ${hex} 100%) !important;
+                    }
+                    [data-theme="dark"] {
+                        --primary: ${hex} !important;
+                        --primary-dark: ${dark} !important;
+                    }
+                `;
+            },
+            adaptarRubro(rubro) {
+
+                // ========================================
+                // Lógica del Modo Híbrido (Cobro Rápido)
+                // ========================================
+                const btnSubmitText = document.getElementById('btn-submit-text');
+                const btnToggleAdv = document.getElementById('btn-toggle-avanzado');
+                const camposAdv = document.getElementById('pos-campos-avanzados');
+                const panelSkuBotones = document.querySelector('#sku') ? document.querySelector('#sku').nextElementSibling : null;
+
+                if (btnSubmitText && btnToggleAdv && camposAdv) {
+                    if (rubro === 'general') {
+                        btnToggleAdv.style.display = 'block';
+                        camposAdv.style.display = 'none';
+                        btnSubmitText.textContent = '💵 COBRAR (Enter)';
+                        btnSubmitText.parentElement.style.background = 'linear-gradient(135deg, #28a745, #15803D)';
+                        if (panelSkuBotones) panelSkuBotones.style.display = 'none';
+                    } else {
+                        btnToggleAdv.style.display = 'none';
+                        camposAdv.style.display = 'block';
+                        btnSubmitText.textContent = '💾 Guardar Venta';
+                        btnSubmitText.parentElement.style.background = '';
+                        if (panelSkuBotones) panelSkuBotones.style.display = 'flex';
+                    }
+                }
+
+                // Buscar el botón o pestaña de Ordenes de Servicio en la barra lateral
+                const tabSoporte = document.getElementById('sidebarTab-ordenes-servicio');
+
+                if (tabSoporte) {
+                    if (rubro === 'general') {
+                        tabSoporte.style.setProperty('display', 'none', 'important');
+                        // Si la pestaña actual es Órdenes de Servicio, cambiar a otra
+                        if (typeof SidebarMenu !== 'undefined' && SidebarMenu.currentTab === 'ordenes-servicio') {
+                            SidebarMenu.selectTab('registro');
+                        }
+                    } else {
+                        // Si el usuario actual tiene permisos, se vuelve a mostrar
+                        if (typeof Auth !== 'undefined' && (Auth.esAdmin || Auth.usuarioActual?.permisos?.['ordenes-servicio'])) {
+                            tabSoporte.style.display = 'flex';
+                        }
+                    }
+                }
+
+                // Actualizar sugerencias del SkuGen al instante
+                if (typeof SkuGen !== 'undefined') {
+                    SkuGen.actualizarSugerencias();
+                }
+
+                // Recargar las categorías dinámicamente cada vez que se cambia de rubro
+                if (typeof CategoriaCustom !== 'undefined' && typeof CategoriaCustom.cargarEnSelect === 'function') {
+                    CategoriaCustom.cargarEnSelect();
+                }
+            },
+            cargar() {
+                const data = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion : {
+                    giro: 'tecnico', colorPrincipal: '#2B56A5', nombre: 'Mi Negocio', propietario: '', direccion: '', documento: '', telefono: '', mensaje: '¡Gracias por su preferencia!'
+                };
+                const f = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+                f('config-giro-negocio', data.giro); f('conf-nombre', data.nombre); f('conf-propietario', data.propietario);
+                f('conf-direccion', data.direccion); f('conf-documento', data.documento); f('conf-telefono', data.telefono);
+                f('conf-mensaje', data.mensaje); f('conf-color', data.colorPrincipal);
+                f('conf-backup-freq', data.respaldoFrecuencia || '1');
+
+                const activeTenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId');
+                if (activeTenant && window.firebaseOK) {
+                    db.collection('empresas').doc(activeTenant).get().then(docSnap => {
+                        if (docSnap.exists && docSnap.data().storeId) {
+                            f('conf-store-id', docSnap.data().storeId);
+                        } else {
+                            f('conf-store-id', 'No requiere ID (Súper Admin / Tienda sin configurar)');
+                        }
+                    }).catch(e => {
+                        console.error("Error obteniendo storeId:", e);
+                        f('conf-store-id', 'Error de conexión');
+                    });
+                }
+
+                this.adaptarRubro(data.giro);
+                if (this.aplicarColor) this.aplicarColor(data.colorPrincipal);
+                return data;
+            },
+            async guardar() {
+                const nombre = document.getElementById('conf-nombre').value.trim();
+                if (!nombre) { Swal.fire('Error', 'El nombre del negocio es obligatorio', 'error'); return; }
+                Estado.configuracion = {
+                    giro: document.getElementById('config-giro-negocio').value,
+                    colorPrincipal: document.getElementById('conf-color') ? document.getElementById('conf-color').value : '#2B56A5',
+                    nombre: nombre,
+                    propietario: document.getElementById('conf-propietario').value.trim(),
+                    direccion: document.getElementById('conf-direccion').value.trim(),
+                    documento: document.getElementById('conf-documento').value.trim(),
+                    telefono: document.getElementById('conf-telefono').value.trim(),
+                    mensaje: document.getElementById('conf-mensaje').value.trim(),
+                    respaldoFrecuencia: document.getElementById('conf-backup-freq').value
+                };
+                await Firebase.guardar('configuracion', Estado.configuracion);
+                Toastify({ text: '✅ Configuración guardada en la nube', duration: 3000, backgroundColor: '#28a745' }).showToast();
+            }
+        };
+
+
+
+        // ════════════════════════════════════════════════════════════════
+        // MÓDULO: BOLETAS ELECTRÓNICAS
+        // ════════════════════════════════════════════════════════════════
+        const Boletas = {
+            _getNextNumber() {
+                const n = parseInt(localStorage.getItem('boletaCounter') || '0') + 1;
+                localStorage.setItem('boletaCounter', n);
+                return String(n).padStart(6, '0');
+            },
+            _peekNextNumber() {
+                const n = parseInt(localStorage.getItem('boletaCounter') || '0') + 1;
+                return String(n).padStart(6, '0');
+            },
+            _fmtFecha(fechaISO) {
+                if (!fechaISO) return { d: '__', m: '__', y: '____' };
+                const parts = fechaISO.split('-');
+                return { d: parts[2] || '__', m: parts[1] || '__', y: parts[0] || '____' };
+            },
+
+            // ─── ENTRADA DESDE VENTA ─────────────────────────────────────
+            async generarDesdeVenta(id) {
+                const venta = Estado.ventas.find(v => v.id === id);
+                if (!venta) return Swal.fire('Error', 'Venta no encontrada', 'error');
+                const datos = {
+                    tipo: 'venta',
+                    ventaId: id,
+                    cliente: venta.cliente || '',
+                    dni: '',
+                    telefono: '',
+                    direccion: '',
+                    fecha: venta.fecha,
+                    items: [{ cant: venta.cantidad, descripcion: venta.producto, codigo: venta.sku || '', precioUnit: venta.precio, total: venta.total }],
+                    total: venta.total,
+                    metodoPago: venta.metodo || '',
+                    notas: venta.notas || ''
+                };
+                // Buscar datos del cliente en el módulo Clientes
+                if (venta.cliente) {
+                    const cl = Estado.clientes.find(c => c.nombre.toLowerCase() === venta.cliente.toLowerCase());
+                    if (cl) { datos.telefono = cl.telefono || ''; datos.direccion = cl.direccion || ''; }
+                }
+                await this._flujo(datos);
+            },
+
+            // ─── ENTRADA DESDE ORDEN ─────────────────────────────────────
+            async generarDesdeOrden(id) {
+                const ordenes = OrdenesServicio.cargar();
+                const orden = ordenes.find(o => o.id === id);
+                if (!orden) return Swal.fire('Error', 'Orden no encontrada', 'error');
+                const desc = `Servicio técnico: ${orden.tipoEquipo}${orden.marca ? ' ' + orden.marca : ''}${orden.modelo ? ' - ' + orden.modelo : ''}`;
+                const datos = {
+                    tipo: 'orden',
+                    ordenId: id,
+                    cliente: orden.cliente || '',
+                    dni: '',
+                    telefono: orden.telefono || '',
+                    direccion: '',
+                    fecha: orden.fecha,
+                    items: [{ cant: 1, descripcion: desc, codigo: orden.numero || '', precioUnit: orden.costo, total: orden.costo }],
+                    total: orden.costo,
+                    metodoPago: orden.metodo || '',
+                    notas: orden.notas || ''
+                };
+                const cl = Estado.clientes.find(c => c.nombre.toLowerCase() === (orden.cliente || '').toLowerCase());
+                if (cl) { datos.telefono = cl.telefono || datos.telefono; datos.direccion = cl.direccion || ''; }
+                await this._flujo(datos);
+            },
+
+            async generarTicketRecepcion(id) {
+                const ordenes = OrdenesServicio.cargar();
+                const orden = ordenes.find(o => o.id === id);
+                if (!orden) return Swal.fire('Error', 'Orden no encontrada', 'error');
+                
+                const datosNegocioLocal = {
+                    nombre: Estado.configuracion?.nombre || 'Mi Negocio',
+                    propietario: Estado.configuracion?.propietario || '',
+                    direccion: Estado.configuracion?.direccion || '',
+                    documento: Estado.configuracion?.documento || '',
+                    telefono: Estado.configuracion?.telefono || '',
+                    mensaje: Estado.configuracion?.mensaje || 'Gracias por su preferencia'
+                };
+
+                const doc = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 200] });
+                const W = 80; const PX = 4; const PXR = W - PX; let y = 6; const LH = 4; const FS = 9;
+                doc.setFont('courier', 'normal'); doc.setFontSize(FS);
+                
+                const txtt = (txt, x, yy, opts = {}) => {
+                    const text = String(txt || '');
+                    if (opts.align === 'right') { const tw = doc.getStringUnitWidth(text) * doc.internal.getFontSize() / doc.internal.scaleFactor; doc.text(text, x - tw, yy); }
+                    else if (opts.align === 'center') { const tw = doc.getStringUnitWidth(text) * doc.internal.getFontSize() / doc.internal.scaleFactor; doc.text(text, x - tw / 2, yy); }
+                    else { doc.text(text, x, yy); }
+                };
+                const row = (txt, size, bold = false) => { doc.setFont('courier', bold ? 'bold' : 'normal'); doc.setFontSize(size); txtt(txt, W / 2, y, { align: 'center' }); y += LH; };
+                const sep = () => { doc.setFont('courier', 'normal'); doc.setFontSize(FS); txtt('-'.repeat(32), W / 2, y, { align: 'center' }); y += LH; };
+                const gap = (lines = 1) => { y += LH * lines; };
+
+                // HEADER
+                doc.setFont('courier', 'bold'); doc.setFontSize(14);
+                txtt('TICKET DE RECEPCION', W / 2, y, { align: 'center' }); y += LH + 2;
+                
+                row(`Negocio : ${datosNegocioLocal.nombre}`, FS, true);
+                if(datosNegocioLocal.direccion) row(`Direcc. : ${datosNegocioLocal.direccion}`, FS);
+                if(datosNegocioLocal.telefono) row(`Tel. : ${datosNegocioLocal.telefono}`, FS);
+                gap(0.5); sep(); gap(0.5);
+
+                const f = this._fmtFecha(orden.fecha);
+                row(`Orden N.: ${orden.numero}`, FS + 1, true);
+                row(`Fecha   : ${f.d}/${f.m}/${f.y}`, FS);
+                
+                gap(0.5); sep(); gap(0.5);
+
+                // CLIENTE
+                doc.setFont('courier', 'bold'); txtt('DATOS DEL CLIENTE', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                const cliLines = doc.splitTextToSize(`Cliente: ${orden.cliente || '—'}`, W - PX * 2);
+                cliLines.forEach(l => { txtt(l, PX, y); y += LH; });
+                if(orden.telefono) { txtt(`Tel: ${orden.telefono}`, PX, y); y += LH; }
+                
+                gap(0.5); sep(); gap(0.5);
+
+                // EQUIPO
+                doc.setFont('courier', 'bold'); txtt('DATOS DEL EQUIPO', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                txtt(`Tipo : ${orden.tipoEquipo}`, PX, y); y += LH;
+                txtt(`Marca: ${orden.marca || '—'}`, PX, y); y += LH;
+                txtt(`Mod. : ${orden.modelo || '—'}`, PX, y); y += LH;
+                
+                gap(0.5); sep(); gap(0.5);
+
+                // PROBLEMA
+                doc.setFont('courier', 'bold'); txtt('PROBLEMA REPORTADO', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                const probLines = doc.splitTextToSize(orden.problema || '—', W - PX * 2);
+                probLines.forEach(l => { txtt(l, PX, y); y += LH; });
+
+                gap(0.5); sep(); gap(0.5);
+
+                // IMPORTES
+                doc.setFont('courier', 'bold'); txtt('IMPORTES', PX, y); y += LH;
+                doc.setFont('courier', 'normal');
+                txtt(`Costo Aprox:`, PX, y); txtt(`S/ ${Number(orden.costo || 0).toFixed(2)}`, PXR, y, { align: 'right' }); y += LH;
+                txtt(`Monto Recibido:`, PX, y); txtt(`S/ ${Number(orden.adelanto || 0).toFixed(2)}`, PXR, y, { align: 'right' }); y += LH;
+                doc.setFont('courier', 'bold');
+                txtt(`Saldo Pendiente:`, PX, y); txtt(`S/ ${Number(orden.saldo || 0).toFixed(2)}`, PXR, y, { align: 'right' }); y += LH;
+                
+                gap(1);
+                doc.setFont('courier', 'normal'); doc.setFontSize(8);
+                const msgLines = doc.splitTextToSize(`Estimado cliente, por favor conserve este ticket. Es indispensable para recoger su equipo.`, W - PX * 2);
+                msgLines.forEach(l => { txtt(l, W/2, y, {align: 'center'}); y += LH-1; });
+                
+                gap(1);
+                row('*** COPIA CLIENTE ***', 9, true);
+
+                doc.save(`Ticket_Recepcion_${orden.numero}.pdf`);
+                Toastify({ text: `✅ Ticket de Recepción generado`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#1E3A6E,#2B56A5)' }).showToast();
+            },
+
+            // ─── PASO 1: ELEGIR TIPO ─────────────────────────────────────
+            async _flujo(datos) {
+                const { value: tipo } = await Swal.fire({
+                    title: '🧾 Generar Boleta Electrónica',
+                    html: `<p style="margin-bottom:18px;color:var(--text-secondary);">Selecciona el tipo de boleta que deseas generar:</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0;">
+                            <div onclick="document.getElementById('tipo-simple').click()" style="border:2px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all 0.2s;" id="card-simple" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="document.getElementById('tipo-simple').checked&&(this.style.borderColor='var(--primary)')||( this.style.borderColor='var(--border)')">
+                                <div style="font-size:2em;margin-bottom:8px;">📄</div>
+                                <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;">Boleta Simple</div>
+                                <div style="font-size:0.82em;color:var(--text-secondary);">Formato texto con líneas de separación. Ideal para impresión rápida.</div>
+                                <input type="radio" id="tipo-simple" name="tipo-boleta" value="simple" style="margin-top:10px;">
+                            </div>
+                            <div onclick="document.getElementById('tipo-estructurada').click()" style="border:2px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all 0.2s;" id="card-estruct" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="document.getElementById('tipo-estructurada').checked&&(this.style.borderColor='var(--primary)')||( this.style.borderColor='var(--border)')">
+                                <div style="font-size:2em;margin-bottom:8px;">📋</div>
+                                <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;">Boleta Estructurada</div>
+                                <div style="font-size:0.82em;color:var(--text-secondary);">Formato empresarial con IGV, garantías y datos completos.</div>
+                                <input type="radio" id="tipo-estructurada" name="tipo-boleta" value="estructurada" style="margin-top:10px;">
+                            </div>
+                        </div>`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Continuar →',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#2B56A5',
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        const sel = document.querySelector('input[name="tipo-boleta"]:checked');
+                        if (!sel) { Swal.showValidationMessage('Por favor selecciona un tipo de boleta'); return null; }
+                        return sel.value;
+                    }
+                });
+                if (!tipo) return;
+                await this._mostrarFormulario(datos, tipo);
+            },
+
+            // ─── PASO 2: FORMULARIO DE DATOS ────────────────────────────
+            async _mostrarFormulario(datos, tipo) {
+                const numPreview = this._peekNextNumber();
+                const f = this._fmtFecha(datos.fecha);
+                const esEstructurada = tipo === 'estructurada';
+
+                // Construir filas de items editables
+                let itemsHTML = datos.items.map((it, i) => `
+                    <tr id="boleta-item-row-${i}">
+                        <td><input type="number" min="1" value="${it.cant}" id="bitem-cant-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:55px;" oninput="Boletas._recalcItem(${i})"></td>
+                        ${esEstructurada ? `<td><input type="text" value="${it.codigo || ''}" id="bitem-cod-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:80px;"></td>` : ''}
+                        <td style="min-width:130px;"><input type="text" value="${it.descripcion}" id="bitem-desc-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;"></td>
+                        <td><input type="number" step="0.01" value="${it.precioUnit.toFixed(2)}" id="bitem-pu-${i}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${i})"></td>
+                        <td id="bitem-tot-${i}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${it.total.toFixed(2)}</td>
+                        <td><button type="button" onclick="Boletas._removeItemRow(${i})" style="background:var(--danger);color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                    </tr>`).join('');
+
+                const igvPct = 0.18;
+                const subtotalOrig = datos.items.reduce((s, it) => s + it.total, 0);
+                const igvOrig = subtotalOrig * igvPct;
+
+                const { value: formData } = await Swal.fire({
+                    title: `🧾 ${esEstructurada ? 'Boleta Estructurada' : 'Boleta Simple'} — N° 001-${numPreview}`,
+                    width: '720px',
+                    html: `
+                    <div style="text-align:left;font-family:'Poppins',sans-serif;font-size:13px;color:var(--text-primary);">
+                        <div style="background:var(--bg-card);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid var(--border);">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:10px;">📋 Datos del Cliente</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div>
+                                    <label style="font-weight:600;color:var(--text-secondary);font-size:12px;">Nombre / Razón Social *</label>
+                                    <input id="bcliente-nombre" class="swal2-input" value="${datos.cliente}" placeholder="Nombre del cliente" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:var(--text-secondary);font-size:12px;">DNI / RUC</label>
+                                    <input id="bcliente-dni" class="swal2-input" value="${datos.dni || ''}" placeholder="DNI o RUC" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:var(--text-secondary);font-size:12px;">Teléfono</label>
+                                    <input id="bcliente-tel" class="swal2-input" value="${datos.telefono || ''}" placeholder="912345678" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:var(--text-secondary);font-size:12px;">Dirección</label>
+                                    <input id="bcliente-dir" class="swal2-input" value="${datos.direccion || ''}" placeholder="Dirección del cliente" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid var(--border);">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:10px;">📦 Ítems de la Boleta</div>
+                            <div style="overflow-x:auto;">
+                                <table id="boleta-items-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+                                    <thead>
+                                        <tr style="background:var(--primary);color:white;">
+                                            <th style="padding:6px 8px;">Cant.</th>
+                                            ${esEstructurada ? '<th style="padding:6px 8px;">Código</th>' : ''}
+                                            <th style="padding:6px 8px;min-width:140px;">Descripción</th>
+                                            <th style="padding:6px 8px;">P. Unit.</th>
+                                            <th style="padding:6px 8px;">Total</th>
+                                            <th style="padding:6px 8px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="boleta-items-tbody">${itemsHTML}</tbody>
+                                </table>
+                            </div>
+                            <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <input type="number" min="1" value="1" id="bnew-cant" class="swal2-input" placeholder="Cant." style="margin:0;padding:4px 6px;font-size:12px;width:60px;">
+                                ${esEstructurada ? '<input type="text" id="bnew-cod" class="swal2-input" placeholder="Código" style="margin:0;padding:4px 6px;font-size:12px;width:80px;">' : ''}
+                                <input type="text" id="bnew-desc" class="swal2-input" placeholder="Descripción" style="margin:0;padding:4px 6px;font-size:12px;flex:1;min-width:100px;">
+                                <input type="number" step="0.01" id="bnew-pu" class="swal2-input" placeholder="P. Unit." style="margin:0;padding:4px 6px;font-size:12px;width:80px;">
+                                <button type="button" onclick="Boletas._addItemRow(${esEstructurada})" style="background:var(--primary);color:white;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;">➕ Añadir</button>
+                            </div>
+                        </div>
+
+                        <div style="background:var(--bg-card);border-radius:10px;padding:14px;margin-bottom:${esEstructurada ? '14' : '0'}px;border:1px solid var(--border);">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                                ${esEstructurada ? `
+                                <div style="font-size:12px;">
+                                    <label style="font-weight:600;"><input type="checkbox" id="bincluir-igv" onchange="Boletas._recalcTotales()" checked> Incluir IGV (18%)</label>
+                                </div>
+                                <div style="text-align:right;font-size:13px;line-height:1.9;">
+                                    <div>Op. Gravadas: <strong id="b-subtotal">S/${subtotalOrig.toFixed(2)}</strong></div>
+                                    <div>IGV (18%): <strong id="b-igv">S/${igvOrig.toFixed(2)}</strong></div>
+                                    <div style="font-size:1.1em;color:var(--text-primary);">TOTAL FINAL: <strong id="b-total">S/${(subtotalOrig + igvOrig).toFixed(2)}</strong></div>
+                                </div>`
+                            : `<div style="font-size:1.1em;font-weight:700;color:var(--text-primary);width:100%;text-align:right;">
+                                    TOTAL A PAGAR: <strong id="b-total">S/${subtotalOrig.toFixed(2)}</strong>
+                                </div>`}
+                            </div>
+                        </div>
+
+                        ${esEstructurada ? `
+                        <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;border:1px solid var(--border);">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:10px;">📝 Notas y Garantía</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div>
+                                    <label style="font-weight:600;color:var(--text-secondary);font-size:12px;">Meses de Garantía</label>
+                                    <input id="bgarantia-meses" class="swal2-input" type="number" min="0" value="6" style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;color:var(--text-secondary);font-size:12px;">Notas adicionales</label>
+                                    <input id="bnotas-extra" class="swal2-input" value="${datos.notas || ''}" placeholder="Observaciones..." style="margin:4px 0 0;font-size:13px;width:100%;">
+                                </div>
+                            </div>
+                        </div>`: ''}
+                    </div>`,
+                    showCancelButton: true,
+                    confirmButtonText: '🧾 Generar PDF',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#1E3A6E',
+                    didOpen: () => {
+                        window._boletaItemsTemp = datos.items.map(it => ({ ...it }));
+                        window._boletaEsEstructurada = esEstructurada;
+                        if (esEstructurada) Boletas._recalcTotales();
+                    },
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        const nombre = document.getElementById('bcliente-nombre').value.trim();
+                        if (!nombre) { Swal.showValidationMessage('El nombre del cliente es obligatorio'); return null; }
+                        if (!window._boletaItemsTemp || !window._boletaItemsTemp.length) { Swal.showValidationMessage('Debes tener al menos un ítem'); return null; }
+                        const result = {
+                            cliente: nombre,
+                            dni: document.getElementById('bcliente-dni').value.trim(),
+                            telefono: document.getElementById('bcliente-tel').value.trim(),
+                            direccion: document.getElementById('bcliente-dir').value.trim(),
+                            items: window._boletaItemsTemp.slice(),
+                        };
+                        if (esEstructurada) {
+                            result.incluirIGV = document.getElementById('bincluir-igv').checked;
+                            result.garantiaMeses = parseInt(document.getElementById('bgarantia-meses').value) || 6;
+                            result.notasExtra = document.getElementById('bnotas-extra').value.trim();
+                        }
+                        const subtotal = result.items.reduce((s, it) => s + it.total, 0);
+                        result.subtotal = subtotal;
+                        result.igv = esEstructurada && result.incluirIGV ? subtotal * 0.18 : 0;
+                        result.total = subtotal + result.igv;
+                        return result;
+                    }
+                });
+                if (!formData) return;
+
+                // Actualizar cliente si ya existe
+                this._actualizarCliente({ ...datos, ...formData });
+
+                // Generar número de boleta real
+                const numBoleta = this._getNextNumber();
+
+                if (tipo === 'simple') {
+                    this._generarSimplePDF({ ...datos, ...formData, numBoleta });
+                } else {
+                    this._generarEstructuradaPDF({ ...datos, ...formData, numBoleta });
+                }
+            },
+
+            // ─── HELPERS PARA EL FORMULARIO DINÁMICO ────────────────────
+            _recalcItem(i) {
+                const cant = parseFloat(document.getElementById(`bitem-cant-${i}`)?.value) || 0;
+                const pu = parseFloat(document.getElementById(`bitem-pu-${i}`)?.value) || 0;
+                const tot = cant * pu;
+                const totEl = document.getElementById(`bitem-tot-${i}`);
+                if (totEl) totEl.textContent = `S/${tot.toFixed(2)}`;
+                if (window._boletaItemsTemp && window._boletaItemsTemp[i]) {
+                    window._boletaItemsTemp[i].cant = cant;
+                    window._boletaItemsTemp[i].precioUnit = pu;
+                    window._boletaItemsTemp[i].total = tot;
+                }
+                this._recalcTotales();
+            },
+            _recalcTotales() {
+                if (!window._boletaItemsTemp) return;
+                const subtotal = window._boletaItemsTemp.reduce((s, it) => s + (it.total || 0), 0);
+                const incIGV = document.getElementById('bincluir-igv')?.checked;
+                const igv = incIGV ? subtotal * 0.18 : 0;
+                const total = subtotal + igv;
+                const subEl = document.getElementById('b-subtotal');
+                if (subEl) subEl.textContent = `S/${subtotal.toFixed(2)}`;
+                const igvEl = document.getElementById('b-igv');
+                if (igvEl) igvEl.textContent = `S/${igv.toFixed(2)}`;
+                const totEl = document.getElementById('b-total');
+                if (totEl) totEl.textContent = `S/${total.toFixed(2)}`;
+            },
+            _removeItemRow(i) {
+                if (!window._boletaItemsTemp) return;
+                window._boletaItemsTemp.splice(i, 1);
+                // Re-render rows
+                const tbody = document.getElementById('boleta-items-tbody');
+                if (!tbody) return;
+                const esE = window._boletaEsEstructurada;
+                tbody.innerHTML = window._boletaItemsTemp.map((it, idx) => `
+                    <tr id="boleta-item-row-${idx}">
+                        <td><input type="number" min="1" value="${it.cant}" id="bitem-cant-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:55px;" oninput="Boletas._recalcItem(${idx})"></td>
+                        ${esE ? `<td><input type="text" value="${it.codigo || ''}" id="bitem-cod-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:80px;"></td>` : ''}
+                        <td><input type="text" value="${it.descripcion}" id="bitem-desc-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;min-width:120px;"></td>
+                        <td><input type="number" step="0.01" value="${it.precioUnit.toFixed(2)}" id="bitem-pu-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${idx})"></td>
+                        <td id="bitem-tot-${idx}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${it.total.toFixed(2)}</td>
+                        <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:var(--danger);color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                    </tr>`).join('');
+                this._recalcTotales();
+            },
+            _addItemRow(esE) {
+                const cantEl = document.getElementById('bnew-cant');
+                const descEl = document.getElementById('bnew-desc');
+                const puEl = document.getElementById('bnew-pu');
+                const codEl = document.getElementById('bnew-cod');
+                const cant = parseFloat(cantEl?.value) || 1;
+                const desc = descEl?.value.trim() || '';
+                const pu = parseFloat(puEl?.value) || 0;
+                const cod = codEl?.value.trim() || '';
+                if (!desc || pu <= 0) { alert('Ingresa descripción y precio unitario'); return; }
+                if (!window._boletaItemsTemp) window._boletaItemsTemp = [];
+                const newItem = { cant, descripcion: desc, codigo: cod, precioUnit: pu, total: cant * pu };
+                window._boletaItemsTemp.push(newItem);
+                // Re-render
+                const tbody = document.getElementById('boleta-items-tbody');
+                if (tbody) {
+                    const idx = window._boletaItemsTemp.length - 1;
+                    tbody.insertAdjacentHTML('beforeend', `
+                        <tr id="boleta-item-row-${idx}">
+                            <td><input type="number" min="1" value="${cant}" id="bitem-cant-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:55px;" oninput="Boletas._recalcItem(${idx})"></td>
+                            ${esE ? `<td><input type="text" value="${cod}" id="bitem-cod-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:80px;"></td>` : ''}
+                            <td><input type="text" value="${desc}" id="bitem-desc-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:100%;min-width:120px;"></td>
+                            <td><input type="number" step="0.01" value="${pu.toFixed(2)}" id="bitem-pu-${idx}" class="swal2-input" style="margin:0;padding:4px 6px;font-size:12px;width:75px;" oninput="Boletas._recalcItem(${idx})"></td>
+                            <td id="bitem-tot-${idx}" style="font-weight:700;padding:4px 8px;font-size:13px;">S/${(cant * pu).toFixed(2)}</td>
+                            <td><button type="button" onclick="Boletas._removeItemRow(${idx})" style="background:var(--danger);color:white;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:14px;line-height:1;">✕</button></td>
+                        </tr>`);
+                }
+                if (cantEl) cantEl.value = '1';
+                if (descEl) descEl.value = '';
+                if (puEl) puEl.value = '';
+                if (codEl) codEl.value = '';
+                this._recalcTotales();
+            },
+
+            // ─── ACTUALIZAR CLIENTE ──────────────────────────────────────
+            async _actualizarCliente(datos) {
+                if (!datos.cliente) return;
+                const nombreNorm = datos.cliente.toLowerCase();
+                const idx = Estado.clientes.findIndex(c => c.nombre.toLowerCase() === nombreNorm);
+                if (idx !== -1) {
+                    // Actualizar datos existentes
+                    if (datos.telefono) Estado.clientes[idx].telefono = datos.telefono;
+                    if (datos.direccion) Estado.clientes[idx].direccion = datos.direccion;
+                    if (datos.dni) Estado.clientes[idx].dni = datos.dni;
+                    await Storage.guardarClientes();
+                    Clientes.renderizarLista();
+                }
+            },
+            // ════════════════════════════════════════════════
+            // TICKET HELPERS  (compartidos por ambos formatos)
+            // ════════════════════════════════════════════════
+            _ticket(d, tipo) {
+                /*  Medidas ticketera 80 mm
+                    Ancho útil  ≈ 72 mm  (margen 4 mm c/lado)
+                    Fuente      : Courier  (mono)
+                    ~38 caracteres por línea a 8 pt
+                -------------------------------------------------------- */
+                const { jsPDF } = window.jspdf;
+                const W = 80;
+                const PX = 4;
+                const PXR = 76;
+                const CX = 40;
+                const FS = 8;
+                const LH = 4.4;
+                const esE = tipo === 'estructurada';
+                const garantiaMeses = d.garantiaMeses || 6;
+                const now = new Date();
+
+                // ── Pre-cálculo de altura dinámica ───────────────────────
+                let extraRows = 0;
+                d.items.forEach(it => {
+                    const chars = (it.descripcion || "").length;
+                    if (chars > 22) extraRows += Math.ceil(chars / 22) - 1;
+                    if (esE && (it.codigo || "").length > 0) extraRows += 1;
+                });
+                const baseH = esE ? 180 : 135;
+                const H = baseH + d.items.length * 14 + extraRows * LH + (d.incluirIGV ? 14 : 0) + (d.notasExtra ? 8 : 0);
+
+                const doc = new jsPDF({ format: [W, H], unit: 'mm', orientation: 'portrait' });
+                let y = 6;
+
+                // ── Utilidades de dibujo ─────────────────────────────────
+                const txtt = (s, x, yy, opts = {}) => { doc.text(String(s), x, yy, opts); };
+                const row = (s, size = FS, bold = false, align = 'left', color = [0, 0, 0]) => {
+                    doc.setFontSize(size);
+                    doc.setFont('courier', bold ? 'bold' : 'normal');
+                    doc.setTextColor(color[0], color[1], color[2]);
+                    const xPos = align === 'center' ? CX : align === 'right' ? PXR : PX;
+                    doc.text(String(s), xPos, y, { align });
+                    y += LH + (size - FS) * 0.35;
+                };
+                const gap = (mm = 1.5) => { y += mm; };
+                const sep = () => { row('.'.repeat(15), FS, false, 'center'); };
+                const dbl = () => { row('.'.repeat(15), FS, false, 'center'); };
+
+                // ══════════════════════════════════════════════════════
+                // ENCABEZADO DINÁMICO
+                // ══════════════════════════════════════════════════════
+                // Obtenemos los datos del negocio desde el estado central
+                const datosNegocioLocal = {
+                    nombre: Estado.configuracion?.nombre || 'Nombre de su Negocio',
+                    propietario: Estado.configuracion?.propietario || 'Propietario',
+                    direccion: Estado.configuracion?.direccion || 'Dirección del Local',
+                    documento: Estado.configuracion?.documento || '___________________',
+                    mensaje: Estado.configuracion?.mensaje || '¡Gracias por su preferencia!'
+                };
+
+                dbl(); gap(0.5);
+                row(datosNegocioLocal.nombre, 12, true, 'center', [30, 58, 110]);
+                gap(0.5);
+                row('BOLETA DE VENTA', 9, true, 'center');
+                gap(0.5); dbl(); gap(1);
+
+                row(`Negocio : ${datosNegocioLocal.nombre}`, FS, true);
+                row(`Propiet.: ${datosNegocioLocal.propietario}`, FS);
+                row(`Direcc. : ${datosNegocioLocal.direccion}`, FS);
+                row(`RUC/DNI : ${datosNegocioLocal.documento}`, FS);
+                gap(1); sep();
+
+                const f = this._fmtFecha(d.fecha);
+                row(`Boleta N.: 001-${d.numBoleta}`, FS, true);
+                row(`Fecha    : ${f.d}/${f.m}/${f.y}`, FS);
+                const hh = String(now.getHours()).padStart(2, '0');
+                const mm2 = String(now.getMinutes()).padStart(2, '0');
+                row(`Hora     : ${hh}:${mm2}`, FS);
+                gap(0.5); sep();
+
+                gap(0.5);
+                const cliLines = doc.splitTextToSize(`Cliente: ${d.cliente || '—'}`, W - PX * 2);
+                cliLines.forEach(l => { row(l, FS); });
+                row(`DNI/RUC: ${d.dni || '___________________'}`, FS);
+                if (d.telefono) row(`Telef. : ${d.telefono}`, FS);
+                if (d.direccion) {
+                    const dirLines = doc.splitTextToSize(`Dir.   : ${d.direccion}`, W - PX * 2);
+                    dirLines.forEach(l => { row(l, FS); });
+                }
+                gap(1);
+
+                // ── Cabecera de ítems ──────────────────────────────────
+                sep();
+                doc.setFont('courier', 'bold'); doc.setFontSize(FS); doc.setTextColor(0, 0, 0);
+                txtt('Ct', PX, y);
+                txtt('Descripcion', PX + 9, y);
+                txtt('P.Unit', PX + 47, y);
+                txtt('Total', PXR, y, { align: 'right' });
+                y += LH; sep();
+
+                // ── Ítems ──────────────────────────────────────────────
+                doc.setFont('courier', 'normal'); doc.setFontSize(FS); doc.setTextColor(0, 0, 0);
+                d.items.forEach((it) => {
+                    const descText = it.descripcion || '';
+                    const maxW = 34;
+                    const chunks = [];
+                    for (let i = 0; i < descText.length; i += maxW) chunks.push(descText.slice(i, i + maxW));
+
+                    doc.setFont('courier', 'normal');
+                    txtt(String(it.cant), PX, y);
+                    txtt(chunks[0] || '', PX + 9, y);
+                    txtt(it.precioUnit.toFixed(2), PX + 47, y);
+                    doc.setFont('courier', 'bold');
+                    txtt(`S/${it.total.toFixed(2)}`, PXR, y, { align: 'right' });
+                    doc.setFont('courier', 'normal');
+                    y += LH;
+
+                    for (let k = 1; k < chunks.length; k++) {
+                        txtt('  ' + chunks[k], PX + 9, y); y += LH;
+                    }
+                    if (esE && it.codigo) {
+                        doc.setFont('courier', 'italic'); doc.setFontSize(FS - 0.5);
+                        txtt(`  Cod: ${it.codigo}`, PX + 9, y); y += LH;
+                        doc.setFont('courier', 'normal'); doc.setFontSize(FS);
+                    }
+                });
+
+                sep(); gap(1);
+
+                // ── Totales ───────────────────────────────────────────
+                if (esE && d.incluirIGV) {
+                    doc.setFont('courier', 'normal'); doc.setFontSize(FS); doc.setTextColor(0, 0, 0);
+                    txtt('Op. Gravadas:', PX, y);
+                    txtt(`S/ ${d.subtotal.toFixed(2)}`, PXR, y, { align: 'right' });
+                    y += LH;
+                    txtt('IGV (18%):', PX, y);
+                    txtt(`S/ ${d.igv.toFixed(2)}`, PXR, y, { align: 'right' });
+                    y += LH; sep();
+                }
+
+                doc.setFont('courier', 'bold'); doc.setFontSize(FS + 1); doc.setTextColor(0, 0, 0);
+                txtt('TOTAL A PAGAR:', PX, y);
+                txtt(`S/ ${d.total.toFixed(2)}`, PXR, y, { align: 'right' });
+                y += LH + 1;
+
+                if (d.metodoPago) {
+                    doc.setFont('courier', 'normal'); doc.setFontSize(FS);
+                    txtt(`Metodo: ${d.metodoPago}`, PX, y); y += LH;
+                }
+
+                sep(); gap(1);
+
+                // ── Garantía (sólo estructurada) ─────────────────
+                if (esE) {
+                    row('GARANTIA/NOTAS:', FS, true, 'left', [30, 58, 110]);
+                    const g1 = doc.splitTextToSize(`* Componentes con ${garantiaMeses} meses de garantia por defecto de fabrica.`, W - PX * 2);
+                    g1.forEach(l => { row(l, FS - 0.5); });
+                    const g2 = doc.splitTextToSize('* Sin devolucion si sellos violados.', W - PX * 2);
+                    g2.forEach(l => { row(l, FS - 0.5); });
+                    if (d.notasExtra) {
+                        const gx = doc.splitTextToSize(`* ${d.notasExtra}`, W - PX * 2);
+                        gx.forEach(l => { row(l, FS - 0.5); });
+                    }
+                    gap(1);
+                    doc.setFont('courier', 'normal'); doc.setFontSize(FS - 1); doc.setTextColor(100, 100, 100);
+                    txtt('Firma: ________________________', PX, y); y += LH + 2;
+                    sep(); gap(1);
+                }
+
+                // ── Footer DINÁMICO ────────────────────────────────────────────
+                gap(0.5);
+                // Imprime el mensaje configurado (o el de por defecto si está vacío)
+                row(datosNegocioLocal.mensaje || '¡Gracias por su preferencia!', FS, true, 'center', [30, 58, 110]);
+                // Imprime el nombre del negocio y su dirección en la parte inferior
+                row(`${datosNegocioLocal.nombre} - ${datosNegocioLocal.direccion}`, FS - 0.5, false, 'center', [80, 80, 80]);
+                gap(1); dbl();
+                gap(5); // espacio corte
+
+                const label = esE ? 'Estructurada' : 'Simple';
+                doc.save(`Boleta_${label}_${d.numBoleta}.pdf`);
+                Toastify({ text: `✅ Boleta ${label.toLowerCase()} generada (80 mm)`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#1E3A6E,#2B56A5)' }).showToast();
+            },
+
+            // ─── PDF: BOLETA SIMPLE ──────────────────────────────────────────────
+            _generarSimplePDF(d) {
+                this._ticket(d, 'simple');
+            },
+
+            // ─── PDF: BOLETA ESTRUCTURADA ────────────────────────────────────────
+            _generarEstructuradaPDF(d) {
+                this._ticket(d, 'estructurada');
+            }
+        };
+
+
+
+        const Papelera = {
+            cargar() { return Estado.papelera || []; },
+            async guardar(data) { Estado.papelera = data; await Firebase.guardar('papelera', data); },
+            async moverA(modulo, item, descripcion) {
+                const p = this.cargar();
+                p.unshift({ idPapelera: Date.now().toString(), modulo, descripcion, fechaBorrado: new Date().toISOString(), itemData: item });
+                await this.guardar(p);
+            },
+            async recuperar(idPapelera) {
+                const p = this.cargar();
+                const idx = p.findIndex(x => x.idPapelera === idPapelera);
+                if (idx === -1) return;
+                const registro = p[idx];
+                if (Array.isArray(Estado[registro.modulo])) {
+                    Estado[registro.modulo].unshift(registro.itemData);
+                    const capitalizado = registro.modulo.charAt(0).toUpperCase() + registro.modulo.slice(1);
+                    if (typeof Storage[`guardar${capitalizado}`] === 'function') await Storage[`guardar${capitalizado}`]();
+                    else await Firebase.guardar(registro.modulo, Estado[registro.modulo]);
+                }
+                p.splice(idx, 1); await this.guardar(p);
+                this.actualizarVista();
+                Toastify({ text: '✅ Elemento recuperado', duration: 3000, backgroundColor: '#28a745' }).showToast();
+                UI.actualizarVistas();
+            },
+            async borrarDefinitivo(idPapelera) {
+                const result = await Swal.fire({ title: '¿Borrar para siempre?', text: 'Esta acción no tiene reversa.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545' });
+                if (!result.isConfirmed) return;
+                const p = this.cargar().filter(x => x.idPapelera !== idPapelera);
+                await this.guardar(p); this.actualizarVista();
+            },
+            async vaciarTodo() {
+                const result = await Swal.fire({ title: '¿Vaciar papelera?', text: 'Se perderán todos los elementos.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545' });
+                if (!result.isConfirmed) return;
+                await this.guardar([]); this.actualizarVista();
+            },
+            actualizarVista() {
+                const c = document.getElementById('tabla-papelera'); if (!c) return;
+                const p = this.cargar();
+                if (!p.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">La papelera está vacía.</p>'; return; }
+                c.innerHTML = `<table><thead><tr><th>Fecha Borrado</th><th>Módulo</th><th>Descripción del Elemento</th><th>Acciones</th></tr></thead><tbody>` +
+                    p.map(x => {
+                        const [y, m, d] = x.fechaBorrado.slice(0, 10).split('-');
+                        return `<tr><td>${d}/${m}/${y}</td><td><span class="badge badge-info">${x.modulo.toUpperCase()}</span></td>
+                            <td style="font-weight:600;">${x.descripcion}</td>
+                            <td><button class="small-btn" onclick="Papelera.recuperar('${x.idPapelera}')" style="background:var(--success);">♻️ Recuperar</button>
+                            <button class="delete-btn" onclick="Papelera.borrarDefinitivo('${x.idPapelera}')">🗑️</button></td></tr>`;
+                    }).join('') + `</tbody></table>`;
+            }
+        };
+
+        const BackupManager = {
+            verificarRespaldoDiario() {
+                if (Auth.esAdmin && localStorage.getItem('superAdmin') !== 'true') {
+                    const frec = parseInt((Estado.configuracion || {}).respaldoFrecuencia) || 1;
+                    if (frec === 0) return;
+                    const hoy = new Date().toISOString().slice(0, 10);
+                    const ultimo = localStorage.getItem('ultimoRespaldoDiario');
+                    if (!ultimo || Math.floor((new Date(hoy) - new Date(ultimo)) / (1000 * 60 * 60 * 24)) >= frec) {
+                        setTimeout(() => {
+                            Swal.fire({ title: '🛡️ Copia de Seguridad', text: 'Es momento de hacer un respaldo de seguridad de tu tienda.', icon: 'info', showCancelButton: true, confirmButtonText: '💾 Descargar', cancelButtonText: 'Saltar', confirmButtonColor: '#2B56A5' })
+                                .then(r => { localStorage.setItem('ultimoRespaldoDiario', hoy); if (r.isConfirmed) this.descargarRespaldoLocal(); });
+                        }, 3500);
+                    }
+                }
+            },
+            descargarRespaldoLocal() {
+                const nombre = (Estado.configuracion?.nombre || 'Tienda').replace(/[^a-z0-9]/gi, '_');
+                const datos = { metadata: { fecha: new Date().toISOString(), tipo: 'Local_Tenant' }, ventas: Estado.ventas, inventario: Estado.inventario, clientes: Estado.clientes, gastos: Estado.gastos, costos: Estado.costosProductos, ordenes: Estado.ordenesServicio, compras: Estado.compras, proveedores: Estado.proveedores, cotizaciones: Estado.cotizaciones, cierres: Estado.cierresCaja, devoluciones: Estado.devoluciones, configuracion: Estado.configuracion, papelera: Estado.papelera };
+                const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Respaldo_${nombre}_${new Date().toISOString().slice(0, 10)}.json`; a.click();
+            },
+            async descargarRespaldoGlobal() {
+                if (localStorage.getItem('superAdmin') !== 'true') return;
+                const btn = document.getElementById('btn-respaldo-global');
+                const ot = btn.innerHTML; btn.innerHTML = '⏳ Extrayendo...'; btn.disabled = true;
+                try {
+                    const bk = { metadata: { fecha: new Date().toISOString(), version: "1.0", sistema: "LisPro POS" }, usuarios: [], empresas: {} };
+                    const users = await db.collection('usuarios_acceso').get();
+                    users.forEach(doc => bk.usuarios.push({ id: doc.id, ...doc.data() }));
+                    const empresas = await db.collection('empresas').get();
+                    for (const doc of empresas.docs) {
+                        const tId = doc.id; bk.empresas[tId] = { info: doc.data(), colecciones: {} };
+                        for (const col of ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'configuracion', 'papelera']) {
+                            const cSnap = await db.collection('empresas').doc(tId).collection('datos').doc(col).get();
+                            if (cSnap.exists) bk.empresas[tId].colecciones[col] = cSnap.data().datos || cSnap.data().data;
+                        }
+                    }
+                    const blob = new Blob([JSON.stringify(bk, null, 2)], { type: 'application/json' });
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `LisProPOS_MasterBackup_${new Date().toISOString().slice(0, 10)}.json`; a.click();
+                    Swal.fire('✅ Respaldo Maestro Exitoso', 'Se extrajo la copia de todas las tiendas.', 'success');
+                } catch (e) { Swal.fire('Error', e.message, 'error'); } finally { btn.innerHTML = ot; btn.disabled = false; }
+            },
+            restaurarTenant(event) {
+                const file = event.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const datos = JSON.parse(e.target.result);
+                        if (datos.metadata?.tipo !== 'Local_Tenant') throw new Error('Archivo de respaldo inválido.');
+                        const r = await Swal.fire({ title: '⚠️ REEMPLAZAR DATOS', text: 'Se sobrescribirá TODA la base de la tienda actual. ¿Seguro?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545' });
+                        if (!r.isConfirmed) return;
+                        Swal.fire({ title: 'Restaurando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+                        for (const col of ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenes', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierres', 'configuracion', 'papelera']) {
+                            if (datos[col]) await Firebase.guardar(col === 'ordenes' ? 'ordenesServicio' : col === 'costos' ? 'costos' : col === 'cierres' ? 'cierresCaja' : col, datos[col]);
+                        }
+                        await Swal.fire('✅ Éxito', 'Tienda restaurada por completo.', 'success'); location.reload();
+                    } catch (err) { Swal.fire('Error', err.message, 'error'); }
+                }; reader.readAsText(file); event.target.value = '';
+            }
+        };
+
+        // Alias para retrocompatibilidad
+        const Facturas = {
+            generar(id) { Boletas.generarDesdeVenta(id); }
+        };
+        function calcularSKUDinamico() {
+            const catInput = document.getElementById('swal-prod-categoria');
+            const marInput = document.getElementById('swal-prod-marca');
+            const skuInput = document.getElementById('swal-prod-sku');
+
+            if (!catInput || !marInput || !skuInput) return;
+
+            // Tomar las 3 primeras letras o rellenar con 'X' si está vacío
+            const cat = catInput.value.trim().substring(0, 3).toUpperCase().padEnd(3, 'X');
+            const mar = marInput.value.trim().substring(0, 3).toUpperCase().padEnd(3, 'X');
+
+            // Generar un número correlativo basado en los productos que ya existen
+            const listaProductos = (typeof Estado !== 'undefined' && Estado.inventario) ? Estado.inventario : [];
+            const correlativo = String(listaProductos.length + 1).padStart(4, '0');
+
+            // Ejemplo de resultado: ROP-ZAR-0024 (Ropa - Zara - Producto 24)
+            skuInput.value = `${cat}-${mar}-${correlativo}`;
+        }
+
+        const Inventario = {
+            mostrarFormNuevoItem() { document.getElementById('form-nuevo-item').classList.remove('hidden'); },
+            cancelarNuevoItem() { document.getElementById('form-nuevo-item').classList.add('hidden'); },
+            async guardarNuevoItem() {
+                const sku = document.getElementById('nuevo-sku').value.trim().toUpperCase();
+                const nombre = document.getElementById('nuevo-nombre').value.trim();
+                const stock = parseInt(document.getElementById('nuevo-stock').value) || 0;
+                const reorder = parseInt(document.getElementById('nuevo-reorder').value) || 5;
+                const marca = document.getElementById('nuevo-marca-inv').value;
+                const precio = parseFloat(document.getElementById('nuevo-precio-inv').value) || 0;
+                const costo = parseFloat(document.getElementById('nuevo-costo-inv').value) || 0;
+                if (!sku || !nombre) { Swal.fire('Error', 'SKU y Nombre son obligatorios', 'error'); return; }
+
+                const existente = Estado.inventario.find(x => x.sku === sku);
+                if (existente) {
+                    existente.stock += stock; existente.nombre = nombre; existente.reorderThreshold = reorder;
+                    existente.precioVenta = precio; existente.costo = costo;
+                    Toastify({ text: `📦 Stock actualizado: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                } else {
+                    Estado.inventario.push({ sku, nombre, stock, reorderThreshold: reorder, precioVenta: precio, costo: costo });
+                    Toastify({ text: `✅ Producto añadido: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                }
+                await Storage.guardarInventario();
+                this.cancelarNuevoItem();
+                ['nuevo-sku', 'nuevo-nombre', 'nuevo-precio-inv', 'nuevo-costo-inv', 'nuevo-stock', 'nuevo-reorder'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                document.getElementById('nuevo-stock').value = '0';
+                document.getElementById('nuevo-reorder').value = '5';
+            },
+            actualizarTabla() {
+                const c = document.getElementById('tabla-inventario');
+                if (!c) return;
+                const inv = Estado.inventario;
+                if (!inv.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay productos en inventario. Añade productos o registra compras.</p>'; return; }
+                c.innerHTML = `<table><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Umbral</th><th>Costo</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
+                    inv.map((item, idx) => {
+                        const bajo = item.stock <= item.reorderThreshold;
+                        const cero = item.stock === 0;
+                        const estado = cero ? '<span class="badge badge-danger">Sin stock</span>' : bajo ? '<span class="badge badge-warning">Bajo</span>' : '<span class="badge badge-success">OK</span>';
+                        return `<tr style="${cero ? 'background:rgba(239,68,68,0.15);' : bajo ? 'background:rgba(255,193,7,0.15);' : ''}">
+                        <td><strong>${item.sku}</strong></td>
+                        <td>${item.nombre}</td>
+                        <td><strong>${item.stock}</strong></td>
+                        <td>${item.reorderThreshold}</td>
+                        <td>S/${(item.costo || 0).toFixed(2)}</td>
+                        <td>S/${(item.precioVenta || 0).toFixed(2)}</td>
+                        <td>${estado}</td>
+                        <td>
+                            <button class="small-btn" onclick="Inventario.ajustarStock(${idx})">✏️ Ajustar</button>
+                            <button class="delete-btn" onclick="Inventario.eliminarItem(${idx})">🗑️</button>
+                        </td>
+                    </tr>`;
+                    }).join('') + `</tbody></table>`;
+            },
+            async ajustarStock(idx) {
+                const item = Estado.inventario[idx];
+                const { value: formValues } = await Swal.fire({
+                    title: `Ajustar Stock: ${item.nombre}`,
+                    html: `<p style="color:#666;margin-bottom:15px;">Stock actual: <strong>${item.stock}</strong></p>
+                        <label>Tipo:</label><select id="swal-tipo" class="swal2-input"><option value="sumar">Sumar (+)</option><option value="restar">Restar (−)</option><option value="set">Establecer (=)</option></select>
+                        <label style="margin-top:15px;">Cantidad:</label><input id="swal-ajuste" class="swal2-input" type="number" min="0" value="1">`,
+                    focusConfirm: false, showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#4472C4',
+                    preConfirm: () => ({ tipo: document.getElementById('swal-tipo').value, cantidad: parseInt(document.getElementById('swal-ajuste').value) || 0 })
+                });
+                if (!formValues) return;
+                const { tipo, cantidad } = formValues;
+                if (tipo === 'sumar') item.stock += cantidad;
+                else if (tipo === 'restar') item.stock = Math.max(0, item.stock - cantidad);
+                else item.stock = cantidad;
+                await Storage.guardarInventario();
+                Toastify({ text: `📦 Stock actualizado: ${item.sku} → ${item.stock}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+            },
+            async eliminarItem(idx) {
+                const r = await Swal.fire({ title: '¿Eliminar del inventario?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!r.isConfirmed) return;
+                const itemABorrar = Estado.inventario[idx];
+                if (itemABorrar) await Papelera.moverA('inventario', itemABorrar, `Producto: ${itemABorrar.nombre || itemABorrar.producto}`);
+                Estado.inventario.splice(idx, 1);
+                await Storage.guardarInventario();
+            },
+            exportarInventarioJSON() {
+                const blob = new Blob([JSON.stringify(Estado.inventario, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `inventario_${new Date().toISOString().slice(0, 10)}.json`; a.click();
+            },
+            exportarInventarioExcel() {
+                const ws = XLSX.utils.json_to_sheet(Estado.inventario.map(i => ({ SKU: i.sku, Nombre: i.nombre, Stock: i.stock, Umbral: i.reorderThreshold })));
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+                XLSX.writeFile(wb, `Inventario_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            },
+            importarInventarioJSON(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const datos = JSON.parse(e.target.result);
+                        if (!Array.isArray(datos)) throw new Error('Formato inválido');
+                        const result = await Swal.fire({ title: '¿Cómo importar?', icon: 'question', showDenyButton: true, showCancelButton: true, confirmButtonText: 'Combinar', denyButtonText: 'Reemplazar', cancelButtonText: 'Cancelar', confirmButtonColor: '#28a745', denyButtonColor: '#ff9800' });
+                        if (result.isConfirmed) {
+                            datos.forEach(nuevo => { const exist = Estado.inventario.find(x => x.sku === nuevo.sku); if (exist) exist.stock += nuevo.stock; else Estado.inventario.push(nuevo); });
+                        } else if (result.isDenied) { Estado.inventario = datos; }
+                        else return;
+                        await Storage.guardarInventario();
+                        Toastify({ text: '✅ Inventario importado', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                    } catch (err) { Swal.fire('Error', 'Archivo inválido: ' + err.message, 'error'); }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            }
+        };
+
+        const Exportar = {
+            exportarExcel() {
+                const ventas = Estado.ventasFiltradas.length ? Estado.ventasFiltradas : Estado.ventas;
+                if (!ventas.length) return Swal.fire('Sin datos', 'No hay ventas para exportar', 'info');
+                const filas = ventas.map(v => ({ Fecha: v.fecha, SKU: v.sku || '-', Producto: v.producto, Categoría: v.categoria, Cantidad: v.cantidad, 'Precio Unit.': v.precio, Total: v.total, 'Monto Recibido': v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto, Vuelto: v.vuelto || 0, 'Saldo': v.saldoPendiente, 'Estado Pago': v.estadoPago, Cliente: v.cliente || '-', Método: v.metodo || '-', Vendedor: v.vendedor || '-', Notas: v.notas || '-' }));
+                const ws = XLSX.utils.json_to_sheet(filas);
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+                XLSX.writeFile(wb, `Ventas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            },
+            guardarJSON() {
+                const datos = { ventas: Estado.ventas, inventario: Estado.inventario, clientes: Estado.clientes, gastos: Estado.gastos, costosProductos: Estado.costosProductos, exportadoEn: new Date().toISOString() };
+                const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`; a.click();
+            },
+            cargarJSON(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const datos = JSON.parse(e.target.result);
+                        const result = await Swal.fire({ title: 'Cargar datos', text: '¿Cómo cargar los datos?', icon: 'question', showDenyButton: true, showCancelButton: true, confirmButtonText: 'Combinar', denyButtonText: 'Reemplazar todo', cancelButtonText: 'Cancelar', confirmButtonColor: '#4472C4', denyButtonColor: '#fd7e14' });
+                        if (result.isConfirmed) {
+                            if (datos.ventas) Estado.ventas = [...Estado.ventas, ...datos.ventas];
+                            if (datos.inventario) datos.inventario.forEach(n => { const e = Estado.inventario.find(x => x.sku === n.sku); if (e) e.stock += n.stock; else Estado.inventario.push(n); });
+                            if (datos.gastos) Estado.gastos = [...Estado.gastos, ...datos.gastos];
+                        } else if (result.isDenied) {
+                            if (datos.ventas) Estado.ventas = datos.ventas;
+                            if (datos.inventario) Estado.inventario = datos.inventario;
+                            if (datos.clientes) Estado.clientes = datos.clientes;
+                            if (datos.gastos) Estado.gastos = datos.gastos;
+                            if (datos.costosProductos) Estado.costosProductos = datos.costosProductos;
+                        } else return;
+                        await Storage.guardarVentas(); await Storage.guardarInventario(); await Storage.guardarClientes(); await Storage.guardarGastos(); await Storage.guardarCostos();
+                        UI.actualizarVistas();
+                        Swal.fire('✅ Datos cargados', 'Los datos fueron importados correctamente.', 'success');
+                    } catch (err) { Swal.fire('Error', 'Archivo inválido: ' + err.message, 'error'); }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            }
+        };
+
+        const SidebarMenu = {
+            currentTab: 'registro',
+            tabNames: { registro: 'Registro', historial: 'Historial', reportes: 'Reportes', resumen: 'Resumen', inventario: 'Inventario', clientes: 'Clientes', 'cuentas-cobrar': 'Cuentas por Cobrar', gastos: 'Gastos', rentabilidad: 'Rentabilidad', 'ordenes-servicio': 'Órdenes de Servicio', proveedores: 'Proveedores', compras: 'Compras', devoluciones: 'Devoluciones', cotizaciones: 'Cotizaciones', 'cierre-caja': 'Cierre de Caja', usuarios: 'Gestión de Usuarios', configuracion: 'Configuración', papelera: 'Papelera de Reciclaje' },
+            open() { document.getElementById('sidebar').classList.add('open'); const o = document.getElementById('menuOverlay'); if (o) o.classList.add('open'); document.body.style.overflow = 'hidden'; },
+            close() { document.getElementById('sidebar').classList.remove('open'); const o = document.getElementById('menuOverlay'); if (o) o.classList.remove('open'); document.body.style.overflow = ''; },
+            toggle() { if (document.getElementById('sidebar').classList.contains('open')) this.close(); else this.open(); },
+            selectTab(tabId) {
+                this.close();
+                UI.switchTab(tabId);
+            }
+        };
+
+        const UI = {
+            actualizarAlertasInventario() {
+                let container = document.getElementById('alertas-globales-inventario');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'alertas-globales-inventario';
+                    container.style.cssText = 'position:fixed;top:90px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
+                    document.body.appendChild(container);
+                }
+                const pendientes = (typeof Estado !== 'undefined' && Estado.inventario) ? Estado.inventario.filter(i => i.faltaInventario) : [];
+                if (!pendientes.length) {
+                    container.innerHTML = '';
+                    return;
+                }
+                container.innerHTML = pendientes.map(p => `
+                    <div style="background:rgba(255,193,7,0.15);border-left:4px solid var(--warning);padding:12px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:13px;color:#856404;display:flex;align-items:center;gap:12px;pointer-events:auto;animation:fadeIn 0.3s ease;">
+                        <div style="font-size:1.5em;">⚠️</div>
+                        <div>
+                            <strong style="display:block;margin-bottom:2px;">Falta Inventario</strong>
+                            ${p.nombre} (${p.sku})
+                        </div>
+                        <button onclick="UI.resolverFaltaInventario('${p.sku}')" style="background:#ffc107;color:#000;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;margin-left:auto;">Ingresar</button>
+                        <button onclick="UI.descartarFaltaInventario('${p.sku}')" style="background:transparent;color:#dc3545;border:1px solid #dc3545;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;margin-left:5px;" title="Descartar Producto">🗑️</button>
+                    </div>
+                `).join('');
+            },
+            async resolverFaltaInventario(sku) {
+                const item = Estado.inventario.find(i => i.sku === sku);
+                if (!item) return;
+                const { value: stock } = await Swal.fire({
+                    title: 'Ingresar Inventario',
+                    text: `¿Cuánto inventario físico queda de ${item.nombre}?`,
+                    input: 'number',
+                    inputAttributes: { min: 0, step: 1 },
+                    showCancelButton: true,
+                    confirmButtonText: '✅ Guardar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#28a745',
+                    preConfirm: (val) => {
+                        if (val === '' || val === null) { Swal.showValidationMessage('Ingresa una cantidad'); return false; }
+                        return parseInt(val);
+                    }
+                });
+                if (stock !== undefined) {
+                    item.stock = stock;
+                    item.faltaInventario = false;
+                    await Storage.guardarInventario();
+                    this.actualizarAlertasInventario();
+                    Toastify({ text: '✅ Inventario guardado', duration: 3000, backgroundColor: 'linear-gradient(135deg,#28a745,#20c997)' }).showToast();
+                    if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
+                }
+            },
+            async descartarFaltaInventario(sku) {
+                const item = Estado.inventario.find(i => i.sku === sku);
+                if (!item) return;
+                const confirm = await Swal.fire({
+                    title: '¿Descartar Producto?',
+                    text: `El producto ${item.nombre} se eliminará del inventario porque no confirmaste su stock.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Sí, descartar',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (confirm.isConfirmed) {
+                    Estado.inventario = Estado.inventario.filter(i => i.sku !== sku);
+                    await Storage.guardarInventario();
+                    this.actualizarAlertasInventario();
+                    if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
+                    Toastify({ text: '🗑️ Producto descartado', duration: 3000, style: { background: '#dc3545' } }).showToast();
+                }
+            },
+            switchTab(tabId) {
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.menu-item').forEach(b => b.classList.remove('active'));
+                const tab = document.getElementById(tabId);
+                if (tab) tab.classList.add('active');
+                const btn = document.getElementById('sidebarTab-' + tabId);
+                if (btn) btn.classList.add('active');
+                const nameEl = document.getElementById('currentTabName');
+                if (nameEl) nameEl.textContent = SidebarMenu.tabNames[tabId] || tabId;
+                SidebarMenu.currentTab = tabId;
+                if (tabId === 'historial') Filtros.aplicarFiltros();
+                if (tabId === 'resumen') Dashboard.actualizar();
+                if (tabId === 'reportes') Reportes.generarReporte();
+                if (tabId === 'clientes') Clientes.renderizarLista();
+                if (tabId === 'cuentas-cobrar') CuentasCobrar.actualizar();
+                if (tabId === 'gastos') Gastos.renderizarLista();
+                if (tabId === 'rentabilidad') Rentabilidad.actualizar();
+                if (tabId === 'inventario') Inventario.actualizarTabla();
+                if (tabId === 'ordenes-servicio') OrdenesServicio.cargarYRenderizar();
+                if (tabId === 'usuarios') GestionUsuarios.cargarTodos();
+                if (tabId === 'proveedores') { Proveedores.actualizarLista(); }
+                if (tabId === 'compras') { Compras.actualizarVista(); }
+                if (tabId === 'devoluciones') { Devoluciones.actualizarVista(); }
+                if (tabId === 'cotizaciones') { Cotizaciones.actualizarVista(); }
+                if (tabId === 'cierre-caja') { CierreCaja.actualizarVista(); }
+                if (tabId === 'configuracion') ConfiguracionNegocio.cargar();
+                if (tabId === 'papelera' && typeof Papelera !== 'undefined') Papelera.actualizarVista();
+            },
+            actualizarVistas() {
+                const inputVendedor = document.getElementById('vendedor');
+                if (inputVendedor && typeof Auth !== 'undefined' && Auth.usuarioActual) {
+                    inputVendedor.value = Auth.usuarioActual.nombre || Auth.usuarioActual.email || 'Desconocido';
+                }
+
+                if (this.actualizarAlertasInventario) this.actualizarAlertasInventario();
+                Dashboard.actualizar();
+                Filtros.aplicarFiltros();
+                CuentasCobrar.actualizar();
+                Clientes.renderizarLista();
+                Gastos.renderizarLista();
+                Rentabilidad.actualizar();
+                Reportes.generarReporte();
+                Inventario.actualizarTabla();
+                OrdenesServicio.cargarYRenderizar();
+                Devoluciones.actualizarVista();
+                Cotizaciones.actualizarVista();
+                CierreCaja.actualizarVista();
+                Compras.actualizarVista();
+                Proveedores.actualizarLista();
+            }
+        };
+
+        const Dashboard = {
+            actualizar() {
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                const totalVentas = transacciones.reduce((s, v) => s + v.total, 0);
+                const totalCobrado = transacciones.reduce((s, v) => s + (v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto), 0);
+                const pendiente = transacciones.reduce((s, v) => s + (v.saldoPendiente || 0), 0);
+                const hoy = new Date().toISOString().slice(0, 10);
+                const ventasHoy = transacciones.filter(v => v.fecha === hoy).reduce((s, v) => s + v.total, 0);
+                const cards = document.getElementById('summary-cards');
+                if (cards) cards.innerHTML = `
+                    <div class="card"><h3>💰 Total Ventas</h3><div class="value">S/${totalVentas.toFixed(2)}</div></div>
+                    <div class="card"><h3>✅ Total Cobrado</h3><div class="value" style="color:#28a745;">S/${totalCobrado.toFixed(2)}</div></div>
+                    <div class="card"><h3>⏳ Por Cobrar</h3><div class="value" style="color:#dc3545;">S/${pendiente.toFixed(2)}</div></div>
+                    <div class="card"><h3>📅 Ventas Hoy</h3><div class="value" style="color:var(--primary);">S/${ventasHoy.toFixed(2)}</div></div>`;
+                this.actualizarGraficoMetodo();
+                this.stockAlerts();
+                this.ventasPorCategoria();
+            },
+            actualizarGraficoMetodo() {
+                const canvas = document.getElementById('metodoChart');
+                if (!canvas) return;
+                const metodos = {};
+                window.obtenerDatosFiltradosGlobales().forEach(v => { const m = v.metodo || 'Sin método'; metodos[m] = (metodos[m] || 0) + v.total; });
+                if (Estado.metodoChart) Estado.metodoChart.destroy();
+                Estado.metodoChart = new Chart(canvas, {
+                    type: 'bar',
+                    data: { labels: Object.keys(metodos), datasets: [{ label: 'Total (S/)', data: Object.values(metodos), backgroundColor: ['#4472C4', '#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6f42c1', '#fd7e14'] }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            },
+            stockAlerts() {
+                const c = document.getElementById('stock-alerts');
+                if (!c) return;
+                const bajo = Estado.inventario.filter(i => i.stock <= i.reorderThreshold);
+                if (!bajo.length) { c.innerHTML = ''; return; }
+                c.innerHTML = `<div style="background:rgba(255,193,7,0.15);border:2px solid var(--warning);border-radius:10px;padding:20px;margin-bottom:20px;">
+                    <h3 style="color:#856404;margin-bottom:12px;">⚠️ Stock Bajo (${bajo.length} productos)</h3>
+                    ${bajo.map(i => `<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #ffc10755;">
+                        <span>${i.nombre} <small style="color:#999;">(${i.sku})</small></span>
+                        <span style="color:${i.stock === 0 ? '#dc3545' : '#fd7e14'};font-weight:700;">${i.stock === 0 ? 'SIN STOCK' : i.stock + ' unid.'}</span>
+                    </div>`).join('')}
+                </div>`;
+            },
+            ventasPorCategoria() {
+                const c = document.getElementById('ventas-por-categoria');
+                if (!c) return;
+                const cats = {};
+                window.obtenerDatosFiltradosGlobales().forEach(v => { const ct = v.categoria || 'Sin cat.'; cats[ct] = (cats[ct] || 0) + v.total; });
+                const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+                const total = sorted.reduce((s, [, v]) => s + v, 0);
+                c.innerHTML = `<div style="background:var(--bg-surface);border-radius:10px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                    <h3 style="margin-bottom:15px;color:var(--text-primary);">📊 Ventas por Categoría</h3>
+                    ${sorted.map(([cat, val]) => {
+                    const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+                    return `<div style="margin-bottom:12px;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>${cat}</span><span style="font-weight:600;">S/${val.toFixed(2)} (${pct}%)</span></div>
+                            <div class="progress-bar-container"><div class="progress-bar-fill" style="width:${pct}%;">${pct}%</div></div>
+                        </div>`;
+                }).join('')}
+                </div>`;
+            }
+        };
+
+        const Filtros = {
+            aplicarFiltros() {
+                let ventas = window.obtenerDatosFiltradosGlobales();
+                const busq = (document.getElementById('busqueda') || {}).value?.toLowerCase() || '';
+                const desde = (document.getElementById('filtro-fecha-desde') || {}).value || '';
+                const hasta = (document.getElementById('filtro-fecha-hasta') || {}).value || '';
+                const cat = (document.getElementById('filtro-categoria') || {}).value || '';
+                const metodo = (document.getElementById('filtro-metodo') || {}).value || '';
+                const estado = (document.getElementById('filtro-estado') || {}).value || '';
+                if (busq) ventas = ventas.filter(v => (v.producto || '').toLowerCase().includes(busq) || (v.cliente || '').toLowerCase().includes(busq) || (v.sku || '').toLowerCase().includes(busq));
+                if (desde) ventas = ventas.filter(v => v.fecha >= desde);
+                if (hasta) ventas = ventas.filter(v => v.fecha <= hasta);
+                if (cat) ventas = ventas.filter(v => v.categoria === cat);
+                if (metodo) ventas = ventas.filter(v => (v.metodo || '').includes(metodo));
+                if (estado) ventas = ventas.filter(v => v.estadoPago === estado);
+                Estado.ventasFiltradas = ventas;
+                const contador = document.getElementById('contador-resultados');
+                if (contador) contador.textContent = `${ventas.length} resultado(s)`;
+                this.renderizarTabla(ventas);
+            },
+            limpiarFiltros() {
+                ['busqueda', 'filtro-fecha-desde', 'filtro-fecha-hasta', 'filtro-categoria', 'filtro-metodo', 'filtro-estado'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                this.aplicarFiltros();
+            },
+            renderizarTabla(ventas) {
+                const c = document.getElementById('tabla-ventas');
+                if (!c) return;
+                if (!ventas.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No hay ventas que coincidan.</p>'; return; }
+                // Destruir DataTable existente antes de re-renderizar
+                if (typeof $ !== 'undefined' && $.fn.DataTable && $.fn.DataTable.isDataTable('#miTablaVentas')) {
+                    $('#miTablaVentas').DataTable().destroy();
+                }
+                const mostrarDetalles = window._mostrarDetallesVenta;
+                c.innerHTML = `<table id="miTablaVentas"><thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Cant.</th><th>Precio</th><th>Total</th>${mostrarDetalles ? '<th>Monto Recibido</th><th>Vuelto</th>' : ''}<th>Cliente</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
+                    ventas.map(v => {
+                        const [y, m, d] = v.fecha.split('-');
+                        const metodoCombinado = Ventas.calcularMetodoCombinado(v.historialPagos || [{ monto: v.adelanto, metodo: v.metodo || '-' }]);
+                        const montoRecibido = v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto;
+                        const vuelto = v.vuelto || 0;
+                        return `<tr>
+                        <td>${d}/${m}/${y}</td><td style="font-size:0.8em;color:#666;">${v.sku || '-'}</td><td>${v.producto}</td><td>${v.categoria || '-'}</td>
+                        <td>${v.cantidad}</td><td>S/${v.precio.toFixed(2)}</td><td><strong>S/${v.total.toFixed(2)}</strong></td>
+                        ${mostrarDetalles ? `<td>S/${montoRecibido.toFixed(2)}</td><td>S/${vuelto.toFixed(2)}</td>` : ''}
+                        <td>${v.cliente || '-'}</td><td>${metodoCombinado}</td>
+                        <td>${v.estadoPago === 'Pagado' ? '<span class="estado-pagado">✅ Pagado</span>' : '<span class="estado-pendiente">⏳ Pendiente</span>'}</td>
+                        <td style="white-space:nowrap;">
+                            ${v.estadoPago === 'Pendiente' ? `<button class="btn-pago" onclick="Ventas.actualizarPago(${v.id})">💰 Pago</button>` : ''}
+                            <button class="small-btn" onclick="Boletas.generarDesdeVenta(${v.id})" style="background:linear-gradient(135deg,#1E3A6E,#2B56A5);" title="Generar Boleta">🧾 Boleta</button>
+                            <button class="delete-btn" onclick="Ventas.eliminar(${v.id})">🗑️</button>
+                        </td>
+                    </tr>`;
+                    }).join('') + `</tbody></table>`;
+                // ── Activar DataTables en la tabla recién renderizada ──
+                if (typeof $ !== 'undefined' && $.fn.DataTable) {
+                    setTimeout(() => {
+                        $('#miTablaVentas').DataTable({
+                            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                            pageLength: 10,
+                            order: [],
+                            columnDefs: [{ orderable: false, targets: -1 }]
+                        });
+                    }, 50);
+                }
+            }
+        };
+
+        const CuentasCobrar = {
+            ordenActual: 'monto',
+            actualizar() {
+                const pendientes = Estado.ventas.filter(v => v.estadoPago === 'Pendiente' && v.saldoPendiente > 0);
+                const totalPendiente = pendientes.reduce((s, v) => s + v.saldoPendiente, 0);
+                const cards = document.getElementById('cuentas-por-cobrar-cards');
+                if (cards) cards.innerHTML = `
+                    <div class="card" style="border-left:4px solid #dc3545;"><h3>📊 Cuentas Pendientes</h3><div class="value">${pendientes.length}</div></div>
+                    <div class="card" style="border-left:4px solid var(--warning);"><h3>💰 Total por Cobrar</h3><div class="value" style="color:#dc3545;">S/${totalPendiente.toFixed(2)}</div></div>
+                    <div class="card" style="border-left:4px solid #28a745;"><h3>✅ Cuentas Pagadas</h3><div class="value" style="color:#28a745;">${Estado.ventas.filter(v => v.estadoPago === 'Pagado').length}</div></div>`;
+                this.renderizarTabla();
+            },
+            ordenarPor(campo) { this.ordenActual = campo; this.renderizarTabla(); },
+            renderizarTabla() {
+                const c = document.getElementById('tabla-cuentas-cobrar');
+                if (!c) return;
+                let pendientes = Estado.ventas.filter(v => v.estadoPago === 'Pendiente' && v.saldoPendiente > 0);
+                if (this.ordenActual === 'monto') pendientes.sort((a, b) => b.saldoPendiente - a.saldoPendiente);
+                else if (this.ordenActual === 'fecha') pendientes.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+                else if (this.ordenActual === 'cliente') pendientes.sort((a, b) => (a.cliente || '').localeCompare(b.cliente || ''));
+                else if (this.ordenActual === 'dias') pendientes.sort((a, b) => { const da = Math.floor((Date.now() - new Date(a.fecha)) / (1000 * 60 * 60 * 24)); const db = Math.floor((Date.now() - new Date(b.fecha)) / (1000 * 60 * 60 * 24)); return db - da; });
+                if (!pendientes.length) { c.innerHTML = '<div style="text-align:center;padding:40px;color:#28a745;"><div style="font-size:3em;">✅</div><h3>¡No hay cuentas pendientes!</h3></div>'; return; }
+                c.innerHTML = pendientes.map(v => {
+                    const dias = Math.floor((Date.now() - new Date(v.fecha)) / (1000 * 60 * 60 * 24));
+                    const [y, m, d] = v.fecha.split('-');
+                    const diasClass = dias > 30 ? 'dias-alto' : dias > 7 ? 'dias-medio' : 'dias-nuevo';
+                    return `<div class="cliente-card">
+                        <div class="cliente-header">
+                            <div class="cliente-nombre">${v.producto}</div>
+                            <div style="display:flex;gap:10px;align-items:center;">
+                                <span class="dias-pendiente ${diasClass}">${dias} días</span>
+                                <span style="font-size:1.4em;font-weight:700;color:#dc3545;">S/${v.saldoPendiente.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <div class="cliente-info">
+                            <div class="cliente-info-item"><strong>👤 Cliente:</strong> ${v.cliente || 'Anónimo'}</div>
+                            <div class="cliente-info-item"><strong>📅 Fecha:</strong> ${d}/${m}/${y}</div>
+                            <div class="cliente-info-item"><strong>💰 Total:</strong> S/${v.total.toFixed(2)}</div>
+                            <div class="cliente-info-item"><strong>✅ Pagado:</strong> S/${v.adelanto.toFixed(2)}</div>
+                        </div>
+                        <div style="margin-top:10px;">
+                            <button onclick="Ventas.actualizarPago(${v.id})" class="btn-pago" style="padding:10px 20px;border-radius:8px;">💰 Registrar Pago</button>
+                            <button onclick="Facturas.generar(${v.id})" class="small-btn" style="margin-left:10px;">📄 PDF</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        };
+
+        const Clientes = {
+            actualizar() { this.renderizarLista(); },
+            mostrarFormNuevoCliente() { document.getElementById('form-nuevo-cliente').classList.remove('hidden'); },
+            cancelarNuevoCliente() { document.getElementById('form-nuevo-cliente').classList.add('hidden'); },
+            async guardarNuevoCliente() {
+                const nombre = document.getElementById('nuevo-cliente-nombre').value.trim();
+                if (!nombre) { Swal.fire('Error', 'El nombre es obligatorio', 'error'); return; }
+                if (Estado.clientes.find(c => c.nombre.toLowerCase() === nombre.toLowerCase())) { Swal.fire('Ya existe', 'Este cliente ya está registrado.', 'warning'); return; }
+                Estado.clientes.push({ id: Date.now(), nombre, telefono: document.getElementById('nuevo-cliente-telefono').value.trim(), email: document.getElementById('nuevo-cliente-email').value.trim(), direccion: document.getElementById('nuevo-cliente-direccion').value.trim(), notas: document.getElementById('nuevo-cliente-notas').value.trim(), fechaRegistro: new Date().toISOString() });
+                await Storage.guardarClientes();
+                this.cancelarNuevoCliente();
+                this.renderizarLista();
+                ['nuevo-cliente-nombre', 'nuevo-cliente-telefono', 'nuevo-cliente-email', 'nuevo-cliente-direccion', 'nuevo-cliente-notas'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                Toastify({ text: '✅ Cliente guardado', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+            },
+            buscarClientes() {
+                const busq = document.getElementById('busqueda-clientes').value.toLowerCase();
+                this.renderizarLista(busq);
+            },
+            renderizarLista(filtro = '') {
+                const c = document.getElementById('lista-clientes');
+                if (!c) return;
+                let clientes = Estado.clientes;
+                if (filtro) clientes = clientes.filter(cl => cl.nombre.toLowerCase().includes(filtro) || (cl.telefono || '').includes(filtro) || (cl.email || '').toLowerCase().includes(filtro));
+                if (!clientes.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay clientes registrados.</p>'; return; }
+                c.innerHTML = clientes.map(cl => {
+                    const transacciones = window.obtenerDatosFiltradosGlobales();
+                    const ventasCl = transacciones.filter(v => v.cliente && v.cliente.toLowerCase() === cl.nombre.toLowerCase());
+                    const totalComprado = ventasCl.reduce((s, v) => s + v.total, 0);
+                    // Las órdenes de servicio no manejan saldoPendiente de la misma forma, así que comprobaremos si existe o usaremos 0
+                    const pendiente = ventasCl.reduce((s, v) => s + (v.saldoPendiente || 0), 0);
+                    return `<div class="cliente-card">
+                        <div class="cliente-header">
+                            <div class="cliente-nombre">👤 ${cl.nombre}</div>
+                            <div class="cliente-actions">
+                                <button class="delete-btn" onclick="Clientes.eliminar(${cl.id})">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="cliente-info">
+                            ${cl.telefono ? `<div class="cliente-info-item"><strong>📞</strong> ${cl.telefono}</div>` : ''}
+                            ${cl.email ? `<div class="cliente-info-item"><strong>📧</strong> ${cl.email}</div>` : ''}
+                            ${cl.direccion ? `<div class="cliente-info-item"><strong>📍</strong> ${cl.direccion}</div>` : ''}
+                        </div>
+                        <div class="cliente-stats">
+                            <div class="cliente-stat"><div class="cliente-stat-label">Compras</div><div class="cliente-stat-value">${ventasCl.length}</div></div>
+                            <div class="cliente-stat"><div class="cliente-stat-label">Total Comprado</div><div class="cliente-stat-value" style="font-size:1.2em;">S/${totalComprado.toFixed(2)}</div></div>
+                            ${pendiente > 0 ? `<div class="cliente-stat"><div class="cliente-stat-label">Pendiente</div><div class="cliente-stat-value pendiente" style="font-size:1.2em;">S/${pendiente.toFixed(2)}</div></div>` : ''}
+                        </div>
+                        ${cl.notas ? `<div style="margin-top:8px;padding:8px;background:var(--bg-surface-hover);border-radius:6px;font-size:0.9em;">📝 ${cl.notas}</div>` : ''}
+                    </div>`;
+                }).join('');
+            },
+            async eliminar(id) {
+                const r = await Swal.fire({ title: '¿Eliminar cliente?', text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!r.isConfirmed) return;
+                const itemABorrar = Estado.clientes.find(c => c.id === id);
+                if (itemABorrar) await Papelera.moverA('clientes', itemABorrar, `Cliente: ${itemABorrar.nombre}`);
+                Estado.clientes = Estado.clientes.filter(c => c.id !== id);
+                await Storage.guardarClientes();
+                this.renderizarLista();
+            },
+            exportarClientes() {
+                if (!Estado.clientes.length) return Swal.fire('Sin datos', 'No hay clientes', 'info');
+                const ws = XLSX.utils.json_to_sheet(Estado.clientes.map(c => ({ Nombre: c.nombre, Teléfono: c.telefono || '-', Email: c.email || '-', Dirección: c.direccion || '-', Notas: c.notas || '-' })));
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+                XLSX.writeFile(wb, `Clientes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            }
+        };
+
+        const Gastos = {
+            mostrarFormNuevoGasto() { document.getElementById('form-nuevo-gasto').classList.remove('hidden'); document.getElementById('nuevo-gasto-fecha').valueAsDate = new Date(); },
+            cancelarNuevoGasto() { document.getElementById('form-nuevo-gasto').classList.add('hidden'); },
+            async guardarNuevoGasto() {
+                const fecha = document.getElementById('nuevo-gasto-fecha').value;
+                const categoria = document.getElementById('nuevo-gasto-categoria').value;
+                const descripcion = document.getElementById('nuevo-gasto-descripcion').value.trim();
+                const monto = parseFloat(document.getElementById('nuevo-gasto-monto').value) || 0;
+                if (!fecha || !categoria || !descripcion || monto <= 0) { Swal.fire('Error', 'Completa todos los campos obligatorios', 'error'); return; }
+                Estado.gastos.push({ id: Date.now(), fecha, categoria, descripcion, monto, proveedor: document.getElementById('nuevo-gasto-proveedor').value.trim(), comprobante: document.getElementById('nuevo-gasto-comprobante').value.trim(), recurrente: document.getElementById('nuevo-gasto-recurrente').checked, notas: document.getElementById('nuevo-gasto-notas').value.trim(), createdAt: new Date().toISOString() });
+                await Storage.guardarGastos();
+                this.cancelarNuevoGasto();
+                this.renderizarLista();
+                Toastify({ text: '✅ Gasto registrado', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+            },
+            renderizarLista() {
+                const resumen = document.getElementById('resumen-gastos');
+                const lista = document.getElementById('lista-gastos');
+                if (!lista) return;
+                const gastos = Estado.gastos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+                const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
+                const mesActual = new Date().getMonth();
+                const gastosMes = gastos.filter(g => new Date(g.fecha).getMonth() === mesActual);
+                const totalMes = gastosMes.reduce((s, g) => s + g.monto, 0);
+                const totalVentas = Estado.ventas.reduce((s, v) => s + v.total, 0);
+                if (resumen) resumen.innerHTML = `
+                    <div class="card" style="border-left:4px solid #dc3545;"><h3>💸 Total Gastos</h3><div class="value" style="color:#dc3545;">S/${totalGastos.toFixed(2)}</div></div>
+                    <div class="card" style="border-left:4px solid #fd7e14;"><h3>📅 Gastos del Mes</h3><div class="value" style="color:#fd7e14;">S/${totalMes.toFixed(2)}</div></div>
+                    <div class="card" style="border-left:4px solid #28a745;"><h3>📊 Utilidad Neta</h3><div class="value" style="color:${totalVentas - totalGastos >= 0 ? '#28a745' : '#dc3545'};">S/${(totalVentas - totalGastos).toFixed(2)}</div></div>`;
+                if (!gastos.length) { lista.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay gastos registrados.</p>'; return; }
+                lista.innerHTML = gastos.map(g => {
+                    const [y, m, d] = g.fecha.split('-');
+                    const catClass = g.categoria.toLowerCase().replace(/\s+/g, '-');
+                    return `<div class="gasto-item">
+                        <div>
+                            <span class="gasto-categoria ${catClass}">${g.categoria}</span>
+                            <div style="font-weight:600;margin-top:6px;">${g.descripcion}</div>
+                            <div style="font-size:0.85em;color:#666;margin-top:3px;">📅 ${d}/${m}/${y}${g.proveedor ? ` · ${g.proveedor}` : ''}${g.comprobante ? ` · ${g.comprobante}` : ''}${g.recurrente ? ' 🔁' : ''}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:1.3em;font-weight:700;color:#dc3545;">S/${g.monto.toFixed(2)}</span>
+                            <button class="delete-btn" onclick="Gastos.eliminar(${g.id})">🗑️</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+            async eliminar(id) {
+                const r = await Swal.fire({ title: '¿Eliminar gasto?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!r.isConfirmed) return;
+                const itemABorrar = Estado.gastos.find(g => g.id === id);
+                if (itemABorrar) await Papelera.moverA('gastos', itemABorrar, `Gasto: ${itemABorrar.descripcion} (S/ ${itemABorrar.monto})`);
+                Estado.gastos = Estado.gastos.filter(g => g.id !== id);
+                await Storage.guardarGastos();
+                this.renderizarLista();
+            },
+            exportarGastos() {
+                if (!Estado.gastos.length) return Swal.fire('Sin datos', 'No hay gastos', 'info');
+                const ws = XLSX.utils.json_to_sheet(Estado.gastos.map(g => ({ Fecha: g.fecha, Categoría: g.categoria, Descripción: g.descripcion, Monto: g.monto, Proveedor: g.proveedor || '-', Comprobante: g.comprobante || '-', Recurrente: g.recurrente ? 'Sí' : 'No' })));
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Gastos');
+                XLSX.writeFile(wb, `Gastos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            }
+        };
+
+        const Rentabilidad = {
+            actualizar() {
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                const gastos = Estado.gastos;
+                const costos = Estado.costosProductos;
+                const ingresos = transacciones.reduce((s, v) => s + v.total, 0);
+                const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
+                const compras = Estado.compras || [];
+                const totalCompras = compras.reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
+                const costoVentas = transacciones.reduce((s, v) => { 
+                    if (v.isOrden) return s + (v.costoReal || 0);
+                    if (v.costoReal !== undefined) return s + v.costoReal;
+                    const invItem = Estado.inventario.find(i => i.sku === v.sku || i.nombre === v.producto);
+                    if (invItem && invItem.costo) return s + (invItem.costo * (v.cantidad || 1));
+                    const c = costos[v.sku || v.producto]; 
+                    return s + (c ? c.costo * v.cantidad : 0); 
+                }, 0);
+                const totalEgresosReales = totalGastos + costoVentas + totalCompras;
+                const utilidadBruta = ingresos - costoVentas;
+                const utilidadNeta = ingresos - totalGastos - costoVentas;
+                const margenBruto = ingresos > 0 ? (utilidadBruta / ingresos * 100) : 0;
+                const margenNeto = ingresos > 0 ? (utilidadNeta / ingresos * 100) : 0;
+                const metricas = document.getElementById('metricas-rentabilidad');
+                if (metricas) metricas.innerHTML = `
+                    <div class="rentabilidad-card"><div class="rentabilidad-label">💰 Ingresos Totales</div><div class="rentabilidad-valor">S/${ingresos.toFixed(2)}</div></div>
+                    <div class="rentabilidad-card" style="border-left-color:#dc3545;"><div class="rentabilidad-label">💸 Costo de Ventas</div><div class="rentabilidad-valor negativo">S/${costoVentas.toFixed(2)}</div></div>
+                    <div class="rentabilidad-card" style="border-left-color:#28a745;"><div class="rentabilidad-label">📊 Utilidad Bruta</div><div class="rentabilidad-valor ${utilidadBruta >= 0 ? 'positivo' : 'negativo'}">S/${utilidadBruta.toFixed(2)}</div></div>
+                    <div class="rentabilidad-card" style="border-left-color:#fd7e14;"><div class="rentabilidad-label">💸 Total Gastos</div><div class="rentabilidad-valor negativo">S/${totalGastos.toFixed(2)}</div></div>
+                    <div class="rentabilidad-card" style="border-left-color:#17a2b8;"><div class="rentabilidad-label">🎯 Utilidad Neta</div><div class="rentabilidad-valor ${utilidadNeta >= 0 ? 'positivo' : 'negativo'}">S/${utilidadNeta.toFixed(2)}</div></div>
+                    <div class="rentabilidad-card" style="border-left-color:#6f42c1;"><div class="rentabilidad-label">📈 Margen Neto</div><div class="rentabilidad-valor ${margenNeto >= 0 ? 'positivo' : 'negativo'}">${margenNeto.toFixed(1)}%</div></div>`;
+                
+                const flujo = document.getElementById('flujo-salidas');
+                if (flujo) {
+                    flujo.innerHTML = `
+                        <div class="card" style="border-left:4px solid #17a2b8; flex:1; min-width:200px; padding:15px; border-radius:10px; background:var(--bg-surface);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#17a2b8;">📦 Compras de Inventario</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:var(--text-primary);">S/${totalCompras.toFixed(2)}</div>
+                        </div>
+                        <div class="card" style="border-left:4px solid #dc3545; flex:1; min-width:200px; padding:15px; border-radius:10px; background:var(--bg-surface);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#dc3545;">💸 Costo de Ventas/Servicios</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:var(--text-primary);">S/${costoVentas.toFixed(2)}</div>
+                        </div>
+                        <div class="card" style="border-left:4px solid #fd7e14; flex:1; min-width:200px; padding:15px; border-radius:10px; background:var(--bg-surface);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#fd7e14;">📉 Gastos Operativos</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:var(--text-primary);">S/${totalGastos.toFixed(2)}</div>
+                        </div>
+                        <div class="card" style="border-left:4px solid #6f42c1; flex:1; min-width:200px; padding:15px; border-radius:10px; background:rgba(111, 66, 193, 0.05);">
+                            <h3 style="font-size:14px; margin-bottom:10px; color:#6f42c1;">💰 TOTAL EGRESOS (SALIDAS)</h3>
+                            <div style="font-size:1.5em; font-weight:800; color:#6f42c1;">S/${totalEgresosReales.toFixed(2)}</div>
+                        </div>
+                    `;
+                }
+
+
+                this.renderizarProductosRentables();
+                this.calcularPuntoEquilibrio(totalGastos, margenBruto);
+            },
+
+            renderizarProductosRentables() {
+                const c = document.getElementById('productos-rentables'); if (!c) return;
+                const productos = {};
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                transacciones.forEach(v => { 
+                    const key = v.sku || v.producto; 
+                    if (!productos[key]) productos[key] = { nombre: v.producto, totalVentas: 0, cantidad: 0, costo: 0 }; 
+                    productos[key].totalVentas += v.total; 
+                    productos[key].cantidad += v.cantidad; 
+                    if (v.isOrden) {
+                        productos[key].costo += (v.costoReal || 0);
+                    } else {
+                        const cost = Estado.costosProductos[key]; 
+                        if (cost) productos[key].costo += cost.costo * v.cantidad; 
+                    }
+                });
+                const sorted = Object.values(productos).map(p => ({ ...p, ganancia: p.totalVentas - p.costo })).sort((a, b) => b.ganancia - a.ganancia).slice(0, 10);
+                if (!sorted.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">Registra ventas para ver los productos más rentables.</p>'; return; }
+                c.innerHTML = sorted.map((p, i) => `<div class="producto-rentable"><div><div style="font-weight:700;">${i + 1}. ${p.nombre}</div><div style="font-size:0.85em;color:#666;">Cant: ${p.cantidad} · Ventas: S/${p.totalVentas.toFixed(2)}</div></div><div class="ganancia">S/${p.ganancia.toFixed(2)}</div></div>`).join('');
+            },
+            calcularPuntoEquilibrio(totalGastos, margenBrutoPct) {
+                const c = document.getElementById('punto-equilibrio'); if (!c) return;
+                if (margenBrutoPct <= 0 || totalGastos <= 0) { c.innerHTML = '<p style="color:#666;padding:20px;">Configura costos y registra gastos para calcular el punto de equilibrio.</p>'; return; }
+                const puntoEq = totalGastos / (margenBrutoPct / 100);
+                const totalVentas = Estado.ventas.reduce((s, v) => s + v.total, 0);
+                const pct = Math.min(totalVentas / puntoEq * 100, 100);
+                c.innerHTML = `<div class="grafico-container"><div style="margin-bottom:20px;"><strong>Punto de Equilibrio:</strong> S/${puntoEq.toFixed(2)}</div>
+                    <div style="font-size:0.9em;color:#666;margin-bottom:15px;">Ventas actuales: S/${totalVentas.toFixed(2)} de S/${puntoEq.toFixed(2)} necesarios</div>
+                    <div class="progress-bar-container"><div class="progress-bar-fill ${pct >= 100 ? '' : 'warning'}" style="width:${pct}%;">${pct.toFixed(1)}%</div></div>
+                    ${totalVentas >= puntoEq ? '<p style="color:#28a745;margin-top:12px;font-weight:700;">✅ ¡Has superado el punto de equilibrio!</p>' : `<p style="color:#dc3545;margin-top:12px;">Faltan S/${(puntoEq - totalVentas).toFixed(2)} para superar el punto de equilibrio.</p>`}
+                </div>`;
+            }
+        };
+
+        const Reportes = {
+            actualizar() { this.generarReporte(); },
+            periodoActual: 'hoy',
+            seleccionarPreset(preset, e) {
+                this.periodoActual = preset;
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                if (e) e.target.classList.add('active');
+                document.getElementById('fechas-personalizadas').classList.toggle('hidden', preset !== 'personalizado');
+                if (preset !== 'personalizado') this.generarReporte();
+            },
+            getFechas() {
+                const hoy = new Date().toISOString().slice(0, 10);
+                if (this.periodoActual === 'hoy') return { desde: hoy, hasta: hoy };
+                if (this.periodoActual === 'semana') { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return { desde: d.toISOString().slice(0, 10), hasta: hoy }; }
+                if (this.periodoActual === 'mes') { const d = new Date(); return { desde: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`, hasta: hoy }; }
+                if (this.periodoActual === 'ultimo-mes') { const d = new Date(); d.setMonth(d.getMonth() - 1); const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dias = new Date(y, d.getMonth() + 1, 0).getDate(); return { desde: `${y}-${m}-01`, hasta: `${y}-${m}-${String(dias).padStart(2, '0')}` }; }
+                return { desde: (document.getElementById('reporte-fecha-desde') || {}).value || '2020-01-01', hasta: (document.getElementById('reporte-fecha-hasta') || {}).value || hoy };
+            },
+            generarReporte() {
+                const { desde, hasta } = this.getFechas();
+                const transacciones = window.obtenerDatosFiltradosGlobales();
+                const ventasPeriodo = transacciones.filter(v => v.fecha >= desde && v.fecha <= hasta);
+                const totalPeriodo = ventasPeriodo.reduce((s, v) => s + v.total, 0);
+                const cobradoPeriodo = ventasPeriodo.reduce((s, v) => s + v.adelanto, 0);
+                const ticketProm = ventasPeriodo.length ? totalPeriodo / ventasPeriodo.length : 0;
+                const metricas = document.getElementById('metricas-reporte');
+                if (metricas) metricas.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-top:20px;">
+                    <div class="card"><h3>💰 Total</h3><div class="value">S/${totalPeriodo.toFixed(2)}</div></div>
+                    <div class="card"><h3>✅ Cobrado</h3><div class="value" style="color:#28a745;">S/${cobradoPeriodo.toFixed(2)}</div></div>
+                    <div class="card"><h3>🛒 Transacciones</h3><div class="value">${ventasPeriodo.length}</div></div>
+                    <div class="card"><h3>📊 Ticket Promedio</h3><div class="value" style="font-size:1.5em;">S/${ticketProm.toFixed(2)}</div></div>
+                </div>`;
+                this.actualizarGraficos(ventasPeriodo, desde, hasta);
+            },
+            actualizarGraficos(ventas, desde, hasta) {
+                const COLORS = ['#4472C4', '#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c', '#adb5bd'];
+                const destroyAndCreate = (id, type, data, opts) => { const canvas = document.getElementById(id); if (!canvas) return; const chart = Chart.getChart(canvas); if (chart) chart.destroy(); new Chart(canvas, { type, data, options: { responsive: true, maintainAspectRatio: false, ...opts } }); };
+                // Gráfico de línea: ventas por fecha
+                const ventasPorFecha = {}; ventas.forEach(v => { ventasPorFecha[v.fecha] = (ventasPorFecha[v.fecha] || 0) + v.total; });
+                const fechas = Object.keys(ventasPorFecha).sort();
+                destroyAndCreate('grafico-linea', 'line', { labels: fechas.map(f => { const [y, m, d] = f.split('-'); return `${d}/${m}`; }), datasets: [{ label: 'Ventas (S/)', data: fechas.map(f => ventasPorFecha[f]), borderColor: '#4472C4', backgroundColor: 'rgba(68,114,196,0.1)', fill: true, tension: 0.3 }] }, { plugins: { legend: { display: false } } });
+                // Pastel: categorías
+                const cats = {}; ventas.forEach(v => { cats[v.categoria || 'Otros'] = (cats[v.categoria || 'Otros'] || 0) + v.total; });
+                destroyAndCreate('grafico-pastel', 'pie', { labels: Object.keys(cats), datasets: [{ data: Object.values(cats), backgroundColor: COLORS }] }, {});
+                // Barras: top productos
+                const prods = {}; ventas.forEach(v => { prods[v.producto] = (prods[v.producto] || 0) + v.total; });
+                const sortedProds = Object.entries(prods).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                destroyAndCreate('grafico-barras', 'bar', { labels: sortedProds.map(([n]) => n.slice(0, 20)), datasets: [{ label: 'Total (S/)', data: sortedProds.map(([, v]) => v), backgroundColor: COLORS }] }, { indexAxis: 'y', plugins: { legend: { display: false } } });
+                // Dona: métodos de pago
+                const mets = {}; ventas.forEach(v => { mets[v.metodo || 'Sin método'] = (mets[v.metodo || 'Sin método'] || 0) + v.total; });
+                destroyAndCreate('grafico-dona', 'doughnut', { labels: Object.keys(mets), datasets: [{ data: Object.values(mets), backgroundColor: COLORS }] }, {});
+                // Área: acumulado
+                let acum = 0; const acumData = fechas.map(f => { acum += ventasPorFecha[f]; return acum; });
+                destroyAndCreate('grafico-area', 'line', { labels: fechas.map(f => { const [y, m, d] = f.split('-'); return `${d}/${m}`; }), datasets: [{ label: 'Acumulado (S/)', data: acumData, borderColor: '#28a745', backgroundColor: 'rgba(40,167,69,0.15)', fill: true, tension: 0.3 }] }, { plugins: { legend: { display: false } } });
+            },
+            exportarPDF() {
+                const { desde, hasta } = this.getFechas(); const transacciones = window.obtenerDatosFiltradosGlobales(); const ventas = transacciones.filter(v => v.fecha >= desde && v.fecha <= hasta);
+                const { jsPDF } = window.jspdf; const doc = new jsPDF();
+                doc.setFillColor(68, 114, 196); doc.rect(0, 0, 210, 35, 'F');
+                doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+                doc.text('REPORTE DE VENTAS', 105, 20, { align: 'center' });
+                doc.setFontSize(10); doc.text(`Período: ${desde.split('-').reverse().join('/')} al ${hasta.split('-').reverse().join('/')}`, 105, 29, { align: 'center' });
+                doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+                const total = ventas.reduce((s, v) => s + v.total, 0);
+                let y = 50;[['Total Ventas', `S/${total.toFixed(2)}`], ['N° Transacciones', ventas.length], ['Ticket Promedio', `S/${ventas.length ? total / ventas.length : 0}.toFixed(2)}`]].forEach(([l, v]) => { doc.text(`${l}: ${v}`, 14, y); y += 8; });
+                doc.save(`Reporte_${desde}_${hasta}.pdf`);
+            },
+            exportarExcel() {
+                const { desde, hasta } = this.getFechas(); const ventas = Estado.ventas.filter(v => v.fecha >= desde && v.fecha <= hasta);
+                const ws = XLSX.utils.json_to_sheet(ventas.map(v => ({ Fecha: v.fecha, Producto: v.producto, Cantidad: v.cantidad, Precio: v.precio, Total: v.total, Cliente: v.cliente || '-', Método: v.metodo || '-', Estado: v.estadoPago })));
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+                XLSX.writeFile(wb, `Reporte_${desde}_${hasta}.xlsx`);
+            }
+        };
+
+        const OrdenesServicio = {
+            fotosTemp: [],
+            repuestosTemp: [],
+            lightboxIndex: 0,
+            lightboxFotos: [],
+            cargarYRenderizar() {
+                this.actualizarCards();
+                this.aplicarFiltros();
+            },
+            cargar() { return Estado.ordenesServicio || []; },
+            async guardar(data) { Estado.ordenesServicio = data; await Firebase.guardar('ordenesServicio', data); },
+            rellenarDatosCliente() {
+                const nombre = document.getElementById('os-cliente').value;
+                if (!nombre || !Estado.clientes) return;
+                const cliente = Estado.clientes.find(c => c.nombre.toLowerCase() === nombre.toLowerCase());
+                if (cliente) {
+                    if (cliente.dni && !document.getElementById('os-dni').value) document.getElementById('os-dni').value = cliente.dni;
+                    if (cliente.telefono && !document.getElementById('os-telefono').value) document.getElementById('os-telefono').value = cliente.telefono;
+                }
+            },
+            rellenarPrecioRepuesto() {
+                const nombre = document.getElementById('os-repuesto-input').value;
+                if (!nombre || !Estado.inventario) return;
+                const producto = Estado.inventario.find(p => p.nombre.toLowerCase() === nombre.toLowerCase());
+                if (producto) {
+                    document.getElementById('os-repuesto-precio').value = producto.precioVenta.toFixed(2);
+                }
+            },
+            agregarRepuesto() {
+                const nombre = document.getElementById('os-repuesto-input').value.trim();
+                const precio = parseFloat(document.getElementById('os-repuesto-precio').value);
+                if (!nombre || isNaN(precio) || precio < 0) {
+                    Toastify({ text: '⚠️ Ingrese un repuesto válido y su precio.', duration: 2500, backgroundColor: '#fd7e14' }).showToast();
+                    return;
+                }
+                const producto = Estado.inventario ? Estado.inventario.find(p => p.nombre.toLowerCase() === nombre.toLowerCase()) : null;
+                const idProducto = producto ? producto.id : null;
+                
+                this.repuestosTemp.push({ idProducto, nombre, precio });
+                document.getElementById('os-repuesto-input').value = '';
+                document.getElementById('os-repuesto-precio').value = '';
+                this.renderRepuestos();
+            },
+            eliminarRepuesto(index) {
+                this.repuestosTemp.splice(index, 1);
+                this.renderRepuestos();
+            },
+            renderRepuestos() {
+                const list = document.getElementById('os-repuestos-list');
+                if (!list) return;
+                list.innerHTML = this.repuestosTemp.map((r, i) => `
+                    <div style="display:flex;justify-content:space-between;background:var(--bg-card);padding:8px;border-radius:6px;border:1px solid var(--border);">
+                        <span>${r.nombre}</span>
+                        <span>
+                            S/ ${r.precio.toFixed(2)}
+                            <button type="button" onclick="OrdenesServicio.eliminarRepuesto(${i})" style="margin-left:8px;background:var(--danger);color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">✖</button>
+                        </span>
+                    </div>
+                `).join('');
+                const total = this.repuestosTemp.reduce((sum, r) => sum + r.precio, 0);
+                document.getElementById('os-repuestos-total').textContent = total.toFixed(2);
+                this.calcularSaldo();
+            },
+            mostrarFormNuevaOrden() {
+                document.getElementById('form-nueva-orden').classList.remove('hidden');
+                document.getElementById('os-form-titulo').textContent = '📋 Nueva Orden de Servicio';
+                document.getElementById('os-editando-id').value = '';
+                
+                // Limpiar campos
+                ['os-dni', 'os-cliente', 'os-telefono', 'os-tipo-equipo', 'os-marca', 'os-modelo', 'os-serie', 'os-accesorios', 'os-problema', 'os-diagnostico', 'os-costo', 'os-adelanto', 'os-metodo-pago', 'os-fecha-entrega', 'os-notas'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.value = '';
+                });
+                document.getElementById('os-estado').value = 'Pendiente';
+                document.getElementById('os-fecha').valueAsDate = new Date();
+                
+                document.getElementById('os-tecnico').value = (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : 'Administrador';
+                
+                // Cargar clientes para autocompletado
+                const dl = document.getElementById('dl-clientes-os');
+                if (dl && typeof Estado !== 'undefined' && Estado.clientes) {
+                    dl.innerHTML = Estado.clientes.map(c => `<option value="${c.nombre}">${c.dni ? 'DNI: '+c.dni : ''}</option>`).join('');
+                }
+
+                // Cargar repuestos para autocompletado
+                const dlRepuestos = document.getElementById('dl-repuestos-os');
+                if (dlRepuestos && typeof Estado !== 'undefined' && Estado.inventario) {
+                    dlRepuestos.innerHTML = Estado.inventario.filter(i => i.stock > 0).map(i => `<option value="${i.nombre}">Stock: ${i.stock} - S/${i.precioVenta.toFixed(2)}</option>`).join('');
+                }
+                this.repuestosTemp = [];
+                this.renderRepuestos();
+
+                if(typeof MarcasCustom !== 'undefined') MarcasCustom.cargarEnSelect();
+                const ordenes = this.cargar();
+                const siguiente = ordenes.length > 0 ? Math.max(...ordenes.map(o => parseInt((o.numero || 'OS-0').split('-')[1]) || 0)) + 1 : 1;
+                document.getElementById('os-numero').value = `OS-${String(siguiente).padStart(4, '0')}`;
+                this.fotosTemp = [];
+                this.renderFotosPreview();
+                document.getElementById('form-nueva-orden').scrollIntoView({ behavior: 'smooth' });
+            },
+            cancelarFormulario() { document.getElementById('form-nueva-orden').classList.add('hidden'); this.fotosTemp = []; this.repuestosTemp = []; },
+            calcularSaldo() {
+                const costoTotal = parseFloat(document.getElementById('os-costo').value) || 0;
+                const adelanto = parseFloat(document.getElementById('os-adelanto').value) || 0;
+                const saldo = costoTotal - adelanto;
+                const disp = document.getElementById('os-saldo-display');
+                if (saldo > 0) { disp.style.display = 'block'; document.getElementById('os-saldo-valor').textContent = `S/${saldo.toFixed(2)}`; }
+                else disp.style.display = 'none';
+            },
+            manejarDrop(event) {
+                event.preventDefault();
+                event.currentTarget.style.background = '#f8f9fa';
+                this.procesarArchivos(event.dataTransfer.files);
+            },
+            agregarFotos(event) { this.procesarArchivos(event.target.files); event.target.value = ''; },
+            procesarArchivos(files) {
+                if (this.fotosTemp.length >= 5) { Toastify({ text: '⚠️ Máximo 5 fotos', duration: 2500, gravity: 'top', position: 'right', backgroundColor: '#fd7e14' }).showToast(); return; }
+                Array.from(files).slice(0, 5 - this.fotosTemp.length).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = e => { this.fotosTemp.push({ dataURL: e.target.result, nombre: file.name }); this.renderFotosPreview(); };
+                    reader.readAsDataURL(file);
+                });
+            },
+            renderFotosPreview() {
+                const c = document.getElementById('os-fotos-preview'); if (!c) return;
+                c.innerHTML = this.fotosTemp.map((f, i) => `<div class="os-foto-thumb"><img src="${f.dataURL}" alt="foto"><button class="os-foto-del" onclick="OrdenesServicio.eliminarFotoTemp(${i})">✕</button></div>`).join('');
+            },
+            eliminarFotoTemp(idx) { this.fotosTemp.splice(idx, 1); this.renderFotosPreview(); },
+            async guardarOrden() {
+                const cliente = document.getElementById('os-cliente').value.trim();
+                const tipoEquipo = document.getElementById('os-tipo-equipo').value;
+                const problema = document.getElementById('os-problema').value.trim();
+                const fecha = document.getElementById('os-fecha').value;
+                if (!cliente || !tipoEquipo || !problema || !fecha) { Swal.fire('Error', 'Completa los campos obligatorios (*)', 'error'); return; }
+                const editandoId = document.getElementById('os-editando-id').value;
+                const ordenes = this.cargar();
+
+                // Registro o actualización silenciosa de cliente
+                if (cliente) {
+                    const clienteExistente = Estado.clientes.find(c => c.nombre.toLowerCase() === cliente.toLowerCase());
+                    if (!clienteExistente) {
+                        const dniActual = document.getElementById('os-dni') ? document.getElementById('os-dni').value.trim() : '';
+                        const telActual = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
+                        const { value: formData, isConfirmed } = await Swal.fire({
+                            title: 'Registrar Cliente Nuevo',
+                            html: `
+                                <div style="text-align:left;font-size:14px;">
+                                    <p style="margin-bottom:10px;">Agregar a <strong>${cliente}</strong> a la base de datos:</p>
+                                    <input id="swal-dni" class="swal2-input" placeholder="DNI / RUC (Opcional)" value="${dniActual}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                    <input id="swal-tel" class="swal2-input" placeholder="Teléfono (Opcional)" value="${telActual}" style="width:100%; max-width:100%; margin: 5px 0;">
+                                </div>
+                            `,
+                            showCancelButton: true,
+                            confirmButtonText: 'Guardar y Continuar',
+                            cancelButtonText: 'Solo continuar sin guardar',
+                            confirmButtonColor: '#2B56A5',
+                            preConfirm: () => {
+                                return {
+                                    dni: document.getElementById('swal-dni').value.trim(),
+                                    telefono: document.getElementById('swal-tel').value.trim()
+                                }
+                            }
+                        });
+                        
+                        if (isConfirmed) {
+                            const nuevoCliente = {
+                                id: Date.now().toString(),
+                                nombre: cliente,
+                                dni: formData.dni,
+                                telefono: formData.telefono,
+                                direccion: '',
+                                correo: '',
+                                fechaRegistro: new Date().toISOString()
+                            };
+                            if(!Estado.clientes) Estado.clientes = [];
+                            Estado.clientes.push(nuevoCliente);
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
+                    } else {
+                        const dniIngresado = document.getElementById('os-dni') ? document.getElementById('os-dni').value.trim() : '';
+                        const telIngresado = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
+                        let modificado = false;
+                        if (dniIngresado && !clienteExistente.dni) { clienteExistente.dni = dniIngresado; modificado = true; }
+                        if (telIngresado && !clienteExistente.telefono) { clienteExistente.telefono = telIngresado; modificado = true; }
+                        if (modificado) {
+                            await Storage.guardarClientes();
+                            if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
+                        }
+                    }
+                }
+
+                // Descontar inventario de repuestos si es nueva orden (para que no descuente doble al editar)
+                if (!editandoId && this.repuestosTemp.length > 0) {
+                    this.repuestosTemp.forEach(rep => {
+                        if (rep.idProducto && Estado.inventario) {
+                            const invItem = Estado.inventario.find(i => i.id === rep.idProducto);
+                            if (invItem && invItem.stock > 0) {
+                                invItem.stock -= 1;
+                            }
+                        }
+                    });
+                    await Firebase.guardar('inventario', Estado.inventario);
+                    if (typeof UI !== 'undefined' && UI.renderInventario) UI.renderInventario();
+                }
+
+                let numFinal = document.getElementById('os-numero').value.trim();
+                if (!numFinal) {
+                    const siguiente = ordenes.length > 0 ? Math.max(...ordenes.map(o => parseInt((o.numero || 'OS-0').split('-')[1]) || 0)) + 1 : 1;
+                    numFinal = `OS-${String(siguiente).padStart(4, '0')}`;
+                }
+
+                const orden = {
+                    id: editandoId || Date.now().toString(),
+                    numero: numFinal,
+                    fecha, cliente,
+                    telefono: document.getElementById('os-telefono').value.trim(),
+                    tipoEquipo, marca: document.getElementById('os-marca').value.trim(),
+                    modelo: document.getElementById('os-modelo').value.trim(),
+                    serie: document.getElementById('os-serie').value.trim(),
+                    accesorios: document.getElementById('os-accesorios').value.trim(),
+                    problema, diagnostico: document.getElementById('os-diagnostico').value.trim(),
+                    tecnico: document.getElementById('os-tecnico').value.trim(),
+                    estado: document.getElementById('os-estado').value,
+                    costo: parseFloat(document.getElementById('os-costo').value) || 0,
+                    repuestos: this.repuestosTemp.slice(),
+                    adelanto: parseFloat(document.getElementById('os-adelanto').value) || 0,
+                    saldo: 0, metodo: document.getElementById('os-metodo-pago').value,
+                    fechaEntregaEstimada: document.getElementById('os-fecha-entrega').value,
+                    notas: document.getElementById('os-notas').value.trim(),
+                    fotos: this.fotosTemp.map(f => f.dataURL),
+                    createdAt: editandoId ? (ordenes.find(o => o.id === editandoId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                orden.saldo = orden.costo - orden.adelanto;
+                
+                if (editandoId) { const idx = ordenes.findIndex(o => o.id === editandoId); if (idx !== -1) ordenes[idx] = orden; else ordenes.unshift(orden); }
+                else ordenes.unshift(orden);
+                await this.guardar(ordenes);
+                this.cancelarFormulario();
+                this.cargarYRenderizar();
+                
+                Swal.fire({
+                    title: editandoId ? '✅ Orden actualizada' : '✅ Orden creada',
+                    text: '¿Deseas imprimir el Ticket de Recepción?',
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: '🖨️ Generar Ticket',
+                    cancelButtonText: 'No, gracias',
+                    confirmButtonColor: '#1E3A6E'
+                }).then(result => {
+                    if (result.isConfirmed && typeof Boletas !== 'undefined') {
+                        Boletas.generarTicketRecepcion(orden.id);
+                    }
+                });
+            },
+            actualizarCards() {
+                const ordenes = this.cargar();
+                const pendientes = ordenes.filter(o => o.estado === 'Pendiente').length;
+                const listos = ordenes.filter(o => o.estado === 'Listo').length;
+                const enProceso = ordenes.filter(o => ['En diagnóstico', 'En reparación', 'Esperando repuesto'].includes(o.estado)).length;
+                const porCobrar = ordenes.filter(o => o.saldo > 0).reduce((s, o) => s + o.saldo, 0);
+                const c = document.getElementById('os-cards'); if (!c) return;
+                c.innerHTML = `
+                    <div class="card" style="border-left:4px solid var(--warning);"><h3>⏳ Pendientes</h3><div class="value" style="color:#856404;">${pendientes}</div></div>
+                    <div class="card" style="border-left:4px solid #4472C4;"><h3>🔧 En Proceso</h3><div class="value" style="color:var(--primary);">${enProceso}</div></div>
+                    <div class="card" style="border-left:4px solid #28a745;"><h3>✅ Listos para Entrega</h3><div class="value" style="color:#28a745;">${listos}</div></div>
+                    <div class="card" style="border-left:4px solid #dc3545;"><h3>💰 Por Cobrar</h3><div class="value" style="color:#dc3545;">S/${porCobrar.toFixed(2)}</div></div>`;
+            },
+            limpiarFiltros() {
+                ['os-busqueda', 'os-filtro-estado', 'os-filtro-tipo', 'os-filtro-desde', 'os-filtro-hasta'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                this.aplicarFiltros();
+            },
+            aplicarFiltros() {
+                let ordenes = this.cargar();
+                const busq = (document.getElementById('os-busqueda') || {}).value?.toLowerCase() || '';
+                const est = (document.getElementById('os-filtro-estado') || {}).value || '';
+                const tipo = (document.getElementById('os-filtro-tipo') || {}).value || '';
+                const desde = (document.getElementById('os-filtro-desde') || {}).value || '';
+                const hasta = (document.getElementById('os-filtro-hasta') || {}).value || '';
+                if (busq) ordenes = ordenes.filter(o => (o.cliente || '').toLowerCase().includes(busq) || (o.modelo || '').toLowerCase().includes(busq) || (o.marca || '').toLowerCase().includes(busq) || (o.tecnico || '').toLowerCase().includes(busq) || (o.numero || '').toLowerCase().includes(busq));
+                if (est) ordenes = ordenes.filter(o => o.estado === est);
+                if (tipo) ordenes = ordenes.filter(o => o.tipoEquipo === tipo);
+                if (desde) ordenes = ordenes.filter(o => o.fecha >= desde);
+                if (hasta) ordenes = ordenes.filter(o => o.fecha <= hasta);
+                const contador = document.getElementById('os-contador'); if (contador) contador.textContent = `${ordenes.length} orden(es)`;
+                this.renderizarOrdenes(ordenes);
+            },
+            renderizarOrdenes(ordenes) {
+                const c = document.getElementById('os-tabla-ordenes'); if (!c) return;
+                if (!ordenes.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No hay órdenes de servicio.</p>'; return; }
+                const estadoColors = { 'Pendiente': '#ffc107', 'En diagnóstico': '#17a2b8', 'En reparación': '#4472C4', 'Esperando repuesto': '#fd7e14', 'Listo': '#28a745', 'Entregado': '#20c997', 'Cancelado': '#6c757d' };
+                c.innerHTML = ordenes.map(o => {
+                    const [y, m, d] = o.fecha.split('-');
+                    const color = estadoColors[o.estado] || '#6c757d';
+                    const fotosHtml = o.fotos && o.fotos.length ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">${o.fotos.map((f, i) => `<div class="os-foto-thumb" onclick="OrdenesServicio.abrirLightbox(${JSON.stringify(o.fotos)},${i})"><img src="${f}" alt="foto"></div>`).join('')}</div>` : '';
+                    return `<div class="os-orden-card estado-${o.estado.replace(/\s+/g, '-')}">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                            <div>
+                                <span style="font-weight:700;color:var(--primary);font-size:0.95em;">${o.numero || '-'}</span>
+                                <span class="os-estado" style="margin-left:8px;background:${color}22;color:${color};">${o.estado}</span>
+                                ${o.saldo > 0 ? `<span style="margin-left:8px;background:rgba(239,68,68,0.15);color:#721c24;padding:3px 8px;border-radius:10px;font-size:0.8em;font-weight:700;">⚠️ S/${o.saldo.toFixed(2)} pendiente</span>` : ''}
+                            </div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <button class="small-btn gray" onclick="OrdenesServicio.editarOrden('${o.id}')">✏️ Editar</button>
+                                <button class="small-btn" onclick="OrdenesServicio.generarPDFOrden('${o.id}')" style="background:var(--danger);">📄 PDF</button>
+                                <button class="small-btn" onclick="Boletas.generarDesdeOrden('${o.id}')" style="background:linear-gradient(135deg,#1E3A6E,#2B56A5);">🧾 Boleta</button>
+                                <button class="delete-btn" onclick="OrdenesServicio.eliminarOrden('${o.id}')">🗑️</button>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:0.88em;color:#555;margin-bottom:8px;">
+                            <div>👤 <strong>${o.cliente}</strong>${o.telefono ? ` · 📞 ${o.telefono}` : ''}</div>
+                            <div>💻 ${o.tipoEquipo}${o.marca ? ` ${o.marca}` : ''}${o.modelo ? ` — ${o.modelo}` : ''}</div>
+                            <div>📅 ${d}/${m}/${y}${o.tecnico ? ` · 🔧 ${o.tecnico}` : ''}</div>
+                            <div>💰 S/${o.costo.toFixed(2)} ${o.adelanto > 0 ? `· Adelanto: S/${o.adelanto.toFixed(2)}` : ''}</div>
+                        </div>
+                        <div style="background:var(--bg-surface-hover);padding:10px;border-radius:6px;font-size:0.88em;margin-bottom:6px;"><strong>Problema:</strong> ${o.problema}</div>
+                        ${o.diagnostico ? `<div style="background:rgba(16,185,129,0.1);padding:8px;border-radius:6px;font-size:0.85em;"><strong>Diagnóstico:</strong> ${o.diagnostico}</div>` : ''}
+                        ${fotosHtml}
+                        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                            ${['Pendiente', 'En diagnóstico', 'En reparación', 'Esperando repuesto', 'Listo', 'Entregado'].map(est =>
+                        est !== o.estado ? `<button class="small-btn" style="background:${estadoColors[est] || '#6c757d'};font-size:11px;padding:4px 10px;" onclick="OrdenesServicio.cambiarEstado('${o.id}','${est}')">${est}</button>` : ''
+                    ).join('')}
+                        </div>
+                    </div>`;
+                }).join('');
+            },
+            async cambiarEstado(id, nuevoEstado) {
+                const ordenes = this.cargar();
+                const idx = ordenes.findIndex(o => o.id === id);
+                if (idx === -1) return;
+                ordenes[idx].estado = nuevoEstado;
+                ordenes[idx].updatedAt = new Date().toISOString();
+                await this.guardar(ordenes);
+                this.cargarYRenderizar();
+                Toastify({ text: `📋 Estado → ${nuevoEstado}`, duration: 2500, gravity: 'top', position: 'right', backgroundColor: `linear-gradient(to right,${nuevoEstado === 'Listo' ? '#28a745,#20c997' : '#4472C4,#2c5aa0'})` }).showToast();
+            },
+            editarOrden(id) {
+                const orden = this.cargar().find(o => String(o.id) === String(id)); if (!orden) return;
+                this.mostrarFormNuevaOrden();
+                document.getElementById('os-editando-id').value = id;
+                document.getElementById('os-form-titulo').textContent = '✏️ Editar Orden';
+                document.getElementById('os-numero').value = orden.numero || '';
+                document.getElementById('os-fecha').value = orden.fecha;
+                document.getElementById('os-cliente').value = orden.cliente;
+                document.getElementById('os-telefono').value = orden.telefono || '';
+                document.getElementById('os-tipo-equipo').value = orden.tipoEquipo;
+                document.getElementById('os-marca').value = orden.marca || '';
+                document.getElementById('os-modelo').value = orden.modelo || '';
+                document.getElementById('os-serie').value = orden.serie || '';
+                document.getElementById('os-accesorios').value = orden.accesorios || '';
+                document.getElementById('os-problema').value = orden.problema;
+                document.getElementById('os-diagnostico').value = orden.diagnostico || '';
+                document.getElementById('os-tecnico').value = orden.tecnico || '';
+                document.getElementById('os-estado').value = orden.estado;
+                document.getElementById('os-costo').value = orden.costo || '';
+                document.getElementById('os-adelanto').value = orden.adelanto || '';
+                document.getElementById('os-metodo-pago').value = orden.metodo || '';
+                document.getElementById('os-fecha-entrega').value = orden.fechaEntregaEstimada || '';
+                document.getElementById('os-notas').value = orden.notas || '';
+                this.repuestosTemp = orden.repuestos ? [...orden.repuestos] : [];
+                this.renderRepuestos();
+                this.fotosTemp = (orden.fotos || []).map((url, i) => ({ dataURL: url, nombre: `foto_${i + 1}` }));
+                this.renderFotosPreview();
+                this.calcularSaldo();
+            },
+            async eliminarOrden(id) {
+                const r = await Swal.fire({ title: '¿Eliminar orden?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!r.isConfirmed) return;
+                const itemABorrar = this.cargar().find(x => x.id === id);
+                if (itemABorrar) await Papelera.moverA('ordenesServicio', itemABorrar, `Orden: ${itemABorrar.cliente} - ${itemABorrar.tipoEquipo}`);
+                await this.guardar(this.cargar().filter(o => o.id !== id));
+                this.cargarYRenderizar();
+                Toastify({ text: '🗑️ Orden eliminada', duration: 2500, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+            },
+            abrirLightbox(fotos, idx) {
+                this.lightboxFotos = fotos; this.lightboxIndex = idx;
+                document.getElementById('os-lightbox').classList.add('open');
+                this._setLightboxImg();
+            },
+            cerrarLightbox() { document.getElementById('os-lightbox').classList.remove('open'); },
+            navLightbox(dir) { this.lightboxIndex = (this.lightboxIndex + dir + this.lightboxFotos.length) % this.lightboxFotos.length; this._setLightboxImg(); },
+            _setLightboxImg() { document.getElementById('os-lightbox-img').src = this.lightboxFotos[this.lightboxIndex]; document.getElementById('os-lightbox-counter').textContent = `${this.lightboxIndex + 1} / ${this.lightboxFotos.length}`; },
+            generarPDFOrden(id) {
+                const orden = this.cargar().find(o => o.id === id); if (!orden) return;
+                const { jsPDF } = window.jspdf; const doc = new jsPDF();
+                doc.setFillColor(68, 114, 196); doc.rect(0, 0, 210, 40, 'F');
+                doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+                doc.text('ORDEN DE SERVICIO TÉCNICO', 105, 20, { align: 'center' });
+                doc.setFontSize(11); doc.text(orden.numero || '', 105, 30, { align: 'center' });
+                doc.setTextColor(0, 0, 0); doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+                const [y, m, d] = orden.fecha.split('-');
+                let yd = 50;
+                [['Cliente', orden.cliente], ['Teléfono', orden.telefono || '-'], ['Fecha', `${d}/${m}/${y}`], ['Equipo', `${orden.tipoEquipo} ${orden.marca || ''} ${orden.modelo || ''}`], ['N° Serie', orden.serie || '-'], ['Estado', orden.estado], ['Técnico', orden.tecnico || '-']].forEach(([l, v]) => { doc.setFont('helvetica', 'bold'); doc.text(`${l}:`, 14, yd); doc.setFont('helvetica', 'normal'); doc.text(v, 55, yd); yd += 7; });
+                yd += 5; doc.setFont('helvetica', 'bold'); doc.text('Problema Reportado:', 14, yd); yd += 7; doc.setFont('helvetica', 'normal'); const lines = doc.splitTextToSize(orden.problema, 182); doc.text(lines, 14, yd); yd += lines.length * 5 + 5;
+                if (orden.diagnostico) { doc.setFont('helvetica', 'bold'); doc.text('Diagnóstico:', 14, yd); yd += 7; doc.setFont('helvetica', 'normal'); const dl = doc.splitTextToSize(orden.diagnostico, 182); doc.text(dl, 14, yd); yd += dl.length * 5 + 5; }
+                yd += 5; doc.setFillColor(240, 244, 255); doc.rect(14, yd - 5, 182, 25, 'F');
+                doc.setFont('helvetica', 'bold'); doc.text(`Costo: S/${orden.costo.toFixed(2)}`, 16, yd + 3); doc.text(`Adelanto: S/${orden.adelanto.toFixed(2)}`, 80, yd + 3); doc.text(`Saldo: S/${(orden.costo - orden.adelanto).toFixed(2)}`, 150, yd + 3);
+                doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.text('Firma del cliente: _______________________________', 14, yd + 20);
+                doc.save(`OrdenServicio_${orden.numero || orden.id}.pdf`);
+            },
+            exportarExcel() {
+                const ordenes = this.cargar(); if (!ordenes.length) { Swal.fire('Sin datos', 'No hay órdenes', 'info'); return; }
+                const ws = XLSX.utils.json_to_sheet(ordenes.map(o => ({ Número: o.numero, Fecha: o.fecha, Cliente: o.cliente, Teléfono: o.telefono || '-', Equipo: o.tipoEquipo, Marca: o.marca || '-', Modelo: o.modelo || '-', Serie: o.serie || '-', Problema: o.problema, Estado: o.estado, Técnico: o.tecnico || '-', Costo: o.costo, Adelanto: o.adelanto, Saldo: o.saldo })));
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Órdenes');
+                XLSX.writeFile(wb, `OrdenesServicio_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            },
+            exportarPDF() {
+                const ordenes = this.cargar(); if (!ordenes.length) { Swal.fire('Sin datos', 'No hay órdenes', 'info'); return; }
+                const { jsPDF } = window.jspdf; const doc = new jsPDF();
+                doc.setFillColor(68, 114, 196); doc.rect(0, 0, 210, 35, 'F');
+                doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+                doc.text('LISTADO DE ÓRDENES DE SERVICIO', 105, 22, { align: 'center' });
+                let y = 45; doc.setTextColor(0, 0, 0); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+                ordenes.forEach((o, i) => {
+                    if (y > 270) { doc.addPage(); y = 20; }
+                    const [yr, mo, da] = (o.fecha || '---').split('-');
+                    doc.text(`${i + 1}. ${o.numero || '-'} | ${da || '-'}/${mo || '-'}/${yr || '-'} | ${o.cliente} | ${o.tipoEquipo} ${o.marca || ''} | ${o.estado} | S/${o.costo.toFixed(2)}`, 14, y);
+                    y += 7;
+                });
+                doc.save(`OrdenesServicio_${new Date().toISOString().slice(0, 10)}.pdf`);
+            }
+        };
+
+        // ========================================
+        // MÓDULO: PROVEEDORES
+        // ========================================
+        const Proveedores = {
+            mostrarForm() {
+                document.getElementById('form-nuevo-proveedor').classList.remove('hidden');
+            },
+            cancelarForm() {
+                document.getElementById('form-nuevo-proveedor').classList.add('hidden');
+                this.limpiarForm();
+            },
+            limpiarForm() {
+                ['prov-nombre', 'prov-ruc', 'prov-telefono', 'prov-email', 'prov-direccion', 'prov-notas', 'prov-editando-id'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+            },
+            cargar() {
+                return Estado.proveedores || [];
+            },
+            async guardar(data) {
+                Estado.proveedores = data; await Firebase.guardar('proveedores', data);
+            },
+            async guardarProveedor() {
+                const nombre = document.getElementById('prov-nombre').value.trim();
+                const ruc = document.getElementById('prov-ruc').value.trim();
+                if (!nombre) { Swal.fire('Error', 'El nombre es obligatorio', 'error'); return; }
+                const editandoId = document.getElementById('prov-editando-id').value;
+                const proveedores = this.cargar();
+                const proveedor = {
+                    id: editandoId || Date.now().toString(),
+                    nombre,
+                    ruc,
+                    telefono: document.getElementById('prov-telefono').value.trim(),
+                    email: document.getElementById('prov-email').value.trim(),
+                    direccion: document.getElementById('prov-direccion').value.trim(),
+                    notas: document.getElementById('prov-notas').value.trim(),
+                    fechaRegistro: editandoId ? (proveedores.find(p => p.id === editandoId) || {}).fechaRegistro : new Date().toISOString()
+                };
+                if (editandoId) {
+                    const idx = proveedores.findIndex(p => p.id === editandoId);
+                    if (idx !== -1) proveedores[idx] = proveedor;
+                } else {
+                    proveedores.push(proveedor);
+                }
+                await this.guardar(proveedores);
+                this.cancelarForm();
+                this.actualizarLista();
+                Toastify({ text: editandoId ? '✅ Proveedor actualizado' : '✅ Proveedor registrado', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+            },
+            editarProveedor(id) {
+                const prov = this.cargar().find(p => p.id === id);
+                if (!prov) return;
+                this.mostrarForm();
+                document.getElementById('prov-nombre').value = prov.nombre;
+                document.getElementById('prov-ruc').value = prov.ruc || '';
+                document.getElementById('prov-telefono').value = prov.telefono || '';
+                document.getElementById('prov-email').value = prov.email || '';
+                document.getElementById('prov-direccion').value = prov.direccion || '';
+                document.getElementById('prov-notas').value = prov.notas || '';
+                document.getElementById('prov-editando-id').value = id;
+                document.getElementById('form-nuevo-proveedor').scrollIntoView({ behavior: 'smooth' });
+            },
+            async eliminarProveedor(id) {
+                const result = await Swal.fire({ title: '¿Eliminar proveedor?', text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                const proveedores = this.cargar().filter(p => p.id !== id);
+                await this.guardar(proveedores);
+                this.actualizarLista();
+                Toastify({ text: '🗑️ Proveedor eliminado', duration: 2500, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+            },
+            actualizarLista(busqueda = '') {
+                const container = document.getElementById('lista-proveedores');
+                let proveedores = this.cargar();
+                if (busqueda) proveedores = proveedores.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || (p.ruc || '').includes(busqueda));
+                if (!proveedores.length) {
+                    container.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No hay proveedores registrados</p>';
+                    return;
+                }
+                const compras = Compras.cargar();
+                container.innerHTML = proveedores.map(p => {
+                    const comprasProveedor = compras.filter(c => c.proveedorId === p.id);
+                    const totalComprado = comprasProveedor.reduce((s, c) => s + c.total, 0);
+                    return `<div class="cliente-card">
+                <div class="cliente-header">
+                    <div class="cliente-nombre">🏭 ${p.nombre}</div>
+                    <div class="cliente-actions">
+                        <button class="small-btn" onclick="Compras.nuevaCompraParaProveedor('${p.id}')">🛒 Nueva Compra</button>
+                        <button class="small-btn gray" onclick="Proveedores.editarProveedor('${p.id}')">✏️ Editar</button>
+                        <button class="small-btn" style="background:var(--danger);" onclick="Proveedores.eliminarProveedor('${p.id}')">🗑️</button>
+                    </div>
+                </div>
+                <div class="cliente-info">
+                    ${p.ruc ? `<div class="cliente-info-item"><strong>📋 RUC:</strong> ${p.ruc}</div>` : ''}
+                    ${p.telefono ? `<div class="cliente-info-item"><strong>📞</strong> ${p.telefono}</div>` : ''}
+                    ${p.email ? `<div class="cliente-info-item"><strong>📧</strong> ${p.email}</div>` : ''}
+                    ${p.direccion ? `<div class="cliente-info-item"><strong>📍</strong> ${p.direccion}</div>` : ''}
+                </div>
+                <div class="cliente-stats">
+                    <div class="cliente-stat"><div class="cliente-stat-label">Compras</div><div class="cliente-stat-value">${comprasProveedor.length}</div></div>
+                    <div class="cliente-stat"><div class="cliente-stat-label">Total Comprado</div><div class="cliente-stat-value" style="font-size:1.2em;">S/${totalComprado.toFixed(2)}</div></div>
+                </div>
+                ${p.notas ? `<div style="margin-top:8px;padding:8px;background:var(--bg-surface-hover);border-radius:6px;font-size:0.88em;">📝 ${p.notas}</div>` : ''}
+            </div>`;
+                }).join('');
+            },
+            exportarExcel() {
+                const data = this.cargar();
+                if (!data.length) { Swal.fire('Sin datos', 'No hay proveedores para exportar', 'info'); return; }
+                const ws = XLSX.utils.json_to_sheet(data.map(p => ({ Nombre: p.nombre, RUC: p.ruc || '-', Teléfono: p.telefono || '-', Email: p.email || '-', Dirección: p.direccion || '-', Notas: p.notas || '-' })));
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Proveedores');
+                XLSX.writeFile(wb, `Proveedores_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            }
+        };
+
+        // ========================================
+        // MÓDULO: COMPRAS
+        // ========================================
+        const Compras = {
+            itemsTemp: [],
+
+            cargar() {
+                return Estado.compras || [];
+            },
+            async guardar(data) {
+                Estado.compras = data; await Firebase.guardar('compras', data);
+            },
+
+            mostrarForm(proveedorIdPreset = '') {
+                document.getElementById('form-nueva-compra').classList.remove('hidden');
+                document.getElementById('compra-fecha').valueAsDate = new Date();
+                document.getElementById('compra-editando-id').value = '';
+                this.itemsTemp = [];
+                this.renderItemsTemp();
+                this.cargarSelectProveedores(proveedorIdPreset);
+                document.getElementById('form-nueva-compra').scrollIntoView({ behavior: 'smooth' });
+            },
+
+            cancelarForm() {
+                document.getElementById('form-nueva-compra').classList.add('hidden');
+                this.itemsTemp = [];
+                this.renderItemsTemp();
+            },
+
+            cargarSelectProveedores(preselect = '') {
+                const select = document.getElementById('compra-proveedor');
+                const proveedores = Proveedores.cargar();
+                select.innerHTML = '<option value="">Sin proveedor</option>' +
+                    proveedores.map(p => `<option value="${p.id}" ${p.id === preselect ? 'selected' : ''}>${p.nombre}</option>`).join('');
+            },
+
+            nuevaCompraParaProveedor(proveedorId) {
+                SidebarMenu.selectTab('compras');
+                setTimeout(() => this.mostrarForm(proveedorId), 100);
+            },
+
+            agregarItem() {
+                const sku = document.getElementById('ci-sku').value.trim().toUpperCase();
+                const nombre = document.getElementById('ci-nombre').value.trim();
+                const cantidad = parseInt(document.getElementById('ci-cantidad').value) || 0;
+                const costoUnit = parseFloat(document.getElementById('ci-costo').value) || 0;
+                if (!nombre || cantidad <= 0 || costoUnit <= 0) {
+                    Toastify({ text: '⚠️ Completa nombre, cantidad y costo', duration: 2500, gravity: 'top', position: 'right', backgroundColor: '#fd7e14' }).showToast();
+                    return;
+                }
+                this.itemsTemp.push({ sku, nombre, cantidad, costoUnit, subtotal: cantidad * costoUnit });
+                ['ci-sku', 'ci-nombre', 'ci-cantidad', 'ci-costo'].forEach(id => { document.getElementById(id).value = ''; });
+                document.getElementById('ci-cantidad').value = '1';
+                this.renderItemsTemp();
+            },
+
+            eliminarItemTemp(idx) {
+                this.itemsTemp.splice(idx, 1);
+                this.renderItemsTemp();
+            },
+
+            renderItemsTemp() {
+                const c = document.getElementById('compra-items-lista');
+                const total = this.itemsTemp.reduce((s, i) => s + i.subtotal, 0);
+                document.getElementById('compra-total-display').value = `S/${total.toFixed(2)}`;
+                if (!this.itemsTemp.length) {
+                    c.innerHTML = '<p style="text-align:center;color:#aaa;padding:15px;font-size:0.9em;">Sin productos añadidos</p>';
+                    return;
+                }
+                c.innerHTML = `<table><thead><tr><th>SKU</th><th>Producto</th><th>Cant.</th><th>Costo Unit.</th><th>Subtotal</th><th></th></tr></thead><tbody>` +
+                    this.itemsTemp.map((it, i) => `<tr>
+                <td>${it.sku || '-'}</td><td>${it.nombre}</td><td>${it.cantidad}</td>
+                <td>S/${it.costoUnit.toFixed(2)}</td><td><strong>S/${it.subtotal.toFixed(2)}</strong></td>
+                <td><button class="delete-btn" onclick="Compras.eliminarItemTemp(${i})">✕</button></td>
+            </tr>`).join('') + `</tbody></table>`;
+            },
+
+            async guardarCompra() {
+                const proveedorId = document.getElementById('compra-proveedor').value;
+                const fecha = document.getElementById('compra-fecha').value;
+                const nroDoc = document.getElementById('compra-nro-doc').value.trim();
+                if (!fecha) { Swal.fire('Error', 'La fecha es obligatoria', 'error'); return; }
+                if (!this.itemsTemp.length) { Swal.fire('Error', 'Agrega al menos un producto', 'error'); return; }
+
+                const total = this.itemsTemp.reduce((s, i) => s + i.subtotal, 0);
+                const proveedor = Proveedores.cargar().find(p => p.id === proveedorId);
+                const editandoId = document.getElementById('compra-editando-id').value;
+
+                const compra = {
+                    id: editandoId || Date.now().toString(),
+                    fecha,
+                    proveedorId,
+                    proveedorNombre: proveedor ? proveedor.nombre : 'Sin proveedor',
+                    nroDoc,
+                    items: [...this.itemsTemp],
+                    total,
+                    estado: 'Recibida',
+                    notas: document.getElementById('compra-notas').value.trim(),
+                    createdAt: new Date().toISOString()
+                };
+
+                // Actualizar inventario y costos automáticamente
+                this.itemsTemp.forEach(item => {
+                    if (item.sku) {
+                        // Actualizar stock en inventario
+                        const invItem = Estado.inventario.find(i => i.sku === item.sku);
+                        if (invItem) {
+                            invItem.stock += item.cantidad;
+                        } else {
+                            Estado.inventario.push({ sku: item.sku, nombre: item.nombre, stock: item.cantidad, reorderThreshold: 5 });
+                        }
+                        // Actualizar costo en rentabilidad
+                        const precioVenta = Estado.ventas.filter(v => v.sku === item.sku).reduce((s, v, _, a) => s + v.precio / a.length, 0) || item.costoUnit * 1.3;
+                        const margen = precioVenta - item.costoUnit;
+                        Estado.costosProductos[item.sku] = { costo: item.costoUnit, precioVenta, margen, porcentajeMargen: precioVenta > 0 ? (margen / precioVenta * 100) : 0 };
+                    }
+                });
+                await Storage.guardarInventario();
+                await Storage.guardarCostos();
+
+                const compras = this.cargar();
+                if (editandoId) {
+                    const idx = compras.findIndex(c => c.id === editandoId);
+                    if (idx !== -1) compras[idx] = compra;
+                } else {
+                    compras.unshift(compra);
+                }
+                await this.guardar(compras);
+                this.cancelarForm();
+                this.actualizarVista();
+
+                await Swal.fire({ icon: 'success', title: '✅ Compra registrada', html: `<p>Se actualizó el inventario y los costos automáticamente.</p><p style="margin-top:8px;font-size:0.9em;color:#666;">Total: <strong>S/${total.toFixed(2)}</strong> · ${this.itemsTemp.length} productos</p>`, confirmButtonColor: '#4472C4' });
+            },
+
+            actualizarVista() {
+                this.actualizarCards();
+                this.actualizarTabla();
+            },
+
+            actualizarCards() {
+                const compras = this.cargar();
+                const totalComprado = compras.reduce((s, c) => s + c.total, 0);
+                const mesActual = new Date().getMonth();
+                const comprasMes = compras.filter(c => new Date(c.fecha).getMonth() === mesActual);
+                const totalMes = comprasMes.reduce((s, c) => s + c.total, 0);
+                document.getElementById('compras-cards').innerHTML = `
+            <div class="card"><h3>📦 Total Compras</h3><div class="value">${compras.length}</div></div>
+            <div class="card"><h3>💸 Total Invertido</h3><div class="value" style="color:#dc3545;">S/${totalComprado.toFixed(2)}</div></div>
+            <div class="card"><h3>📅 Compras este Mes</h3><div class="value">${comprasMes.length}</div></div>
+            <div class="card"><h3>💰 Inversión del Mes</h3><div class="value" style="color:#fd7e14;">S/${totalMes.toFixed(2)}</div></div>`;
+            },
+
+            actualizarTabla(busqueda = '') {
+                const container = document.getElementById('tabla-compras');
+                let compras = this.cargar();
+                if (busqueda) compras = compras.filter(c =>
+                    c.proveedorNombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+                    (c.nroDoc || '').toLowerCase().includes(busqueda.toLowerCase()) ||
+                    c.items.some(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                );
+                if (!compras.length) { container.innerHTML = '<p style="text-align:center;color:#666;padding:30px;">No hay compras registradas</p>'; return; }
+                container.innerHTML = compras.map(c => {
+                    const [y, m, d] = c.fecha.split('-');
+                    return `<div style="background:var(--bg-surface);border:2px solid var(--border);border-radius:10px;padding:18px;margin-bottom:12px;transition:all 0.2s;" onmouseenter="this.style.borderColor='#4472C4'" onmouseleave="this.style.borderColor='#e9ecef'">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                    <div>
+                        <span style="font-weight:700;font-size:1.05em;color:var(--text-primary);">🏭 ${c.proveedorNombre}</span>
+                        ${c.nroDoc ? `<span style="margin-left:10px;font-size:0.85em;color:#888;">📄 ${c.nroDoc}</span>` : ''}
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span style="font-size:1.3em;font-weight:700;color:#dc3545;">S/${c.total.toFixed(2)}</span>
+                        <button class="delete-btn" onclick="Compras.eliminarCompra('${c.id}')">🗑️</button>
+                    </div>
+                </div>
+                <div style="font-size:0.88em;color:#666;margin-bottom:10px;">📅 ${d}/${m}/${y} · ${c.items.length} producto(s)</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    ${c.items.map(it => `<span style="background:rgba(59,130,246,0.1);color:var(--primary);padding:3px 10px;border-radius:12px;font-size:0.82em;font-weight:600;">${it.nombre} ×${it.cantidad} — S/${it.costoUnit.toFixed(2)}</span>`).join('')}
+                </div>
+                ${c.notas ? `<div style="margin-top:8px;font-size:0.82em;color:#888;">💬 ${c.notas}</div>` : ''}
+            </div>`;
+                }).join('');
+            },
+
+            async eliminarCompra(id) {
+                const result = await Swal.fire({ title: '¿Eliminar compra?', text: 'El stock NO se revertirá automáticamente.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                const compras = this.cargar().filter(c => c.id !== id);
+                await this.guardar(compras);
+                this.actualizarVista();
+                Toastify({ text: '🗑️ Compra eliminada', duration: 2500, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+            },
+
+            exportarExcel() {
+                const compras = this.cargar();
+                if (!compras.length) { Swal.fire('Sin datos', 'No hay compras para exportar', 'info'); return; }
+                const rows = [];
+                compras.forEach(c => { c.items.forEach(it => { rows.push({ Fecha: c.fecha, Proveedor: c.proveedorNombre, Documento: c.nroDoc || '-', SKU: it.sku || '-', Producto: it.nombre, Cantidad: it.cantidad, 'Costo Unit.': it.costoUnit, Subtotal: it.subtotal, 'Total Compra': c.total }); }); });
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Compras');
+                XLSX.writeFile(wb, `Compras_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            }
+        };
+
+        // ========================================
+        // MÓDULO: DEVOLUCIONES
+        // ========================================
+        const Devoluciones = {
+            cargar() {
+                return Estado.devoluciones || [];
+            },
+            async guardar(data) {
+                Estado.devoluciones = data; await Firebase.guardar('devoluciones', data);
+            },
+
+            actualizarVista() {
+                this.actualizarCards();
+                this.actualizarTabla();
+            },
+
+            actualizarCards() {
+                const devs = this.cargar();
+                const totalDevuelto = devs.reduce((s, d) => s + d.montoDevuelto, 0);
+                const mesActual = new Date().getMonth();
+                const devsMes = devs.filter(d => new Date(d.fecha).getMonth() === mesActual);
+                document.getElementById('dev-cards').innerHTML = `
+            <div class="card"><h3>↩️ Total Devoluciones</h3><div class="value">${devs.length}</div></div>
+            <div class="card"><h3>💸 Total Devuelto</h3><div class="value" style="color:#dc3545;">S/${totalDevuelto.toFixed(2)}</div></div>
+            <div class="card"><h3>📅 Devoluciones este Mes</h3><div class="value">${devsMes.length}</div></div>`;
+            },
+
+            async iniciarDevolucion() {
+                // Paso 1: buscar la venta
+                const { value: ventaId } = await Swal.fire({
+                    title: '🔍 Buscar Venta a Devolver',
+                    html: `
+                <label style="display:block;text-align:left;font-weight:600;margin-bottom:8px;">Busca por cliente o producto:</label>
+                <input id="swal-dev-busq" class="swal2-input" placeholder="Nombre del cliente o producto..." oninput="Devoluciones._filtrarVentas(this.value)">
+                <div id="swal-dev-lista" style="max-height:280px;overflow-y:auto;margin-top:10px;"></div>
+                <input type="hidden" id="swal-dev-id-sel">`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Continuar →',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#4472C4',
+                    didOpen: () => { Devoluciones._filtrarVentas(''); },
+                    preConfirm: () => {
+                        const id = document.getElementById('swal-dev-id-sel').value;
+                        if (!id) { Swal.showValidationMessage('Selecciona una venta'); return null; }
+                        return id;
+                    }
+                });
+                if (!ventaId) return;
+
+                const venta = Estado.ventas.find(v => v.id == ventaId);
+                if (!venta) return;
+
+                // Paso 2: detalles de la devolución
+                const { value: detalle } = await Swal.fire({
+                    title: '↩️ Detalles de la Devolución',
+                    html: `
+                <div style="text-align:left;background:var(--bg-surface-hover);padding:12px;border-radius:8px;margin-bottom:15px;font-size:0.9em;line-height:1.8;">
+                    <strong>Producto:</strong> ${venta.producto}<br>
+                    <strong>Cliente:</strong> ${venta.cliente || 'Anónimo'}<br>
+                    <strong>Total venta:</strong> S/${venta.total.toFixed(2)}<br>
+                    <strong>Cantidad vendida:</strong> ${venta.cantidad}
+                </div>
+                <label style="display:block;text-align:left;font-weight:600;margin-bottom:4px;">Cantidad a devolver:</label>
+                <input id="swal-dev-cant" class="swal2-input" type="number" min="1" max="${venta.cantidad}" value="${venta.cantidad}">
+                <label style="display:block;text-align:left;font-weight:600;margin:10px 0 4px;">Motivo:</label>
+                <select id="swal-dev-motivo" class="swal2-input">
+                    <option value="Producto defectuoso">Producto defectuoso</option>
+                    <option value="No era lo solicitado">No era lo solicitado</option>
+                    <option value="Cambio de opinión">Cambio de opinión</option>
+                    <option value="Daño en transporte">Daño en transporte</option>
+                    <option value="Otro">Otro</option>
+                </select>
+                <label style="display:block;text-align:left;font-weight:600;margin:10px 0 4px;">Tipo de resolución:</label>
+                <select id="swal-dev-tipo" class="swal2-input">
+                    <option value="Reembolso">💰 Reembolso al cliente</option>
+                    <option value="Cambio">🔄 Cambio de producto</option>
+                    <option value="Nota de crédito">📄 Nota de crédito</option>
+                </select>
+                <label style="display:block;text-align:left;font-weight:600;margin:10px 0 4px;">Observaciones:</label>
+                <input id="swal-dev-obs" class="swal2-input" placeholder="Observaciones adicionales...">`,
+                    showCancelButton: true,
+                    confirmButtonText: '✅ Registrar Devolución',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#4472C4',
+                    preConfirm: () => {
+                        const cant = parseInt(document.getElementById('swal-dev-cant').value) || 0;
+                        if (cant <= 0 || cant > venta.cantidad) { Swal.showValidationMessage(`Cantidad inválida (máx. ${venta.cantidad})`); return null; }
+                        return {
+                            cantidad: cant,
+                            motivo: document.getElementById('swal-dev-motivo').value,
+                            tipo: document.getElementById('swal-dev-tipo').value,
+                            observaciones: document.getElementById('swal-dev-obs').value.trim()
+                        };
+                    }
+                });
+                if (!detalle) return;
+
+                // Calcular monto a devolver proporcional
+                const montoDevuelto = (venta.precio * detalle.cantidad);
+                const devolucion = {
+                    id: Date.now().toString(),
+                    fecha: new Date().toISOString().slice(0, 10),
+                    ventaId: venta.id,
+                    producto: venta.producto,
+                    sku: venta.sku,
+                    cliente: venta.cliente || 'Anónimo',
+                    cantidadOriginal: venta.cantidad,
+                    cantidadDevuelta: detalle.cantidad,
+                    montoDevuelto,
+                    motivo: detalle.motivo,
+                    tipo: detalle.tipo,
+                    observaciones: detalle.observaciones,
+                    createdAt: new Date().toISOString()
+                };
+
+                // Restaurar stock en inventario
+                if (venta.sku) {
+                    const invItem = Estado.inventario.find(i => i.sku === venta.sku);
+                    if (invItem) invItem.stock += detalle.cantidad;
+                    else Estado.inventario.push({ sku: venta.sku, nombre: venta.producto, stock: detalle.cantidad, reorderThreshold: 5 });
+                    await Storage.guardarInventario();
+                }
+
+                // Marcar la venta como devuelta (parcial o total)
+                const vIdx = Estado.ventas.findIndex(v => v.id == ventaId);
+                if (vIdx !== -1) {
+                    Estado.ventas[vIdx].devolucionParcial = (Estado.ventas[vIdx].devolucionParcial || 0) + detalle.cantidad;
+                    if (Estado.ventas[vIdx].devolucionParcial >= venta.cantidad) Estado.ventas[vIdx].devolucionTotal = true;
+                }
+                await Storage.guardarVentas();
+
+                const devs = this.cargar();
+                devs.unshift(devolucion);
+                await this.guardar(devs);
+                this.actualizarVista();
+                UI.actualizarVistas();
+
+                await Swal.fire({ icon: 'success', title: '↩️ Devolución Registrada', html: `<p>Se restauraron <strong>${detalle.cantidad}</strong> unidades al inventario.</p><p style="margin-top:8px;"><strong>Monto devuelto:</strong> S/${montoDevuelto.toFixed(2)}</p><p><strong>Tipo:</strong> ${detalle.tipo}</p>`, confirmButtonColor: '#4472C4' });
+            },
+
+            _filtrarVentas(busq) {
+                const lista = document.getElementById('swal-dev-lista');
+                if (!lista) return;
+                let ventas = Estado.ventas.filter(v => !v.devolucionTotal);
+                if (busq) ventas = ventas.filter(v => (v.cliente || '').toLowerCase().includes(busq.toLowerCase()) || (v.producto || '').toLowerCase().includes(busq.toLowerCase()));
+                ventas = ventas.slice(0, 20);
+                if (!ventas.length) { lista.innerHTML = '<p style="text-align:center;color:#aaa;padding:10px;font-size:0.85em;">Sin resultados</p>'; return; }
+                lista.innerHTML = ventas.map(v => {
+                    const [y, m, d] = v.fecha.split('-');
+                    return `<div onclick="document.getElementById('swal-dev-id-sel').value='${v.id}';document.querySelectorAll('.dev-item').forEach(el=>el.style.borderColor='#dee2e6');this.style.borderColor='#4472C4';"
+                style="padding:10px;border:2px solid #dee2e6;border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color 0.15s;text-align:left;" class="dev-item">
+                <div style="font-weight:600;font-size:0.9em;">${v.producto}</div>
+                <div style="font-size:0.8em;color:#666;">${v.cliente || 'Anónimo'} · ${d}/${m}/${y} · S/${v.total.toFixed(2)}</div>
+            </div>`;
+                }).join('');
+            },
+
+            actualizarTabla() {
+                const c = document.getElementById('tabla-devoluciones');
+                const devs = this.cargar();
+                if (!devs.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">↩️ No hay devoluciones registradas</p>'; return; }
+                c.innerHTML = `<table><thead><tr><th>Fecha</th><th>Cliente</th><th>Producto</th><th>Cant.</th><th>Monto</th><th>Motivo</th><th>Tipo</th><th>Obs.</th></tr></thead><tbody>` +
+                    devs.map(d => {
+                        const [y, m, dn] = d.fecha.split('-');
+                        return `<tr>
+                    <td>${dn}/${m}/${y}</td>
+                    <td>${d.cliente}</td>
+                    <td>${d.producto}</td>
+                    <td>${d.cantidadDevuelta}/${d.cantidadOriginal}</td>
+                    <td style="color:#dc3545;font-weight:600;">-S/${d.montoDevuelto.toFixed(2)}</td>
+                    <td>${d.motivo}</td>
+                    <td><span class="badge badge-info">${d.tipo}</span></td>
+                    <td style="font-size:0.85em;">${d.observaciones || '-'}</td>
+                </tr>`;
+                    }).join('') + `</tbody></table>`;
+            },
+
+            exportarExcel() {
+                const data = this.cargar();
+                if (!data.length) { Swal.fire('Sin datos', 'No hay devoluciones para exportar', 'info'); return; }
+                const ws = XLSX.utils.json_to_sheet(data.map(d => ({ Fecha: d.fecha, Cliente: d.cliente, Producto: d.producto, 'Cant.Devuelta': d.cantidadDevuelta, 'Monto Devuelto': d.montoDevuelto, Motivo: d.motivo, Tipo: d.tipo, Observaciones: d.observaciones || '-' })));
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Devoluciones');
+                XLSX.writeFile(wb, `Devoluciones_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            }
+        };
+
+        // ========================================
+        // MÓDULO: COTIZACIONES
+        // ========================================
+        const Cotizaciones = {
+            itemsTemp: [],
+
+            cargar() {
+                return Estado.cotizaciones || [];
+            },
+            async guardar(data) {
+                Estado.cotizaciones = data; await Firebase.guardar('cotizaciones', data);
+            },
+
+            mostrarForm() {
+                document.getElementById('form-nueva-cotizacion').classList.remove('hidden');
+                document.getElementById('cot-fecha').valueAsDate = new Date();
+                const vence = new Date(); vence.setDate(vence.getDate() + 7);
+                document.getElementById('cot-vencimiento').valueAsDate = vence;
+                document.getElementById('cot-numero').value = this._generarNumero();
+                document.getElementById('cot-editando-id').value = '';
+                this.itemsTemp = [];
+                this.renderItems();
+                document.getElementById('form-nueva-cotizacion').scrollIntoView({ behavior: 'smooth' });
+            },
+
+            cancelarForm() {
+                document.getElementById('form-nueva-cotizacion').classList.add('hidden');
+                this.itemsTemp = [];
+            },
+
+            _generarNumero() {
+                const cots = this.cargar();
+                return `COT-${new Date().getFullYear()}-${String(cots.length + 1).padStart(4, '0')}`;
+            },
+
+            agregarItem() {
+                const nombre = document.getElementById('cot-item-nombre').value.trim();
+                const cantidad = parseInt(document.getElementById('cot-item-cant').value) || 0;
+                const precio = parseFloat(document.getElementById('cot-item-precio').value) || 0;
+                if (!nombre || cantidad <= 0 || precio <= 0) {
+                    Toastify({ text: '⚠️ Completa nombre, cantidad y precio', duration: 2500, gravity: 'top', position: 'right', backgroundColor: '#fd7e14' }).showToast();
+                    return;
+                }
+                const descuento = parseFloat(document.getElementById('cot-item-desc').value) || 0;
+                const subtotal = cantidad * precio * (1 - descuento / 100);
+                this.itemsTemp.push({ nombre, cantidad, precio, descuento, subtotal });
+                ['cot-item-nombre', 'cot-item-cant', 'cot-item-precio', 'cot-item-desc'].forEach(id => { document.getElementById(id).value = ''; });
+                document.getElementById('cot-item-cant').value = '1';
+                this.renderItems();
+            },
+
+            eliminarItemTemp(idx) {
+                this.itemsTemp.splice(idx, 1);
+                this.renderItems();
+            },
+
+            renderItems() {
+                const c = document.getElementById('cot-items-lista');
+                const subtotal = this.itemsTemp.reduce((s, i) => s + i.subtotal, 0);
+                const igv = subtotal * 0.18;
+                const total = subtotal + igv;
+                const inclIGV = document.getElementById('cot-incluir-igv')?.checked;
+                document.getElementById('cot-subtotal-display').textContent = `S/${subtotal.toFixed(2)}`;
+                document.getElementById('cot-igv-display').textContent = inclIGV ? `S/${igv.toFixed(2)}` : 'No incluido';
+                document.getElementById('cot-total-display').textContent = `S/${inclIGV ? total.toFixed(2) : subtotal.toFixed(2)}`;
+                if (!this.itemsTemp.length) { c.innerHTML = '<p style="text-align:center;color:#aaa;padding:15px;font-size:0.9em;">Sin productos</p>'; return; }
+                c.innerHTML = `<table><thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Desc.%</th><th>Subtotal</th><th></th></tr></thead><tbody>` +
+                    this.itemsTemp.map((it, i) => `<tr>
+                <td>${it.nombre}</td><td>${it.cantidad}</td>
+                <td>S/${it.precio.toFixed(2)}</td>
+                <td>${it.descuento}%</td>
+                <td><strong>S/${it.subtotal.toFixed(2)}</strong></td>
+                <td><button class="delete-btn" onclick="Cotizaciones.eliminarItemTemp(${i})">✕</button></td>
+            </tr>`).join('') + `</tbody></table>`;
+            },
+
+            async guardarCotizacion() {
+                const cliente = document.getElementById('cot-cliente').value.trim();
+                const fecha = document.getElementById('cot-fecha').value;
+                if (!cliente || !fecha || !this.itemsTemp.length) {
+                    Swal.fire('Error', 'Completa cliente, fecha y al menos un producto', 'error'); return;
+                }
+                const inclIGV = document.getElementById('cot-incluir-igv').checked;
+                const subtotal = this.itemsTemp.reduce((s, i) => s + i.subtotal, 0);
+                const total = inclIGV ? subtotal * 1.18 : subtotal;
+                const editandoId = document.getElementById('cot-editando-id').value;
+                const cotizacion = {
+                    id: editandoId || Date.now().toString(),
+                    numero: document.getElementById('cot-numero').value,
+                    fecha,
+                    vencimiento: document.getElementById('cot-vencimiento').value,
+                    cliente,
+                    telefono: document.getElementById('cot-tel').value.trim(),
+                    email: document.getElementById('cot-email').value.trim(),
+                    items: [...this.itemsTemp],
+                    subtotal,
+                    igv: inclIGV ? subtotal * 0.18 : 0,
+                    incluyeIGV: inclIGV,
+                    total,
+                    estado: 'Pendiente',
+                    condiciones: document.getElementById('cot-condiciones').value.trim(),
+                    notas: document.getElementById('cot-notas-cot').value.trim(),
+                    createdAt: new Date().toISOString()
+                };
+                const cots = this.cargar();
+                if (editandoId) {
+                    const idx = cots.findIndex(c => c.id === editandoId);
+                    if (idx !== -1) cots[idx] = cotizacion; else cots.unshift(cotizacion);
+                } else {
+                    cots.unshift(cotizacion);
+                }
+                await this.guardar(cots);
+                this.cancelarForm();
+                this.actualizarVista();
+                Toastify({ text: '✅ Cotización guardada', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+            },
+
+            async convertirAVenta(id) {
+                const cot = this.cargar().find(c => c.id === id);
+                if (!cot) return;
+                if (cot.items.length === 0) { Swal.fire('Sin productos', 'La cotización no tiene productos', 'warning'); return; }
+                const result = await Swal.fire({
+                    title: '🛒 Convertir a Venta',
+                    html: `<p>¿Confirmas convertir la cotización <strong>${cot.numero}</strong> en una venta?</p>
+                  <p style="margin-top:10px;"><strong>Cliente:</strong> ${cot.cliente}</p>
+                  <p><strong>Total:</strong> S/${cot.total.toFixed(2)}</p>`,
+                    icon: 'question', showCancelButton: true, confirmButtonColor: '#28a745', cancelButtonColor: '#6c757d',
+                    confirmButtonText: '✅ Convertir a Venta', cancelButtonText: 'Cancelar'
+                });
+                if (!result.isConfirmed) return;
+
+                // Registrar una venta por cada item de la cotización
+                const fecha = new Date().toISOString().slice(0, 10);
+                cot.items.forEach(item => {
+                    const venta = {
+                        id: Date.now() + Math.random(),
+                        fecha,
+                        producto: item.nombre,
+                        categoria: 'Otros',
+                        cantidad: item.cantidad,
+                        precio: item.precio * (1 - item.descuento / 100),
+                        total: item.subtotal,
+                        adelanto: item.subtotal,
+                        saldoPendiente: 0,
+                        estadoPago: 'Pagado',
+                        cliente: cot.cliente,
+                        metodo: 'Efectivo',
+                        historialPagos: [{ monto: item.subtotal, metodo: 'Efectivo', fecha: new Date().toISOString() }],
+                        vendedor: '',
+                        notas: `Cotización ${cot.numero}`,
+                        sku: '',
+                        createdAt: new Date().toISOString()
+                    };
+                    Estado.ventas.unshift(venta);
+                });
+                await Storage.guardarVentas();
+
+                // Marcar cotización como aprobada
+                const cots = this.cargar();
+                const idx = cots.findIndex(c => c.id === id);
+                if (idx !== -1) { cots[idx].estado = 'Aprobada'; cots[idx].ventaCreada = true; }
+                await this.guardar(cots);
+                this.actualizarVista();
+                UI.actualizarVistas();
+                await Swal.fire({ icon: 'success', title: '🎉 ¡Venta Registrada!', html: `<p>Se crearon ${cot.items.length} venta(s) a partir de la cotización.</p>`, confirmButtonColor: '#4472C4' });
+            },
+
+            async cambiarEstado(id, nuevoEstado) {
+                const cots = this.cargar();
+                const idx = cots.findIndex(c => c.id === id);
+                if (idx !== -1) { cots[idx].estado = nuevoEstado; await this.guardar(cots); this.actualizarVista(); }
+            },
+
+            async eliminarCotizacion(id) {
+                const r = await Swal.fire({ title: '¿Eliminar cotización?', text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+                if (!r.isConfirmed) return;
+                const cots = this.cargar().filter(c => c.id !== id);
+                await this.guardar(cots);
+                this.actualizarVista();
+                Toastify({ text: '🗑️ Cotización eliminada', duration: 2500, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
+            },
+
+            async exportarPDF(id) {
+                const cot = this.cargar().find(c => c.id === id);
+                if (!cot) return;
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                // Header
+                doc.setFillColor(68, 114, 196); doc.rect(0, 0, 210, 35, 'F');
+                doc.setTextColor(255, 255, 255); doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+                doc.text('COTIZACIÓN', 105, 18, { align: 'center' });
+                doc.setFontSize(11); doc.text(cot.numero, 105, 27, { align: 'center' });
+                // Info
+                doc.setTextColor(0, 0, 0); doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+                const [fy, fm, fd] = cot.fecha.split('-');
+                doc.text(`Fecha: ${fd}/${fm}/${fy}`, 14, 45);
+                if (cot.vencimiento) { const [vy, vm, vd] = cot.vencimiento.split('-'); doc.text(`Válida hasta: ${vd}/${vm}/${vy}`, 14, 52); }
+                doc.setFont('helvetica', 'bold'); doc.text('Cliente:', 120, 45); doc.setFont('helvetica', 'normal');
+                doc.text(cot.cliente, 140, 45);
+                if (cot.telefono) doc.text(cot.telefono, 140, 52);
+                if (cot.email) doc.text(cot.email, 140, 59);
+                // Tabla
+                let y = 70;
+                doc.setFillColor(68, 114, 196); doc.rect(14, y, 182, 8, 'F');
+                doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+                doc.text('PRODUCTO/SERVICIO', 16, y + 5.5); doc.text('CANT.', 110, y + 5.5); doc.text('PRECIO', 130, y + 5.5); doc.text('DESC.', 152, y + 5.5); doc.text('SUBTOTAL', 168, y + 5.5);
+                y += 8; doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'normal');
+                cot.items.forEach((it, i) => {
+                    if (i % 2 === 0) { doc.setFillColor(245, 247, 255); doc.rect(14, y, 182, 7, 'F'); }
+                    doc.text(it.nombre.slice(0, 40), 16, y + 5); doc.text(String(it.cantidad), 112, y + 5);
+                    doc.text(`S/${it.precio.toFixed(2)}`, 132, y + 5); doc.text(`${it.descuento}%`, 154, y + 5);
+                    doc.text(`S/${it.subtotal.toFixed(2)}`, 170, y + 5); y += 7;
+                });
+                // Totales
+                y += 5;
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Subtotal:`, 150, y); doc.text(`S/${cot.subtotal.toFixed(2)}`, 185, y, { align: 'right' }); y += 7;
+                if (cot.incluyeIGV) { doc.text(`IGV (18%):`, 150, y); doc.text(`S/${cot.igv.toFixed(2)}`, 185, y, { align: 'right' }); y += 7; }
+                doc.setFontSize(12); doc.text(`TOTAL:`, 150, y); doc.text(`S/${cot.total.toFixed(2)}`, 185, y, { align: 'right' });
+                // Condiciones
+                if (cot.condiciones) { y += 15; doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.text('Condiciones: ' + cot.condiciones, 14, y, { maxWidth: 182 }); }
+                doc.save(`Cotizacion_${cot.numero}.pdf`);
+            },
+
+            actualizarVista() {
+                this.actualizarCards();
+                this.actualizarTabla();
+            },
+
+            actualizarCards() {
+                const cots = this.cargar();
+                const pendientes = cots.filter(c => c.estado === 'Pendiente').length;
+                const aprobadas = cots.filter(c => c.estado === 'Aprobada').length;
+                const rechazadas = cots.filter(c => c.estado === 'Rechazada').length;
+                const totalPendiente = cots.filter(c => c.estado === 'Pendiente').reduce((s, c) => s + c.total, 0);
+                document.getElementById('cot-cards').innerHTML = `
+            <div class="card"><h3>📄 Total Cotizaciones</h3><div class="value">${cots.length}</div></div>
+            <div class="card"><h3>⏳ Pendientes</h3><div class="value" style="color:#ffc107;">${pendientes}</div></div>
+            <div class="card"><h3>✅ Aprobadas</h3><div class="value" style="color:#28a745;">${aprobadas}</div></div>
+            <div class="card"><h3>💰 Valor Pendiente</h3><div class="value" style="color:var(--primary);">S/${totalPendiente.toFixed(2)}</div></div>`;
+            },
+
+            actualizarTabla() {
+                const c = document.getElementById('tabla-cotizaciones');
+                const cots = this.cargar();
+                if (!cots.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No hay cotizaciones registradas</p>'; return; }
+                const estadoColors = { Pendiente: '#ffc107', Aprobada: '#28a745', Rechazada: '#dc3545', Vencida: '#6c757d' };
+                c.innerHTML = cots.map(cot => {
+                    const [y, m, d] = cot.fecha.split('-');
+                    const isVencida = cot.estado === 'Pendiente' && cot.vencimiento && cot.vencimiento < new Date().toISOString().slice(0, 10);
+                    const estadoFinal = isVencida ? 'Vencida' : cot.estado;
+                    const color = estadoColors[estadoFinal] || '#6c757d';
+                    return `<div style="background:var(--bg-surface);border:2px solid var(--border);border-radius:10px;padding:18px;margin-bottom:12px;transition:all 0.2s;" onmouseenter="this.style.borderColor='#4472C4'" onmouseleave="this.style.borderColor='#e9ecef'">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                    <div>
+                        <span style="font-weight:700;font-size:1.05em;color:var(--text-primary);">${cot.cliente}</span>
+                        <span style="margin-left:8px;font-size:0.82em;color:#888;">${cot.numero}</span>
+                        <span style="margin-left:8px;background:${color}22;color:${color};padding:2px 8px;border-radius:10px;font-size:0.8em;font-weight:700;">${estadoFinal}</span>
+                    </div>
+                    <div style="font-size:1.3em;font-weight:700;color:var(--primary);">S/${cot.total.toFixed(2)}</div>
+                </div>
+                <div style="font-size:0.85em;color:#666;margin-bottom:10px;">
+                    📅 ${d}/${m}/${y}${cot.vencimiento ? ` · Vence: ${cot.vencimiento.split('-').reverse().join('/')}` : ''} · ${cot.items.length} item(s)
+                    ${cot.telefono ? ` · 📞 ${cot.telefono}` : ''}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+                    ${cot.items.map(it => `<span style="background:#f0f4ff;color:var(--primary);padding:3px 10px;border-radius:12px;font-size:0.8em;">${it.nombre} ×${it.cantidad}</span>`).join('')}
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${cot.estado === 'Pendiente' && !isVencida ? `<button class="small-btn" onclick="Cotizaciones.convertirAVenta('${cot.id}')">🛒 Convertir a Venta</button>` : ''}
+                    <button class="small-btn" onclick="Cotizaciones.exportarPDF('${cot.id}')" style="background:var(--danger);">📄 PDF</button>
+                    ${cot.estado === 'Pendiente' ? `
+                        <button class="small-btn gray" onclick="Cotizaciones.cambiarEstado('${cot.id}','Aprobada')">✅ Aprobar</button>
+                        <button class="small-btn" style="background:#6c757d;" onclick="Cotizaciones.cambiarEstado('${cot.id}','Rechazada')">❌ Rechazar</button>` : ''}
+                    <button class="delete-btn" onclick="Cotizaciones.eliminarCotizacion('${cot.id}')">🗑️</button>
+                </div>
+            </div>`;
+                }).join('');
+            }
+        };
+
+        // ========================================
+        // MÓDULO: CIERRE DE CAJA
+        // ========================================
+        const CierreCaja = {
+            cargar() {
+                try { return JSON.parse(localStorage.getItem('cierresCaja') || '[]'); } catch (e) { return []; }
+            },
+            async guardar(data) {
+                localStorage.setItem('cierresCaja', JSON.stringify(data));
+                if (window.firebaseOK && !Auth.modoInvitado) await Firebase.guardar('cierresCaja', data);
+            },
+            cargarEstado() {
+                try { return JSON.parse(localStorage.getItem('estadoCaja')) || { abierta: false, montoInicial: 0, fechaApertura: null }; }
+                catch (e) { return { abierta: false, montoInicial: 0, fechaApertura: null }; }
+            },
+            guardarEstado(estado) {
+                localStorage.setItem('estadoCaja', JSON.stringify(estado));
+            },
+
+            async abrirCaja() {
+                const estado = this.cargarEstado();
+                if (estado.abierta) { Swal.fire('Caja ya abierta', 'La caja ya se encuentra abierta.', 'info'); return; }
+
+                const { value: monto } = await Swal.fire({
+                    title: '🔓 Apertura de Caja',
+                    html: `<p style="margin-bottom:15px;color:#555;">Ingresa el monto inicial (sencillo) con el que abres la caja hoy:</p>
+                   <input id="swal-monto-inicial" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="0">`,
+                    showCancelButton: true, confirmButtonText: '✅ Abrir Caja', cancelButtonText: 'Cancelar', confirmButtonColor: '#ffc107',
+                    preConfirm: () => parseFloat(document.getElementById('swal-monto-inicial').value) || 0
+                });
+
+                if (monto === undefined) return;
+
+                this.guardarEstado({ abierta: true, montoInicial: monto, fechaApertura: new Date().toISOString() });
+
+                if (typeof Auditoria !== 'undefined') Auditoria.registrar('APERTURA CAJA', `Monto inicial: S/${monto.toFixed(2)}`);
+
+                Toastify({ text: `🔓 Caja abierta con S/${monto.toFixed(2)}`, duration: 3000, gravity: 'top', position: 'right', style: { background: 'linear-gradient(135deg,#ffc107,#fd7e14)', color: '#000' } }).showToast();
+                this.actualizarVista();
+            },
+
+            async realizarCierre() {
+                const estado = this.cargarEstado();
+                if (!estado.abierta) {
+                    Swal.fire('Caja no abierta', 'Debes abrir la caja antes de poder realizar el cierre.', 'warning');
+                    return;
+                }
+
+                const hoy = new Date().toISOString().slice(0, 10);
+
+                // Calcular valores del día
+                const ventasHoy = Estado.ventas.filter(v => v.fecha === hoy);
+                const cobradoEfectivo = ventasHoy.reduce((s, v) => {
+                    return s + (v.historialPagos || []).filter(p => p.metodo === 'Efectivo' && p.fecha.slice(0, 10) === hoy).reduce((ss, p) => ss + p.monto, 0);
+                }, 0);
+                const cobradoDigital = ventasHoy.reduce((s, v) => {
+                    return s + (v.historialPagos || []).filter(p => ['Yape', 'Plin', 'Transferencia', 'Tarjeta'].includes(p.metodo) && p.fecha.slice(0, 10) === hoy).reduce((ss, p) => ss + p.monto, 0);
+                }, 0);
+
+                const totalVentas = ventasHoy.reduce((s, v) => s + v.total, 0);
+                const gastosHoy = Estado.gastos.filter(g => g.fecha === hoy).reduce((s, g) => s + g.monto, 0);
+
+                // Matemática clave: Lo que debe haber físicamente en el cajón
+                const montoInicial = estado.montoInicial;
+                const efectivoEsperado = montoInicial + cobradoEfectivo - gastosHoy;
+
+                const { value: formData } = await Swal.fire({
+                    title: '🏧 Cierre de Caja',
+                    width: '640px',
+                    html: `
+                <div style="background:var(--bg-surface-hover);border-radius:10px;padding:15px;margin-bottom:15px;text-align:left;font-size:0.9em;line-height:2;">
+                    <div style="font-size:1em;font-weight:700;color:var(--text-primary);margin-bottom:8px;">📊 Resumen del Día: ${hoy.split('-').reverse().join('/')}</div>
+                    <div>🔓 Monto inicial en caja: <strong style="color:#ffc107;">S/${montoInicial.toFixed(2)}</strong></div>
+                    <div>💵 Cobrado efectivo: <strong style="color:#28a745;">S/${cobradoEfectivo.toFixed(2)}</strong></div>
+                    <div>📱 Cobrado digital (Yape/Plin/Tarjeta): <strong style="color:#17a2b8;">S/${cobradoDigital.toFixed(2)}</strong></div>
+                    <div>💸 Gastos pagados en efectivo: <strong style="color:#dc3545;">S/${gastosHoy.toFixed(2)}</strong></div>
+                    <div style="border-top:2px dashed #ddd;margin-top:8px;padding-top:8px;font-size:1.1em;">
+                        💰 Efectivo ESPERADO en cajón: <strong style="color:#1E3A6E;">S/${efectivoEsperado.toFixed(2)}</strong>
+                    </div>
+                </div>
+                <div style="text-align:left;">
+                    <label style="font-weight:600;display:block;margin-bottom:4px;">💵 Efectivo FÍSICO contado (S/):</label>
+                    <input id="cc-efectivo" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="${efectivoEsperado.toFixed(2)}">
+                    <label style="font-weight:600;display:block;margin:10px 0 4px;">📱 Total comprobado en digital (S/):</label>
+                    <input id="cc-digital" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="${cobradoDigital.toFixed(2)}">
+                    <label style="font-weight:600;display:block;margin:10px 0 4px;">🏦 Monto para retiro/depósito (S/):</label>
+                    <input id="cc-retiro" class="swal2-input" type="number" step="0.01" min="0" placeholder="0.00" value="0">
+                    <label style="font-weight:600;display:block;margin:10px 0 4px;">📝 Observaciones:</label>
+                    <input id="cc-obs" class="swal2-input" placeholder="Notas del cierre...">
+                </div>`,
+                    showCancelButton: true, confirmButtonText: '✅ Registrar Cierre', cancelButtonText: 'Cancelar', confirmButtonColor: '#4472C4',
+                    preConfirm: () => ({
+                        efectivoReal: parseFloat(document.getElementById('cc-efectivo').value) || 0,
+                        digitalReal: parseFloat(document.getElementById('cc-digital').value) || 0,
+                        retiro: parseFloat(document.getElementById('cc-retiro').value) || 0,
+                        observaciones: document.getElementById('cc-obs').value.trim()
+                    })
+                });
+
+                if (!formData) return;
+
+                const { efectivoReal, digitalReal, retiro, observaciones } = formData;
+                // La diferencia se calcula en base al efectivo físico esperado vs el contado
+                const diferencia = efectivoReal - efectivoEsperado;
+                const saldoFinal = efectivoReal - retiro;
+
+                const cierre = {
+                    id: Date.now().toString(),
+                    fecha: hoy,
+                    hora: new Date().toLocaleTimeString('es-PE'),
+                    montoInicial,
+                    ventasCount: ventasHoy.length,
+                    totalFacturado: totalVentas,
+                    cobradoEfectivoSistema: cobradoEfectivo,
+                    cobradoDigitalSistema: cobradoDigital,
+                    efectivoReal,
+                    digitalReal,
+                    gastosPagados: gastosHoy,
+                    retiro,
+                    diferencia,
+                    saldoFinal,
+                    observaciones,
+                    createdAt: new Date().toISOString()
+                };
+
+                const cierres = this.cargar();
+                cierres.unshift(cierre);
+                await this.guardar(cierres);
+
+                // Se cierra la caja reseteando el estado
+                this.guardarEstado({ abierta: false, montoInicial: 0, fechaApertura: null });
+
+                if (typeof Auditoria !== 'undefined') Auditoria.registrar('CIERRE CAJA', `Diferencia: S/${diferencia.toFixed(2)} | Real: S/${efectivoReal.toFixed(2)}`);
+
+                this.actualizarVista();
+
+                const diferenciaTexto = diferencia === 0 ? '✅ Sin diferencia (Caja cuadrada)' : diferencia > 0 ? `✅ Sobrante: S/${diferencia.toFixed(2)}` : `⚠️ Faltante: S/${Math.abs(diferencia).toFixed(2)}`;
+
+                await Swal.fire({
+                    icon: diferencia < -0.01 ? 'warning' : 'success',
+                    title: '🏧 Cierre Completado',
+                    html: `<div style="text-align:left;line-height:2;font-size:0.95em;">
+                <div>💵 Efectivo real: <strong style="color:#28a745;">S/${efectivoReal.toFixed(2)}</strong></div>
+                <div>🏦 Retiro realizado: <strong>S/${retiro.toFixed(2)}</strong></div>
+                <div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px;">
+                    <strong>Fondo para mañana: S/${saldoFinal.toFixed(2)}</strong><br>
+                    <span style="color:${diferencia < -0.01 ? '#dc3545' : '#28a745'};font-weight:bold;">${diferenciaTexto}</span>
+                </div>
+            </div>`,
+                    confirmButtonColor: '#4472C4'
+                });
+            },
+
+            actualizarVista() {
+                this.actualizarCards();
+                this.actualizarTabla();
+            },
+
+            actualizarCards() {
+                const cierres = this.cargar();
+                const estado = this.cargarEstado();
+                const ultimo = cierres[0];
+
+                // Alternar visualización de los botones
+                const btnAbrir = document.getElementById('btn-abrir-caja');
+                const btnCerrar = document.getElementById('btn-cerrar-caja');
+                if (btnAbrir && btnCerrar) {
+                    btnAbrir.style.display = estado.abierta ? 'none' : 'inline-block';
+                    btnCerrar.style.display = estado.abierta ? 'inline-block' : 'none';
+                }
+
+                document.getElementById('caja-cards').innerHTML = `
+            <div class="card" style="border-left:4px solid ${estado.abierta ? '#28a745' : '#dc3545'};">
+                <h3>🛒 Estado de Caja</h3>
+                <div class="value" style="color:${estado.abierta ? '#28a745' : '#dc3545'};font-size:1.4em;">${estado.abierta ? '🔓 ABIERTA' : '🔒 CERRADA'}</div>
+                ${estado.abierta ? `<div style="font-size:0.85em;color:#666;margin-top:5px;">Fondo actual: S/${estado.montoInicial.toFixed(2)}</div>` : '<div style="font-size:0.85em;color:#666;margin-top:5px;">Requiere apertura</div>'}
+            </div>
+            <div class="card"><h3>🏧 Total Cierres</h3><div class="value">${cierres.length}</div></div>
+            <div class="card"><h3>📅 Último Cierre</h3><div class="value" style="font-size:1.2em;">${ultimo ? ultimo.fecha.split('-').reverse().join('/') : '--'}</div>
+                ${ultimo ? `<div style="font-size:0.8em;color:${ultimo.diferencia < -0.01 ? '#dc3545' : '#28a745'};margin-top:5px;">${ultimo.diferencia < -0.01 ? '⚠️ Faltante: S/' + Math.abs(ultimo.diferencia).toFixed(2) : '✅ Cuadrado'}</div>` : ''}
+            </div>`;
+            },
+
+            actualizarTabla() {
+                const c = document.getElementById('tabla-cierres');
+                const cierres = this.cargar();
+                if (!cierres.length) { c.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No hay cierres registrados</p>'; return; }
+                c.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Inicial</th><th>Ventas</th><th>Ef. Real</th><th>Digital Real</th><th>Gastos</th><th>Retiro</th><th>Diferencia</th><th>Saldo Final</th></tr></thead><tbody>` +
+                    cierres.map(c => {
+                        const [y, m, d] = c.fecha.split('-');
+                        const difClass = c.diferencia < -0.01 ? 'color:#dc3545;' : 'color:#28a745;';
+                        const inicial = c.montoInicial || 0;
+                        return `<tr>
+                    <td style="white-space:nowrap;"><strong>${d}/${m}/${y}</strong></td>
+                    <td>${c.hora || '-'}</td>
+                    <td style="color:#ffc107;font-weight:600;">S/${inicial.toFixed(2)}</td>
+                    <td>${c.ventasCount} <span style="font-size:0.85em;color:#666;">(S/${c.totalFacturado.toFixed(2)})</span></td>
+                    <td style="color:#28a745;font-weight:600;">S/${c.efectivoReal.toFixed(2)}</td>
+                    <td style="color:#17a2b8;">S/${c.digitalReal.toFixed(2)}</td>
+                    <td style="color:#dc3545;">S/${(c.gastosPagados || 0).toFixed(2)}</td>
+                    <td>S/${c.retiro.toFixed(2)}</td>
+                    <td style="${difClass}font-weight:700;">${c.diferencia > 0 ? '+' : ''}S/${c.diferencia.toFixed(2)}</td>
+                    <td style="font-weight:700;">S/${c.saldoFinal.toFixed(2)}</td>
+                </tr>`;
+                    }).join('') + `</tbody></table></div>`;
+            },
+
+            exportarExcel() {
+                const data = this.cargar();
+                if (!data.length) { Swal.fire('Sin datos', 'No hay cierres para exportar', 'info'); return; }
+                const ws = XLSX.utils.json_to_sheet(data.map(c => ({ Fecha: c.fecha, Hora: c.hora, 'Fondo Inicial': c.montoInicial || 0, Ventas: c.ventasCount, 'Facturado Total': c.totalFacturado, 'Efectivo Real': c.efectivoReal, 'Digital Real': c.digitalReal, Gastos: c.gastosPagados || 0, Retiro: c.retiro, Diferencia: c.diferencia, 'Fondo para mañana': c.saldoFinal, Observaciones: c.observaciones || '-' })));
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Cierres de Caja');
+                XLSX.writeFile(wb, `CierresCaja_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            }
+        };
+
+        // ════════════════════════════════════════════════════════════════
+        // MÓDULO: GENERADOR DE SKU (Panel inline en Registro)
+        // ════════════════════════════════════════════════════════════════
+        const SkuGen = {
+            _activeIdx: {},
+            _fields: [],
+            configCampos: {
+                tecnico: [
+                    { id: 'marca', label: '🏢 Marca', placeholder: 'SAMSUNG' },
+                    { id: 'producto', label: '📦 Producto', placeholder: 'LAPTOP' },
+                    { id: 'unidad', label: '📐 Unidad', placeholder: 'UNIDAD' },
+                    { id: 'color', label: '🎨 Color', placeholder: 'NEGRO' },
+                    { id: 'tipo', label: '🔌 Tipo', placeholder: 'INALAMBRICO' },
+                    { id: 'modelo', label: '🔢 Modelo', placeholder: 'PRO' },
+                    { id: 'voltaje', label: '⚡ Voltaje/Watts', placeholder: '65W' },
+                    { id: 'capacidad', label: '💾 Capacidad', placeholder: '512GB' },
+                    { id: 'usb', label: '🔗 USB', placeholder: 'USB 3.0' },
+                    { id: 'extra', label: '➕ Extra', placeholder: '4K, DDR5...' }
+                ],
+                general: [
+                    { id: 'categoria', label: '📁 Categoría', placeholder: 'ABARROTES' },
+                    { id: 'marca', label: '🏢 Marca', placeholder: 'GLORIA' },
+                    { id: 'producto', label: '📦 Producto', placeholder: 'LECHE' },
+                    { id: 'variante', label: '🏷️ Variante/Sabor', placeholder: 'CHOCOLATE' },
+                    { id: 'unidad', label: '📐 Unidad', placeholder: 'CAJA' },
+                    { id: 'tamano', label: '📏 Tamaño/Peso', placeholder: '1 LITRO' },
+                    { id: 'color', label: '🎨 Color', placeholder: 'N/A' },
+                    { id: 'extra', label: '➕ Extra', placeholder: 'PACK X6' }
+                ]
+            },
+
+            suggestionsTecnica: {
+                marca: ['SAMSUNG', 'APPLE', 'HP', 'DELL', 'LENOVO', 'ASUS', 'ACER', 'SONY', 'LG', 'LOGITECH', 'RAZER', 'MSI', 'CORSAIR', 'KINGSTON', 'SEAGATE', 'WESTERN DIGITAL', 'CRUCIAL', 'INTEL', 'AMD', 'NVIDIA', 'TP-LINK', 'D-LINK', 'BELKIN', 'ANKER', 'JBL', 'XIAOMI', 'HUAWEI', 'CANON', 'BROTHER', 'EPSON'],
+                producto: ['LAPTOP', 'DESKTOP', 'MONITOR', 'TECLADO', 'MOUSE', 'AURICULARES', 'WEBCAM', 'IMPRESORA', 'SCANNER', 'DISCO DURO', 'SSD', 'MEMORIA RAM', 'TARJETA GRAFICA', 'PROCESADOR', 'PLACA MADRE', 'FUENTE DE PODER', 'GABINETE', 'COOLER', 'TABLET', 'SMARTPHONE', 'CARGADOR', 'CABLE HDMI', 'HUB USB', 'ROUTER', 'SWITCH', 'ACCESS POINT', 'PROYECTOR', 'CAMARA WEB', 'MICROFONO', 'PARLANTE BLUETOOTH'],
+                unidad: ['UNIDAD', 'PAR', 'SET', 'PAQUETE', 'CAJA', 'METRO', 'CENTIMETRO', 'KILOGRAMO', 'GRAMO', 'LITRO', 'MILILITRO', 'DOCENA', 'LOTE', 'KIT', 'ROLL', 'TIRA', 'PIEZA', 'SECCION', 'BOBINA', 'BUNDLE', 'COMBO', 'BLISTER', 'SOBRE', 'BOLSA', 'CARTUCHO', 'RESMA', 'PALETA', 'DISPLAY', 'TORRE', 'RACK'],
+                color: ['NEGRO', 'BLANCO', 'PLATA', 'GRIS', 'AZUL', 'ROJO', 'VERDE', 'AMARILLO', 'NARANJA', 'MORADO', 'ROSA', 'DORADO', 'BRONCE', 'MARRON', 'BEIGE', 'TRANSPARENTE', 'MULTICOLOR', 'AZUL MARINO', 'ROJO OSCURO', 'VERDE MILITAR', 'GRIS ESPACIAL', 'BLANCO NIEVE', 'NEGRO MATE', 'PLATEADO', 'COBRE', 'TURQUESA', 'VIOLETA', 'CELESTE', 'ARENA', 'GRAFITO'],
+                tipo: ['INALAMBRICO', 'CON CABLE', 'BLUETOOTH', 'WIFI', 'USB', 'HDMI', 'VGA', 'DISPLAYPORT', 'THUNDERBOLT', 'TIPO-C', 'MINI', 'COMPACTO', 'GAMING', 'MECANICO', 'MEMBRANA', 'OPTICO', 'LASER', 'ERGONOMICO', 'RETROILUMINADO', 'TKL', 'FULL SIZE', 'PORTATIL', 'EXTERNO', 'INTERNO', 'MODULAR', 'SEMI-MODULAR', 'ATX', 'MICRO-ATX', 'MINI-ITX', 'DUAL BAND'],
+                modelo: ['GEN1', 'GEN2', 'GEN3', 'V1', 'V2', 'V3', 'PRO', 'PLUS', 'MAX', 'ULTRA', 'MINI', 'LITE', 'STANDARD', 'BASIC', 'ADVANCED', 'ELITE', 'PREMIUM', 'BUSINESS', 'HOME', 'ENTERPRISE', '2024', '2023', '2022', 'MK1', 'MK2', 'MK3', 'SERIES X', 'SERIES S', 'OEM', 'RETAIL'],
+                voltaje: ['5W', '10W', '15W', '18W', '20W', '25W', '30W', '45W', '60W', '65W', '90W', '100W', '120W', '150W', '200W', '250W', '300W', '450W', '500W', '550W', '600W', '650W', '750W', '800W', '850W', '1000W', '1200W', '1500W', '2000W', '3000W'],
+                capacidad: ['64GB', '128GB', '256GB', '512GB', '1TB', '2TB', '4TB', '8TB', '16GB', '32GB', '8GB', '4GB', '2GB', '1GB', '500GB', '250GB', '120GB', '480GB', '960GB', '240GB', '6TB', '10TB', '12TB', '16TB', '18TB', '20TB', '3TB', '500MB', '4K', '8K'],
+                usb: ['USB 2.0', 'USB 3.0', 'USB 3.1', 'USB 3.2', 'USB 4.0', 'USB-C', 'USB-A', 'USB-B', 'MINI-USB', 'MICRO-USB', 'USB 3.0 GEN1', 'USB 3.0 GEN2', 'USB 3.2 GEN2X2', 'THUNDERBOLT 3', 'THUNDERBOLT 4', 'LIGHTNING', 'USB-C PD', 'USB-C 3.1', 'USB-C 3.2', 'USB-C 4.0', 'FIREWIRE', 'ESATA', 'HUB 4 PUERTOS', 'HUB 7 PUERTOS', 'USB-C A USB-A', 'OTG', 'USB 2.0 HUB', 'USB 3.0 HUB', 'USB-C A HDMI', 'USB-C DOCK'],
+                extra: ['4K', '8K', '1080P', '2K', '144HZ', '240HZ', 'HDR', 'OLED', 'IPS', 'TN', 'VA', 'DDR4', 'DDR5', 'PCIe 4.0', 'PCIe 5.0', 'NVMe', 'SATA', 'M.2', 'RGB', 'BACKLIT', 'IP67', 'IP68', 'WATERPROOF', 'ANTIVIRUS', '1AÑO', '2AÑOS', '3AÑOS', 'LICENCIA', 'ORIGINAL', 'COMPATIBLE']
+            },
+
+            suggestionsGeneral: {
+                categoria: ['ABARROTES', 'BEBIDAS', 'LIMPIEZA', 'ROPA', 'CUIDADO PERSONAL', 'OTROS'],
+                marca: ['GLORIA', 'NESTLE', 'ALICORP', 'BIMBO', 'COCA COLA', 'PEPSI', 'NIKE', 'ADIDAS', 'GENERICO'],
+                producto: ['LECHE', 'ARROZ', 'FIDEOS', 'ACEITE', 'GALLETAS', 'GASEOSA', 'DETERGENTE', 'POLO', 'PANTALON', 'ZAPATILLAS'],
+                variante: ['CHOCOLATE', 'FRESA', 'VAINILLA', 'MENTA', 'CLASICO', 'INTEGRAL'],
+                unidad: ['UNIDAD', 'CAJA', 'DOCENA', 'KILOGRAMO', 'GRAMO', 'LITRO', 'MILILITRO', 'PAQUETE', 'PAR'],
+                tamano: ['1 LITRO', '500 ML', '1 KG', '500 G', 'PEQUEÑO', 'MEDIANO', 'GRANDE'],
+                color: ['ROJO', 'AZUL', 'BLANCO', 'NEGRO', 'VARIADO', 'VERDE', 'AMARILLO'],
+                tipo: ['ABARROTES', 'BEBIDAS', 'LIMPIEZA', 'ROPA', 'CUIDADO PERSONAL', 'OTROS'],
+                modelo: ['N/A', 'ESTANDAR', 'OFERTA'],
+                voltaje: ['N/A', 'ESTANDAR', 'OFERTA'],
+                capacidad: ['N/A', 'ESTANDAR', 'OFERTA'],
+                usb: ['N/A', 'ESTANDAR', 'OFERTA'],
+                extra: ['N/A', 'ESTANDAR', 'OFERTA']
+            },
+
+            suggestions: {}, // Se llenará dinámicamente
+
+            generarInteligente(nombre, categoria) {
+                if (!nombre || !nombre.trim()) return `GEN-${Math.floor(100 + Math.random() * 900)}`;
+
+                let text = nombre.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+                const stopWords = /\b(DE|PARA|EL|LA|LOS|LAS|CON|SIN|EN|UN|UNA|UNOS|UNAS|POR|Y|O)\b/g;
+                text = text.replace(stopWords, "").replace(/\s+/g, " ").trim();
+
+                let caracteristica = "000";
+                const regexCaracteristica = /\b(\d+(?:\.\d+)?(?:GB|TB|MB|L|ML|KG|G|W|V))\b/i;
+                const match = text.match(regexCaracteristica);
+                if (match) {
+                    caracteristica = match[1].toUpperCase();
+                    text = text.replace(regexCaracteristica, "").replace(/\s+/g, " ").trim();
+                } else {
+                    const numMatch = text.match(/\b(\d+[A-Z]*)\b/i);
+                    if (numMatch) {
+                        caracteristica = numMatch[1].toUpperCase();
+                        text = text.replace(/\b(\d+[A-Z]*)\b/i, "").replace(/\s+/g, " ").trim();
+                    }
+                }
+
+                const words = text.split(" ");
+                let marca = words[0] ? words[0].substring(0, 4) : "GEN";
+
+                let cat = "GEN";
+                if (categoria && categoria.trim()) {
+                    cat = categoria.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 3);
+                }
+
+                const rand = Math.floor(100 + Math.random() * 900);
+
+                return `${cat}-${marca}-${caracteristica}-${rand}`;
+            },
+
+            renderCampos() {
+                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
+                const configElegida = giro === 'general' ? this.configCampos.general : this.configCampos.tecnico;
+                this._fields = configElegida.map(c => c.id);
+
+                const html = configElegida.map(campo => `
+                    <div class="sku-field-wrap">
+                        <label>${campo.label}</label>
+                        <input type="text" id="skup-${campo.id}" placeholder="${campo.placeholder}" 
+                            oninput="SkuGen.onPanelInput(this,'${campo.id}')" 
+                            onkeydown="SkuGen.onKey(event,'${campo.id}')" 
+                            onfocus="SkuGen.showSuggestions('${campo.id}')" 
+                            onblur="SkuGen.hideSuggestions('${campo.id}')">
+                        <div class="sku-suggestions" id="sugp-${campo.id}"></div>
+                    </div>`).join('');
+                document.getElementById('sku-fields-container').innerHTML = html;
+            },
+
+            actualizarSugerencias() {
+                const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
+                if (giro === 'general') {
+                    this.suggestions = this.suggestionsGeneral;
+                } else {
+                    this.suggestions = this.suggestionsTecnica;
+                }
+                this.renderCampos();
+            },
+
+            _abbrev(str) {
+                if (!str) return '';
+                const s = str.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-\.]/g, '');
+                if (s.length <= 4) return s;
+                const parts = s.split('-');
+                return parts.map(p => p.length <= 4 ? p : (p[0] + p.slice(1).replace(/[AEIOU]/g, '').slice(0, 3)).slice(0, 4)).join('-');
+            },
+
+            _getVal(field) {
+                const el = document.getElementById('skup-' + field);
+                return el ? el.value.trim() : '';
+            },
+
+            generateSKU() {
+                return this._fields.map(f => this._abbrev(this._getVal(f))).filter(Boolean).join('-') || '—';
+            },
+
+            updatePanelOutput() {
+                const sku = this.generateSKU();
+                const out = document.getElementById('sku-inline-output');
+                if (out) out.textContent = sku;
+            },
+
+            togglePanel() {
+                const panel = document.getElementById('sku-inline-panel');
+                if (!panel) return;
+                const open = panel.style.display !== 'none';
+                panel.style.display = open ? 'none' : 'block';
+                if (!open) this.updatePanelOutput();
+            },
+
+            onPanelInput(input, field) {
+                input.value = input.value.toUpperCase();
+                this.updatePanelOutput();
+                this._renderSuggestions(field, input.value);
+            },
+
+            _renderSuggestions(field, query) {
+                const box = document.getElementById('sugp-' + field);
+                if (!box) return;
+                const all = this.suggestions[field] || [];
+                const q = query.toUpperCase().trim();
+                const filtered = q ? all.filter(s => s.includes(q)).slice(0, 30) : all.slice(0, 30);
+                if (!filtered.length) { box.style.display = 'none'; return; }
+                this._activeIdx[field] = -1;
+                box.innerHTML = filtered.map((s, i) =>
+                    `<div data-idx="${i}" onmousedown="SkuGen._selectSugg('${field}','${s.replace(/'/g, "\\'")}')">${s}</div>`
+                ).join('');
+                box.style.display = 'block';
+            },
+
+            showSuggestions(field) {
+                this._renderSuggestions(field, this._getVal(field));
+            },
+
+            hideSuggestions(field) {
+                setTimeout(() => {
+                    const box = document.getElementById('sugp-' + field);
+                    if (box) box.style.display = 'none';
+                }, 180);
+            },
+
+            _selectSugg(field, value) {
+                const el = document.getElementById('skup-' + field);
+                if (el) el.value = value;
+                const box = document.getElementById('sugp-' + field);
+                if (box) box.style.display = 'none';
+                this.updatePanelOutput();
+            },
+
+            onKey(e, field) {
+                const box = document.getElementById('sugp-' + field);
+                if (!box || box.style.display === 'none') return;
+                const items = box.querySelectorAll('div');
+                let idx = this._activeIdx[field] ?? -1;
+                if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(idx + 1, items.length - 1); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx - 1, -1); }
+                else if (e.key === 'Enter' && idx >= 0) { e.preventDefault(); items[idx].dispatchEvent(new MouseEvent('mousedown')); return; }
+                else if (e.key === 'Escape') { box.style.display = 'none'; return; }
+                else return;
+                this._activeIdx[field] = idx;
+                items.forEach((it, i) => it.classList.toggle('active', i === idx));
+                if (idx >= 0) items[idx].scrollIntoView({ block: 'nearest' });
+            },
+
+            aplicarARegistro() {
+                const sku = this.generateSKU();
+                if (sku === '—') { Toastify({ text: '⚠️ Completa al menos un campo', duration: 2500, gravity: 'top', position: 'right', backgroundColor: '#fd7e14' }).showToast(); return; }
+                const skuField = document.getElementById('sku');
+                if (skuField) skuField.value = sku;
+                document.getElementById('sku-inline-panel').style.display = 'none';
+                Toastify({ text: '✅ SKU aplicado: ' + sku, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#7C3AED,#5B21B6)' }).showToast();
+            },
+
+            limpiarPanel() {
+                this._fields.forEach(f => {
+                    const el = document.getElementById('skup-' + f);
+                    if (el) el.value = '';
+                    const box = document.getElementById('sugp-' + f);
+                    if (box) box.style.display = 'none';
+                });
+                this.updatePanelOutput();
+            },
+
+            init() {
+                this.actualizarSugerencias();
+                this.renderCampos();
+            }
+        };
+
+        // ════════════════════════════════════════════════════════════════
+        // INICIALIZACIÓN
+        // ════════════════════════════════════════════════════════════════
+        document.addEventListener('DOMContentLoaded', () => {
+            Auth.init();
+
+
+
+
+            document.getElementById('fecha').valueAsDate = new Date();
+
+            Ventas.init();
+            Autocomplete.init();
+            Autocomplete.initClientes();
+            SkuGen.init();
+
+            Reportes.seleccionarPreset('hoy', null);
+        });
+
+        // ════════════════════════════════════════════════════════════════
+        // THEME MANAGER — DARK / LIGHT MODE
+        // ════════════════════════════════════════════════════════════════
+        const ThemeManager = {
+            init() {
+                const saved = localStorage.getItem('theme') || 'light';
+                this.apply(saved);
+            },
+            toggle() {
+                const current = document.documentElement.getAttribute('data-theme') || 'light';
+                const next = current === 'dark' ? 'light' : 'dark';
+                this.apply(next);
+                localStorage.setItem('theme', next);
+            },
+            apply(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                const icon = document.getElementById('theme-icon');
+                const label = document.getElementById('theme-label');
+                if (!icon || !label) return;
+                if (theme === 'dark') {
+                    icon.textContent = '☀️';
+                    label.textContent = 'Modo Claro';
+                } else {
+                    icon.textContent = '🌙';
+                    label.textContent = 'Modo Oscuro';
+                }
+            }
+        };
+
+        // Init theme on page load (before DOMContentLoaded to avoid flash)
+        (function () {
+            const saved = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', saved);
+        })();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            ThemeManager.init();
+        });
