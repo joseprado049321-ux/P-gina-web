@@ -158,6 +158,8 @@
                                 class="item-icon">🗑️</span> Papelera</span><span class="arrow">›</span></button>
                 </div>
             </nav>
+            
+            <div id="menuOverlay" class="menu-overlay" onclick="SidebarMenu.close()"></div>
 
             <!-- Área Principal de Contenido -->
             <div class="main-content">
@@ -1178,7 +1180,7 @@
                                 <div class="form-group utils-46dcee">
                                     <label class="utils-59705f">🔍 Escala del
                                         Sistema (Zoom)</label>
-                                    <select id="config-escala" class="swal2-input utils-652fbf"
+                                    <select id="config-escala" class="utils-652fbf"
                                         onchange="ConfiguracionNegocio.cambiarEscala(this.value)">
                                         <option value="80%">80% - Más Espacio</option>
                                         <option value="90%">90% - Compacto</option>
@@ -1190,7 +1192,7 @@
                                 <div class="form-group utils-46dcee">
                                     <label class="utils-59705f">💼 Giro / Tipo de
                                         Negocio</label>
-                                    <select id="config-giro-negocio" class="swal2-input utils-652fbf"
+                                    <select id="config-giro-negocio" class="utils-652fbf"
                                         onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
                                         <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
                                         <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
@@ -1199,7 +1201,7 @@
                                 <div class="form-group utils-46dcee">
                                     <label class="utils-59705f">🛡️ Frecuencia de
                                         Respaldo</label>
-                                    <select id="conf-backup-freq" class="swal2-input utils-652fbf">
+                                    <select id="conf-backup-freq" class="utils-652fbf">
                                         <option value="1">Diario</option>
                                         <option value="7">Semanal</option>
                                         <option value="15">Quincenal</option>
