@@ -1750,7 +1750,10 @@
             // --- CARGAR ESCALA ---
             const escalaGuardada = localStorage.getItem('lispro_escala');
             if (escalaGuardada) {
+                const scaleValue = parseFloat(escalaGuardada) / 100;
                 document.body.style.zoom = escalaGuardada;
+                document.body.style.width = `${100 / scaleValue}vw`;
+                document.body.style.height = `${100 / scaleValue}vh`;
                 const selectEscala = document.getElementById('config-escala');
                 if (selectEscala) selectEscala.value = escalaGuardada;
             } else {

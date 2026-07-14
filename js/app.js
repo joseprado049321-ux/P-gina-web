@@ -1207,7 +1207,10 @@ const firebaseConfig = {
         // ========================================
         const ConfiguracionNegocio = {
             cambiarEscala(escala) {
+                const scaleValue = parseFloat(escala) / 100;
                 document.body.style.zoom = escala;
+                document.body.style.width = `${100 / scaleValue}vw`;
+                document.body.style.height = `${100 / scaleValue}vh`;
                 localStorage.setItem('lispro_escala', escala);
                 Toastify({ text: `🔍 Escala cambiada a ${escala}`, duration: 2000, style: { background: 'linear-gradient(135deg,#3B82F6,#2563EB)' } }).showToast();
             },
