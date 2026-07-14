@@ -1040,7 +1040,8 @@ const firebaseConfig = {
                     montoRecibido: montoRecibido, vuelto: montoRecibido > totalCalculado ? montoRecibido - totalCalculado : 0,
                     cliente: document.getElementById('cliente').value, metodo: metodoPago,
                     historialPagos: [], vendedor: (typeof Auth !== 'undefined' && Auth.usuarioActual) ? (Auth.usuarioActual.nombre || Auth.usuarioActual.email) : document.getElementById('vendedor').value.trim(),
-                    notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString()
+                    notas: document.getElementById('notas').value, sku, createdAt: new Date().toISOString(),
+                    dni: document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : ''
                 };
                 const dniIngresadoTemp = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
                 const telIngresadoTemp = document.getElementById('os-telefono') ? document.getElementById('os-telefono').value.trim() : '';
@@ -1375,7 +1376,7 @@ const firebaseConfig = {
                     tipo: 'venta',
                     ventaId: id,
                     cliente: venta.cliente || '',
-                    dni: '',
+                    dni: venta.dni || '',
                     telefono: '',
                     direccion: '',
                     fecha: venta.fecha,
@@ -1387,7 +1388,11 @@ const firebaseConfig = {
                 // Buscar datos del cliente en el módulo Clientes
                 if (venta.cliente) {
                     const cl = Estado.clientes.find(c => c.nombre.toLowerCase() === venta.cliente.toLowerCase());
-                    if (cl) { datos.telefono = cl.telefono || ''; datos.direccion = cl.direccion || ''; }
+                    if (cl) {
+                        if (!datos.dni) datos.dni = cl.dni || '';
+                        datos.telefono = cl.telefono || '';
+                        datos.direccion = cl.direccion || '';
+                    }
                 }
                 await this._flujo(datos);
             },
@@ -1402,7 +1407,7 @@ const firebaseConfig = {
                     tipo: 'orden',
                     ordenId: id,
                     cliente: orden.cliente || '',
-                    dni: '',
+                    dni: orden.dni || '',
                     telefono: orden.telefono || '',
                     direccion: '',
                     fecha: orden.fecha,
@@ -1412,7 +1417,11 @@ const firebaseConfig = {
                     notas: orden.notas || ''
                 };
                 const cl = Estado.clientes.find(c => c.nombre.toLowerCase() === (orden.cliente || '').toLowerCase());
-                if (cl) { datos.telefono = cl.telefono || datos.telefono; datos.direccion = cl.direccion || ''; }
+                if (cl) {
+                    if (!datos.dni) datos.dni = cl.dni || '';
+                    datos.telefono = cl.telefono || datos.telefono;
+                    datos.direccion = cl.direccion || '';
+                }
                 await this._flujo(datos);
             },
 
