@@ -1208,7 +1208,12 @@ const firebaseConfig = {
         const ConfiguracionNegocio = {
             cambiarEscala(escala) {
                 const scaleValue = parseFloat(escala) / 100;
-                document.body.style.zoom = escala;
+                // Remove zoom if it was set previously
+                document.documentElement.style.zoom = '';
+                document.body.style.zoom = '';
+                
+                document.body.style.transform = `scale(${scaleValue})`;
+                document.body.style.transformOrigin = 'top left';
                 document.body.style.width = `${100 / scaleValue}vw`;
                 document.body.style.height = `${100 / scaleValue}vh`;
                 localStorage.setItem('lispro_escala', escala);
