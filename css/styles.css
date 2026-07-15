@@ -128,6 +128,12 @@
 
         /* ── FASE 2: ESQUELETO MODERNO (LAYOUT, SIDEBAR, TOPBAR) ── */
 
+        #main-screen {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
         /* Contenedor Maestro */
         #app-container {
             display: flex;
