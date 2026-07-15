@@ -1207,15 +1207,14 @@ const firebaseConfig = {
         // ========================================
         const ConfiguracionNegocio = {
             cambiarEscala(escala) {
-                const scaleValue = parseFloat(escala) / 100;
-                // Remove zoom if it was set previously
-                document.documentElement.style.zoom = '';
-                document.body.style.zoom = '';
+                // Restaurar estilos en caso de que se haya usado transform previamente
+                document.body.style.transform = '';
+                document.body.style.transformOrigin = '';
+                document.body.style.width = '';
+                document.body.style.height = '';
                 
-                document.body.style.transform = `scale(${scaleValue})`;
-                document.body.style.transformOrigin = 'top left';
-                document.body.style.width = `${100 / scaleValue}vw`;
-                document.body.style.height = `${100 / scaleValue}vh`;
+                // Aplicar el zoom nativo
+                document.body.style.zoom = escala;
                 localStorage.setItem('lispro_escala', escala);
                 Toastify({ text: `🔍 Escala cambiada a ${escala}`, duration: 2000, style: { background: 'linear-gradient(135deg,#3B82F6,#2563EB)' } }).showToast();
             },

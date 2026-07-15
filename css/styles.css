@@ -46,7 +46,7 @@
             height: 100%;
             background-color: var(--bg-body);
             color: var(--text-primary);
-            overflow: hidden;
+            overflow: hidden; /* Esto es vital para que el scroll interno funcione */
             font-size: 14px;
             line-height: 1.5;
         }
