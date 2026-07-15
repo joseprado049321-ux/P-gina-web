@@ -1782,6 +1782,7 @@
             position: relative;
             z-index: 10;
             background: var(--primary);
+            touch-action: manipulation;
             color: #fff;
             border: none;
             border-radius: var(--radius-sm);
@@ -1831,7 +1832,7 @@
         .btn-secondary:active,
         .btn-danger:active {
             transform: translateY(1px);
-            background-color: #FF6600 !important;
+            background: #FF6600 !important;
             color: #FFFFFF !important;
             box-shadow: none !important;
         }
