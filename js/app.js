@@ -2434,6 +2434,10 @@ const firebaseConfig = {
                 if (tabId === 'papelera' && typeof Papelera !== 'undefined') Papelera.actualizarVista();
             },
             actualizarVistas() {
+                // Guardar scroll position del view-container
+                const viewContainer = document.querySelector('.view-container');
+                const scrollPos = viewContainer ? viewContainer.scrollTop : 0;
+
                 const inputVendedor = document.getElementById('vendedor');
                 if (inputVendedor && typeof Auth !== 'undefined') {
                     if (Auth.usuarioActual) {
@@ -2463,6 +2467,13 @@ const firebaseConfig = {
                 CierreCaja.actualizarVista();
                 Compras.actualizarVista();
                 Proveedores.actualizarLista();
+
+                // Restaurar scroll position después del renderizado asíncrono
+                if (viewContainer) {
+                    setTimeout(() => {
+                        viewContainer.scrollTop = scrollPos;
+                    }, 100);
+                }
             }
         };
 

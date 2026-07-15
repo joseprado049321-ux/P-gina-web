@@ -1957,6 +1957,10 @@
         }
 
         /* ── OVERRIDE SWEETALERT2 PARA LISPRO POS ── */
+        body.swal2-height-auto,
+        html.swal2-height-auto {
+            height: 100% !important;
+        }
         .swal2-popup {
             background-color: var(--bg-surface) !important;
             color: var(--text-primary) !important;
