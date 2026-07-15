@@ -2562,17 +2562,17 @@ const firebaseConfig = {
                     $('#miTablaVentas').DataTable().destroy();
                 }
                 const mostrarDetalles = window._mostrarDetallesVenta;
-                c.innerHTML = `<table id="miTablaVentas"><thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Cant.</th><th>Precio</th><th>Total</th>${mostrarDetalles ? '<th>Monto Recibido</th><th>Vuelto</th>' : ''}<th>Cliente</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
+                c.innerHTML = `<table id="miTablaVentas" class="${!mostrarDetalles ? 'mobile-hide-extra' : ''}"><thead><tr><th>Fecha</th><th class="col-extra">SKU</th><th>Producto</th><th class="col-extra">Categoría</th><th class="col-extra">Cant.</th><th class="col-extra">Precio</th><th>Total</th>${mostrarDetalles ? '<th>Monto Recibido</th><th>Vuelto</th>' : ''}<th class="col-extra">Cliente</th><th class="col-extra">Método</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
                     ventas.map(v => {
                         const [y, m, d] = v.fecha.split('-');
                         const metodoCombinado = Ventas.calcularMetodoCombinado(v.historialPagos || [{ monto: v.adelanto, metodo: v.metodo || '-' }]);
                         const montoRecibido = v.montoRecibido !== undefined ? v.montoRecibido : v.adelanto;
                         const vuelto = v.vuelto || 0;
                         return `<tr>
-                        <td>${d}/${m}/${y}</td><td style="font-size:0.8em;color:#666;">${v.sku || '-'}</td><td>${v.producto}</td><td>${v.categoria || '-'}</td>
-                        <td>${v.cantidad}</td><td>S/${v.precio.toFixed(2)}</td><td><strong>S/${v.total.toFixed(2)}</strong></td>
+                        <td>${d}/${m}/${y}</td><td class="col-extra" style="font-size:0.8em;color:#666;">${v.sku || '-'}</td><td>${v.producto}</td><td class="col-extra">${v.categoria || '-'}</td>
+                        <td class="col-extra">${v.cantidad}</td><td class="col-extra">S/${v.precio.toFixed(2)}</td><td><strong>S/${v.total.toFixed(2)}</strong></td>
                         ${mostrarDetalles ? `<td>S/${montoRecibido.toFixed(2)}</td><td>S/${vuelto.toFixed(2)}</td>` : ''}
-                        <td>${v.cliente || '-'}</td><td>${metodoCombinado}</td>
+                        <td class="col-extra">${v.cliente || '-'}</td><td class="col-extra">${metodoCombinado}</td>
                         <td>${v.estadoPago === 'Pagado' ? '<span class="estado-pagado">✅ Pagado</span>' : '<span class="estado-pendiente">⏳ Pendiente</span>'}</td>
                         <td style="white-space:nowrap;">
                             ${v.estadoPago === 'Pendiente' ? `<button class="btn-pago" onclick="Ventas.actualizarPago(${v.id})">💰 Pago</button>` : ''}

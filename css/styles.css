@@ -2120,6 +2120,12 @@
         /* ── FASE 4: RESPONSIVE GLOBAL PARA MÓVILES (CELULARES) ── */
         @media (max-width: 768px) {
 
+            /* Ocultar columnas extra en la tabla de historial (Ventas) por defecto en móviles */
+            table.mobile-hide-extra th.col-extra,
+            table.mobile-hide-extra td.col-extra {
+                display: none !important;
+            }
+
             /* Contenedores Principales */
             .view-container {
                 padding: 15px !important;
