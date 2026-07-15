@@ -330,10 +330,12 @@
             box-shadow: var(--shadow-btn);
         }
 
-        .tab-indicator-bar .open-menu-link:hover {
-            filter: brightness(1.1);
-            transform: none;
-            box-shadow: var(--shadow-md);
+        @media (hover: hover) {
+            .tab-indicator-bar .open-menu-link:hover {
+                filter: brightness(1.1);
+                transform: none;
+                box-shadow: var(--shadow-md);
+            }
         }
 
         /* ============================================================
@@ -1461,9 +1463,11 @@
             white-space: nowrap !important;
         }
 
-        .btn-boleta:hover {
-            filter: brightness(1.15);
-            transform: translateY(-1px);
+        @media (hover: hover) {
+            .btn-boleta:hover {
+                filter: brightness(1.15);
+                transform: translateY(-1px);
+            }
         }
 
         /* Hidden */
@@ -1716,11 +1720,13 @@
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .card:hover,
-        .stat-card:hover,
-        .dashboard-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
+        @media (hover: hover) {
+            .card:hover,
+            .stat-card:hover,
+            .dashboard-card:hover {
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-lg);
+            }
         }
 
         /* Formularios: Inputs, Selects y Textareas */
@@ -1820,8 +1826,14 @@
         }
 
         button:active,
-        .btn:active {
+        .btn:active,
+        .btn-boleta:active,
+        .btn-secondary:active,
+        .btn-danger:active {
             transform: translateY(1px);
+            background-color: #FF6600 !important;
+            color: #FFFFFF !important;
+            box-shadow: none !important;
         }
 
         /* Variantes de botones */
@@ -1830,10 +1842,12 @@
             background: var(--danger);
         }
 
-        button.danger:hover,
-        .btn-danger:hover {
-            background: #B91C1C;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        @media (hover: hover) {
+            button.danger:hover,
+            .btn-danger:hover {
+                background: #B91C1C;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            }
         }
 
         button.secondary,
@@ -1843,10 +1857,12 @@
             border: 1px solid var(--border);
         }
 
-        button.secondary:hover,
-        .btn-secondary:hover {
-            background: #475569;
-            box-shadow: none;
+        @media (hover: hover) {
+            button.secondary:hover,
+            .btn-secondary:hover {
+                background: #475569;
+                box-shadow: none;
+            }
         }
 
         /* Tablas de Datos Elegantes */
@@ -1982,8 +1998,10 @@
             /* Elimina el resplandor difuminado */
         }
 
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.08) !important;
+        @media (hover: hover) {
+            .btn-secondary:hover {
+                background: rgba(255, 255, 255, 0.08) !important;
+            }
         }
 
         .btn-icon {
@@ -2008,9 +2026,11 @@
             text-shadow: none !important;
         }
 
-        #topbar .btn:hover {
-            box-shadow: none !important;
-            transform: none !important;
+        @media (hover: hover) {
+            #topbar .btn:hover {
+                box-shadow: none !important;
+                transform: none !important;
+            }
         }
 
         /* --- FIX: PALETA DE MODO CLARO --- */
