@@ -1,0 +1,28 @@
+{
+  "name": "p-gina-web-1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "node build.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joseprado049321-ux/P-gina-web.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/joseprado049321-ux/P-gina-web/issues"
+  },
+  "homepage": "https://github.com/joseprado049321-ux/P-gina-web#readme",
+  "devDependencies": {
+    "clean-css-cli": "^5.6.3",
+    "fs-extra": "^11.3.6",
+    "html-minifier-terser": "^7.2.0",
+    "javascript-obfuscator": "^5.4.7"
+  }
+}

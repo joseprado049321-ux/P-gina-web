@@ -385,7 +385,7 @@
                         <div class="search-filter-container">
                             <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="busqueda"
                                     placeholder="Buscar por producto, cliente o SKU..."
-                                    oninput="Filtros.aplicarFiltros()"></div>
+                                    oninput="clearTimeout(window.tFil); window.tFil=setTimeout(()=>Filtros.aplicarFiltros(), 300)"></div>
                             <div class="filter-row">
                                 <div class="form-group"><label>Desde</label><input type="date" id="filtro-fecha-desde"
                                         onchange="Filtros.aplicarFiltros()"></div>
@@ -478,7 +478,7 @@
                         </div>
                         <div class="search-box utils-684111"><span class="search-icon">🔍</span><input
                                 type="text" id="busqueda-clientes" placeholder="Buscar clientes..."
-                                oninput="Clientes.buscarClientes()"></div>
+                                oninput="clearTimeout(window.tCli); window.tCli=setTimeout(()=>Clientes.buscarClientes(), 300)"></div>
                         <div id="lista-clientes"></div>
                     </div>
 
@@ -894,7 +894,7 @@
                             <div class="search-box"><span class="search-icon">🔍</span><input type="text"
                                     id="os-busqueda"
                                     placeholder="Buscar por cliente, equipo, modelo, técnico o N° orden..."
-                                    oninput="OrdenesServicio.aplicarFiltros()"></div>
+                                    oninput="clearTimeout(window.tOs); window.tOs=setTimeout(()=>OrdenesServicio.aplicarFiltros(), 300)"></div>
                             <div class="filter-row">
                                 <div class="form-group"><label>Estado</label><select id="os-filtro-estado"
                                         onchange="OrdenesServicio.aplicarFiltros()">
@@ -966,7 +966,7 @@
                         </div>
                         <div class="search-box utils-684111"><span class="search-icon">🔍</span><input
                                 type="text" id="busqueda-proveedores" placeholder="Buscar por nombre o RUC..."
-                                oninput="Proveedores.actualizarLista(this.value)"></div>
+                                oninput="clearTimeout(window.tProv); window.tProv=setTimeout(()=>Proveedores.actualizarLista(this.value), 300)"></div>
                         <div id="lista-proveedores"></div>
                     </div>
 
@@ -1000,8 +1000,13 @@
                                 <strong class="utils-13fc02">➕ Agregar
                                     Producto</strong>
                                 <div class="compra-item-form">
-                                    <div class="form-group utils-46dcee"><label class="utils-2822cc">SKU</label><input id="ci-sku" type="text"
-                                            placeholder="SKU-001" class="utils-39ddb5"></div>
+                                    <div class="form-group utils-46dcee">
+                                        <label class="utils-2822cc">SKU</label>
+                                        <div style="display:flex; gap:5px;">
+                                            <input id="ci-sku" type="text" placeholder="SKU-001" class="utils-39ddb5" style="flex:1;margin:0;">
+                                            <button type="button" onclick="SkuGen.togglePanel('ci-sku')" style="padding: 0 8px; border-radius:8px;" class="btn-secondary utils-f4dc5f" title="Generador Inteligente">🏷️</button>
+                                        </div>
+                                    </div>
                                     <div class="form-group utils-46dcee"><label class="utils-2822cc">Nombre
                                             *</label><input id="ci-nombre" type="text"
                                             placeholder="Nombre del producto"></div>
@@ -1196,6 +1201,12 @@
                                         onchange="ConfiguracionNegocio.adaptarRubro(this.value)">
                                         <option value="general">Tienda Comercial General (Bodegas, Ropa, etc.)</option>
                                         <option value="tecnico">Tienda de Tecnología + Servicio Técnico</option>
+                                        <option value="minimarket">Minimarket</option>
+                                        <option value="restaurante">Restaurante / Comida</option>
+                                        <option value="farmacia">Farmacia / Botica</option>
+                                        <option value="ferreteria">Ferretería</option>
+                                        <option value="abarrotes">Tienda de Abarrotes</option>
+                                        <option value="musica">Tienda de Música</option>
                                     </select>
                                 </div>
                                 <div class="form-group utils-46dcee">
@@ -1262,6 +1273,16 @@
                             <div class="utils-4022fe">
                                 <button onclick="ConfiguracionNegocio.guardar()" class="utils-1ec2fd">💾 Guardar
                                     Configuración</button>
+                            </div>
+                            
+                            <!-- PANEL SUPER ADMIN -->
+                            <div id="panel-superadmin" style="display:none; margin-top: 25px; border: 2px dashed var(--danger); padding: 15px; border-radius: 8px; background: rgba(220,53,69,0.05);">
+                                <h3 style="color: var(--danger); margin-bottom: 15px;">⚠️ Zona de Peligro (Súper Admin)</h3>
+                                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 15px;">Estas acciones son irreversibles y afectarán a la base de datos en la nube de esta tienda.</p>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button onclick="SuperAdmin.borrarParcial()" style="background: #ffc107; color: #000; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">Borrar Datos (Mantener Config/Usuarios)</button>
+                                    <button onclick="SuperAdmin.borrarTotal()" style="background: var(--danger); color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">Borrar TODO el Sistema</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1674,11 +1695,25 @@
             });
 
 
-            // También activar la consulta al presionar ENTER dentro del campo DNI
-            $('#dniInput').on('keypress', function (e) {
+            // Activar la consulta al presionar ENTER dentro del campo DNI
+            $('#dniInput, #os-dni').on('keypress', function (e) {
                 if (e.which === 13) {
                     e.preventDefault();
-                    $('#btnConsultarDNI').trigger('click');
+                    var targetBtn = this.id === 'dniInput' ? '#btnConsultarDNI' : '#btnConsultarDNI_OS';
+                    $(targetBtn).trigger('click');
+                }
+            });
+
+            // Implementar debounce automático al detectar 8 u 11 dígitos
+            var debounceTimerDni = null;
+            $('#dniInput, #os-dni').on('input', function() {
+                var val = $(this).val().trim();
+                clearTimeout(debounceTimerDni);
+                if (val.length === 8 || val.length === 11) {
+                    var targetBtn = this.id === 'dniInput' ? '#btnConsultarDNI' : '#btnConsultarDNI_OS';
+                    debounceTimerDni = setTimeout(function() {
+                        $(targetBtn).trigger('click');
+                    }, 500);
                 }
             });
 
@@ -1725,7 +1760,6 @@
     </script>
 
     <script>
-        // Función central para cambiar de tema
         function toggleModo() {
             const body = document.body;
             body.classList.toggle('light-mode');
@@ -1736,6 +1770,14 @@
             const icono = document.getElementById('icono-modo');
             if (icono) {
                 icono.className = isLight ? 'fas fa-sun' : 'fas fa-moon';
+            }
+            
+            // Re-renderizar gráficos si existen para aplicar el color
+            if (typeof Chart !== 'undefined') {
+                Chart.defaults.color = isLight ? '#111827' : '#FFFFFF';
+                if (typeof Reportes !== 'undefined' && Reportes.generarReporte) {
+                    Reportes.generarReporte();
+                }
             }
         }
 
