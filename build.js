@@ -17,18 +17,18 @@ async function build() {
     
     // Copiar archivos (excluyendo carpetas ignoradas)
     console.log('Copiando archivos...');
-    await fs.copy(srcDir, distDir, {
-        filter: (src) => {
-            const relative = path.relative(srcDir, src);
-            if (ignoreDirs.some(dir => relative.startsWith(dir) || relative === dir)) {
-                return false;
-            }
-            if (relative === 'package.json' || relative === 'package-lock.json' || relative === 'build.js') {
-                return false;
-            }
-            return true;
+    const items = await fs.readdir(srcDir);
+    for (const item of items) {
+        if (ignoreDirs.includes(item)) {
+            continue;
         }
-    });
+        if (item === 'package.json' || item === 'package-lock.json' || item === 'build.js') {
+            continue;
+        }
+        const itemSrc = path.join(srcDir, item);
+        const itemDist = path.join(distDir, item);
+        await fs.copy(itemSrc, itemDist);
+    }
 
     console.log('Ofuscando JavaScript...');
     const jsDir = path.join(distDir, 'js');
