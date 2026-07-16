@@ -1307,7 +1307,17 @@
         const CategoriaCustom = {
             getDefaultCats() {
                 const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
-                return giro === 'general' ? ['Abarrotes', 'Ropa', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'] : ['Laptops', 'Desktops', 'Accesorios', 'Periféricos', 'Componentes', 'Servicios', 'Otros'];
+                switch (giro) {
+                    case 'general': return ['Abarrotes', 'Ropa', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'];
+                    case 'minimarket': return ['Bebidas', 'Snacks', 'Lácteos', 'Limpieza', 'Cuidado Personal', 'Embutidos', 'Congelados', 'Otros'];
+                    case 'restaurante': return ['Entradas', 'Platos de Fondo', 'Bebidas', 'Postres', 'Sopas', 'Menú', 'Otros'];
+                    case 'ferreteria': return ['Herramientas Manuales', 'Herramientas Eléctricas', 'Plomería', 'Electricidad', 'Pinturas', 'Tornillería y Fijación', 'Construcción', 'Otros'];
+                    case 'farmacia': return ['Analgésicos', 'Antibióticos', 'Cuidado Personal', 'Vitaminas', 'Primeros Auxilios', 'Bebés', 'Otros'];
+                    case 'abarrotes': return ['Abarrotes Básicos', 'Lácteos', 'Embutidos', 'Bebidas', 'Limpieza', 'Cuidado Personal', 'Otros'];
+                    case 'musica': return ['Guitarras', 'Pianos y Teclados', 'Percusión', 'Audio', 'Accesorios', 'Vientos', 'Otros'];
+                    case 'tecnico': 
+                    default: return ['Laptops', 'Desktops', 'Accesorios', 'Periféricos', 'Componentes', 'Servicios', 'Otros'];
+                }
             },
             cargarEnSelect() {
                 const defaults = this.getDefaultCats();
@@ -1342,7 +1352,17 @@
         const MarcasCustom = {
             getDefaultMarcas() {
                 const giro = (typeof Estado !== 'undefined' && Estado.configuracion) ? Estado.configuracion.giro : 'tecnico';
-                return giro === 'general' ? ['Genérico', 'Gloria', 'Coca-Cola', 'Inca Kola', 'Nestlé', 'Alicorp', 'Bimbo'] : ['Genérico', 'HP', 'Lenovo', 'Asus', 'Logitech', 'Kingston', 'Samsung', 'AMD', 'Intel'];
+                switch (giro) {
+                    case 'general': return ['Genérico', 'Gloria', 'Coca-Cola', 'Inca Kola', 'Nestlé', 'Alicorp', 'Bimbo'];
+                    case 'minimarket': return ['Genérico', 'Coca-Cola', 'Inca Kola', 'Nestlé', 'Gloria', 'Alicorp', 'Bimbo', 'San Fernando'];
+                    case 'restaurante': return ['Genérico', 'Coca-Cola', 'Inca Kola', 'San Luis', 'Pilsen', 'Cusqueña'];
+                    case 'ferreteria': return ['Genérico', 'Bosch', 'DeWalt', 'Truper', 'Coflex', 'Stanley', 'Makita', 'Sodimac', 'Vainsa'];
+                    case 'farmacia': return ['Genérico', 'Bayer', 'GSK', 'Pfizer', 'Teva', 'Johnson & Johnson', 'Genfar', 'Portugal'];
+                    case 'abarrotes': return ['Genérico', 'Costeño', 'Gloria', 'Nestlé', 'Alicorp', 'Bimbo', 'San Fernando', 'Coca-Cola'];
+                    case 'musica': return ['Genérico', 'Yamaha', 'Fender', 'Gibson', 'Casio', 'Roland', 'Korg', 'Shure'];
+                    case 'tecnico':
+                    default: return ['Genérico', 'HP', 'Lenovo', 'Asus', 'Logitech', 'Kingston', 'Samsung', 'AMD', 'Intel'];
+                }
             },
             cargarEnSelect() {
                 const defaults = this.getDefaultMarcas();

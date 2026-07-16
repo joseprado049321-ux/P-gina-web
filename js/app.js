@@ -1373,6 +1373,9 @@ const firebaseConfig = {
                 if (typeof CategoriaCustom !== 'undefined' && typeof CategoriaCustom.cargarEnSelect === 'function') {
                     CategoriaCustom.cargarEnSelect();
                 }
+                if (typeof MarcasCustom !== 'undefined' && typeof MarcasCustom.cargarEnSelect === 'function') {
+                    MarcasCustom.cargarEnSelect();
+                }
                 if (typeof MetodoPagoCustom !== 'undefined' && typeof MetodoPagoCustom.cargarEnSelect === 'function') {
                     MetodoPagoCustom.cargarEnSelect();
                 }
