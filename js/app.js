@@ -696,14 +696,15 @@ const firebaseConfig = {
                 await tenantRef.collection('ventas').doc(id).delete();
             },
             async guardarVentas() {
-                // Función deprecada (se mantiene temporalmente para no romper flujos globales de importación)
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
-                const batch = db.batch();
-                Estado.ventas.forEach(venta => {
-                    batch.set(tenantRef.collection('ventas').doc(venta.id), venta);
-                });
-                await batch.commit();
+                let chunks = [];
+                for (let i = 0; i < Estado.ventas.length; i += 450) chunks.push(Estado.ventas.slice(i, i + 450));
+                for (const chunk of chunks) {
+                    const batch = db.batch();
+                    chunk.forEach(venta => batch.set(tenantRef.collection('ventas').doc(venta.id), venta));
+                    await batch.commit();
+                }
             },
             async agregarProducto(item) {
                 const tenantRef = Firebase._col();
@@ -728,16 +729,16 @@ const firebaseConfig = {
                 });
             },
             async guardarInventario() {
-                // Función deprecada (se mantiene temporalmente para no romper flujos globales de importación)
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
-                // Escribir en lotes masivos si es necesario (ej: borrar todo)
-                const batch = db.batch();
-                Estado.inventario.forEach(item => {
-                    batch.set(tenantRef.collection('inventario').doc(item.sku), item);
-                });
-                await batch.commit();
-                Inventario.actualizarTabla(); 
+                let chunks = [];
+                for (let i = 0; i < Estado.inventario.length; i += 450) chunks.push(Estado.inventario.slice(i, i + 450));
+                for (const chunk of chunks) {
+                    const batch = db.batch();
+                    chunk.forEach(item => batch.set(tenantRef.collection('inventario').doc(item.sku), item));
+                    await batch.commit();
+                }
+                if (typeof Inventario !== 'undefined') Inventario.actualizarTabla(); 
             },
             async agregarCliente(cliente) {
                 const tenantRef = Firebase._col();
@@ -757,11 +758,13 @@ const firebaseConfig = {
             async guardarClientes() {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
-                const batch = db.batch();
-                Estado.clientes.forEach(cliente => {
-                    batch.set(tenantRef.collection('clientes').doc(cliente.id), cliente);
-                });
-                await batch.commit();
+                let chunks = [];
+                for (let i = 0; i < Estado.clientes.length; i += 450) chunks.push(Estado.clientes.slice(i, i + 450));
+                for (const chunk of chunks) {
+                    const batch = db.batch();
+                    chunk.forEach(cliente => batch.set(tenantRef.collection('clientes').doc(cliente.id.toString()), cliente));
+                    await batch.commit();
+                }
             },
 
             async agregarGasto(gasto) {
@@ -782,11 +785,13 @@ const firebaseConfig = {
             async guardarGastos() {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
-                const batch = db.batch();
-                Estado.gastos.forEach(gasto => {
-                    batch.set(tenantRef.collection('gastos').doc(gasto.id), gasto);
-                });
-                await batch.commit();
+                let chunks = [];
+                for (let i = 0; i < Estado.gastos.length; i += 450) chunks.push(Estado.gastos.slice(i, i + 450));
+                for (const chunk of chunks) {
+                    const batch = db.batch();
+                    chunk.forEach(gasto => batch.set(tenantRef.collection('gastos').doc(gasto.id.toString()), gasto));
+                    await batch.commit();
+                }
             },
             async guardarCostos() { await Firebase.guardar('costos', Estado.costosProductos); },
             async sincronizarDesdeFirebase() {
@@ -1160,7 +1165,7 @@ const firebaseConfig = {
                         const nuevoPrecio = parseFloat(document.getElementById('precio').value) || 0;
                         item = { sku: sku, nombre: nuevoNombre, stock: stockInicial, precio: nuevoPrecio, reorderThreshold: 5, faltaInventario: faltaInventario };
                         Estado.inventario.push(item);
-                        await Storage.guardarInventario();
+                        await Storage.agregarProducto(item);
                         if (typeof UI.actualizarAlertasInventario === 'function') UI.actualizarAlertasInventario();
                     }
 
@@ -1388,19 +1393,32 @@ const firebaseConfig = {
                 Estado.costosProductos = []; Estado.ordenesServicio = []; Estado.proveedores = [];
                 Estado.compras = []; Estado.devoluciones = []; Estado.cotizaciones = []; Estado.cierreCaja = [];
                 
-                const colecciones = ['ventas', 'inventario', 'clientes', 'gastos', 'costosProductos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierreCaja'];
+                const subcolecciones = ['ventas', 'inventario', 'clientes', 'gastos'];
+                const docsGlobales = ['costosProductos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierreCaja'];
                 const tenantId = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
+                const tenantRef = db.collection('empresas').doc(tenantId);
+                
                 if (window.firebaseOK) {
-                    for (const c of colecciones) {
+                    // 1. Borrar subcolecciones (inventario, ventas, etc.)
+                    for (const c of subcolecciones) {
                         try {
-                            const snap = await db.collection(c).where('tenantId', '==', tenantId).get();
-                            const batch = db.batch();
-                            snap.docs.forEach(doc => batch.delete(doc.ref));
-                            await batch.commit();
-                        } catch (e) { console.error('Error', e); }
+                            const snap = await tenantRef.collection(c).get();
+                            let chunks = [];
+                            for (let i = 0; i < snap.docs.length; i += 450) chunks.push(snap.docs.slice(i, i + 450));
+                            for (const chunk of chunks) {
+                                const batch = db.batch();
+                                chunk.forEach(doc => batch.delete(doc.ref));
+                                await batch.commit();
+                            }
+                        } catch (e) { console.error(`Error borrando subcolección ${c}`, e); }
                     }
+                    
+                    // 2. Borrar documentos globales del tenant (campos de la base de datos masivos viejos)
+                    try {
+                        const batch = db.batch();
+                        docsGlobales.forEach(docName => batch.delete(tenantRef.collection('global').doc(docName))); // Placeholder en caso de que existan global docs
+                    } catch (e) { }
                 }
-                await Storage.guardarVentas(); await Storage.guardarInventario(); await Storage.guardarClientes(); await Storage.guardarGastos();
                 UI.actualizarVistas();
                 Swal.fire('✅ Éxito', 'Se limpiaron los datos. Configuración y usuarios permanecen intactos.', 'success');
             },
@@ -1408,17 +1426,24 @@ const firebaseConfig = {
                 const conf = await Swal.fire({ title: '⚠️ BORRADO TOTAL', text: 'Se borrará ABSOLUTAMENTE TODO incluyendo Usuarios y Configuración.', icon: 'error', showCancelButton: true, confirmButtonText: 'Sí, DESTRUIR TODO', confirmButtonColor: '#dc3545', cancelButtonText: 'Cancelar' });
                 if (!conf.isConfirmed) return;
                 
-                const colecciones = ['ventas', 'inventario', 'clientes', 'gastos', 'costosProductos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierreCaja', 'configuracion', 'usuarios_acceso'];
+                const subcolecciones = ['ventas', 'inventario', 'clientes', 'gastos'];
                 const tenantId = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
+                const tenantRef = db.collection('empresas').doc(tenantId);
+                
                 if (window.firebaseOK) {
-                    for (const c of colecciones) {
+                    for (const c of subcolecciones) {
                         try {
-                            const snap = await db.collection(c).where('tenantId', '==', tenantId).get();
-                            const batch = db.batch();
-                            snap.docs.forEach(doc => batch.delete(doc.ref));
-                            await batch.commit();
-                        } catch (e) { console.error('Error', e); }
+                            const snap = await tenantRef.collection(c).get();
+                            let chunks = [];
+                            for (let i = 0; i < snap.docs.length; i += 450) chunks.push(snap.docs.slice(i, i + 450));
+                            for (const chunk of chunks) {
+                                const batch = db.batch();
+                                chunk.forEach(doc => batch.delete(doc.ref));
+                                await batch.commit();
+                            }
+                        } catch (e) { console.error(`Error borrando subcolección ${c}`, e); }
                     }
+                    try { await tenantRef.delete(); } catch(e) {}
                 }
                 localStorage.clear();
                 window.location.reload();
@@ -2404,12 +2429,14 @@ const firebaseConfig = {
                 if (existente) {
                     existente.stock += stock; existente.nombre = nombre; existente.reorderThreshold = reorder;
                     existente.precioVenta = precio; existente.costo = costo;
+                    await Storage.actualizarProducto(existente);
                     Toastify({ text: `📦 Stock actualizado: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
                 } else {
-                    Estado.inventario.push({ sku, nombre, stock, reorderThreshold: reorder, precioVenta: precio, costo: costo });
+                    const nuevoItem = { sku, nombre, stock, reorderThreshold: reorder, precioVenta: precio, costo: costo };
+                    Estado.inventario.push(nuevoItem);
+                    await Storage.agregarProducto(nuevoItem);
                     Toastify({ text: `✅ Producto añadido: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
                 }
-                await Storage.guardarInventario();
                 this.cancelarNuevoItem();
                 ['nuevo-sku', 'nuevo-nombre', 'nuevo-precio-inv', 'nuevo-costo-inv', 'nuevo-stock', 'nuevo-reorder'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
                 document.getElementById('nuevo-stock').value = '0';
@@ -2645,7 +2672,7 @@ const firebaseConfig = {
                 if (stock !== undefined) {
                     item.stock = stock;
                     item.faltaInventario = false;
-                    await Storage.guardarInventario();
+                    await Storage.actualizarProducto(item);
                     this.actualizarAlertasInventario();
                     Toastify({ text: '✅ Inventario guardado', duration: 3000, backgroundColor: 'linear-gradient(135deg,#28a745,#20c997)' }).showToast();
                     if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
@@ -2666,7 +2693,7 @@ const firebaseConfig = {
                 });
                 if (confirm.isConfirmed) {
                     Estado.inventario = Estado.inventario.filter(i => i.sku !== sku);
-                    await Storage.guardarInventario();
+                    await Storage.eliminarProducto(sku);
                     this.actualizarAlertasInventario();
                     if (SidebarMenu.currentTab === 'inventario' && typeof Inventario !== 'undefined') Inventario.actualizarTabla();
                     Toastify({ text: '🗑️ Producto descartado', duration: 3000, style: { background: '#dc3545' } }).showToast();
