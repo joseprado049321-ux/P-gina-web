@@ -681,7 +681,40 @@ const firebaseConfig = {
                 }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
             },
             async guardarVentas() { await Firebase.guardar('ventas', Estado.ventas); },
-            async guardarInventario() { await Firebase.guardar('inventario', Estado.inventario); Inventario.actualizarTabla(); },
+            async agregarProducto(item) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('inventario').doc(item.sku).set(item);
+            },
+            async actualizarProducto(item) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('inventario').doc(item.sku).update(item);
+            },
+            async eliminarProducto(sku) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('inventario').doc(sku).delete();
+            },
+            async incrementarStock(sku, cantidad) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('inventario').doc(sku).update({
+                    stock: firebase.firestore.FieldValue.increment(cantidad)
+                });
+            },
+            async guardarInventario() {
+                // Función deprecada (se mantiene temporalmente para no romper flujos globales de importación)
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                // Escribir en lotes masivos si es necesario (ej: borrar todo)
+                const batch = db.batch();
+                Estado.inventario.forEach(item => {
+                    batch.set(tenantRef.collection('inventario').doc(item.sku), item);
+                });
+                await batch.commit();
+                Inventario.actualizarTabla(); 
+            },
             async guardarClientes() { await Firebase.guardar('clientes', Estado.clientes); },
             async guardarGastos() { await Firebase.guardar('gastos', Estado.gastos); },
             async guardarCostos() { await Firebase.guardar('costos', Estado.costosProductos); },
@@ -690,7 +723,19 @@ const firebaseConfig = {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
-                const claves = ['ventas', 'inventario', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
+                const claves = ['ventas', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
+
+                // Snapshot para la nueva subcolección de inventario
+                tenantRef.collection('inventario').onSnapshot(snap => {
+                    Estado.inventario = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    clearTimeout(this._uiUpdateTimer);
+                    this._uiUpdateTimer = setTimeout(() => {
+                        if (typeof UI !== 'undefined' && UI.actualizarVistas) UI.actualizarVistas();
+                    }, 150);
+                }, error => {
+                    console.error(`Error escuchando en tiempo real inventario:`, error);
+                });
 
                 claves.forEach(clave => {
                     tenantRef.doc(clave).onSnapshot(docSnap => {
@@ -1088,7 +1133,7 @@ const firebaseConfig = {
                 }
                 if (venta.sku) {
                     const item = Estado.inventario.find(x => x.sku === venta.sku);
-                    if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.guardarInventario(); }
+                    if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.incrementarStock(venta.sku, -venta.cantidad); }
                 }
                 Estado.ventas.unshift(venta);
                 await Storage.guardarVentas();
@@ -1179,7 +1224,7 @@ const firebaseConfig = {
                 if (!result.isConfirmed) return;
                 const venta = Estado.ventas.find(v => v.id === id);
                 if (venta) await Papelera.moverA('ventas', venta, `Venta - Total: S/ ${venta.total || 0}`);
-                if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.guardarInventario(); } }
+                if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.incrementarStock(venta.sku, venta.cantidad); } }
                 Estado.ventas = Estado.ventas.filter(v => v.id !== id);
                 await Storage.guardarVentas();
                 UI.actualizarVistas();
@@ -2302,7 +2347,7 @@ const firebaseConfig = {
                 if (tipo === 'sumar') item.stock += cantidad;
                 else if (tipo === 'restar') item.stock = Math.max(0, item.stock - cantidad);
                 else item.stock = cantidad;
-                await Storage.guardarInventario();
+                await Storage.actualizarProducto(item);
                 Toastify({ text: `📦 Stock actualizado: ${item.sku} → ${item.stock}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
             },
             async eliminarItem(idx) {
@@ -2311,7 +2356,7 @@ const firebaseConfig = {
                 const itemABorrar = Estado.inventario[idx];
                 if (itemABorrar) await Papelera.moverA('inventario', itemABorrar, `Producto: ${itemABorrar.nombre || itemABorrar.producto}`);
                 Estado.inventario.splice(idx, 1);
-                await Storage.guardarInventario();
+                if (itemABorrar) await Storage.eliminarProducto(itemABorrar.sku);
             },
             exportarInventarioJSON() {
                 const blob = new Blob([JSON.stringify(Estado.inventario, null, 2)], { type: 'application/json' });
@@ -3952,9 +3997,14 @@ const firebaseConfig = {
                 // Restaurar stock en inventario
                 if (venta.sku) {
                     const invItem = Estado.inventario.find(i => i.sku === venta.sku);
-                    if (invItem) invItem.stock += detalle.cantidad;
-                    else Estado.inventario.push({ sku: venta.sku, nombre: venta.producto, stock: detalle.cantidad, reorderThreshold: 5 });
-                    await Storage.guardarInventario();
+                    if (invItem) {
+                        invItem.stock += detalle.cantidad;
+                        await Storage.incrementarStock(venta.sku, detalle.cantidad);
+                    } else { 
+                        const nuevo = { sku: venta.sku, nombre: venta.producto, stock: detalle.cantidad, reorderThreshold: 5 };
+                        Estado.inventario.push(nuevo);
+                        await Storage.agregarProducto(nuevo);
+                    }
                 }
 
                 // Marcar la venta como devuelta (parcial o total)
@@ -4026,7 +4076,7 @@ const firebaseConfig = {
                     const invItem = Estado.inventario.find(i => i.sku === devolucion.sku);
                     if (invItem) {
                         invItem.stock -= devolucion.cantidadDevuelta;
-                        await Storage.guardarInventario();
+                        await Storage.incrementarStock(devolucion.sku, -devolucion.cantidadDevuelta);
                     }
                 }
                 
