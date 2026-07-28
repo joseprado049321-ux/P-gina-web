@@ -205,27 +205,15 @@ const firebaseConfig = {
                     this._notificar("✅ Bienvenido Administrador", "linear-gradient(to right,#4472C4,#2c5aa0)");
                 } else {
                     try {
-                        const snapshot = await db.collection('usuarios_acceso').where('username', '==', user).where('password', '==', pass).get();
-                        if (!snapshot.empty) {
-                            const userData = snapshot.docs[0].data();
-                            if (userData.estado !== 'aprobado') {
-                                this._notificar("❌ Tu cuenta no está aprobada", "#ff5f6d");
-                                return;
-                            }
-                            this.esAdmin = (userData.rol === 'admin');
-                            this.modoInvitado = false;
-                            this.usuarioActual = userData;
-                            localStorage.setItem('sesionActiva', 'true');
-                            // Si el Súper Admin le asignó un Tenant a este usuario, lo cargamos
-                            if (userData.tenantId) localStorage.setItem('tenantId', userData.tenantId);
-                            this.mostrarPantallaPrincipal();
-                            this._notificar(`✅ Bienvenido, ${userData.nombre}`, "linear-gradient(to right,#00b09b,#96c93d)");
-                        } else {
-                            this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
+                        let loginEmail = user;
+                        if (!user.includes('@')) {
+                            loginEmail = `${user.toLowerCase().replace(/\s+/g, '')}@local.app`;
                         }
+                        await firebase.auth().signInWithEmailAndPassword(loginEmail, pass);
+                        // onAuthStateChanged se encarga del flujo a partir de aquí
                     } catch (error) {
                         console.error(error);
-                        this._notificar("❌ Error conectando a la base de datos", "#ff5f6d");
+                        this._notificar("❌ Usuario o clave incorrectos", "#ff5f6d");
                     }
                 }
 
@@ -642,21 +630,32 @@ const firebaseConfig = {
                         const existe = await db.collection('usuarios_acceso').where('username', '==', username).get();
                         if (!existe.empty) { Swal.fire('❌ Error', 'El usuario ya existe.', 'error'); return; }
 
-                        await db.collection('usuarios_acceso').add({
+                        const fakeEmail = `${username.toLowerCase().replace(/\s+/g, '')}@local.app`;
+
+                        // Utilizar una instancia secundaria para crear el usuario sin desloguear al Admin
+                        let secondaryApp = firebase.apps.find(app => app.name === 'SecondaryApp');
+                        if (!secondaryApp) {
+                            secondaryApp = firebase.initializeApp(firebase.app().options, 'SecondaryApp');
+                        }
+                        
+                        const userCred = await secondaryApp.auth().createUserWithEmailAndPassword(fakeEmail, password);
+                        await secondaryApp.auth().signOut();
+
+                        await db.collection('usuarios_acceso').doc(userCred.user.uid).set({
                             tipo: 'local',
                             nombre: username,
                             username: username,
-                            password: password,
                             rol: rol,
                             modulos: rol === 'empleado' ? modulos : [],
                             estado: 'aprobado', // Los creados por el admin nacen aprobados
                             tenantId: localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo',
                             fechaSolicitud: new Date().toISOString()
                         });
-                        Toastify({ text: `✅ Usuario "${username}" guardado en la nube`, duration: 3000, backgroundColor: '#28a745' }).showToast();
+                        Toastify({ text: `✅ Usuario "${username}" guardado en la nube de forma segura`, duration: 3000, backgroundColor: '#28a745' }).showToast();
                         this.cargarTodos();
                     } catch (error) {
-                        Swal.fire('❌ Error', 'No se pudo guardar en la nube', 'error');
+                        console.error(error);
+                        Swal.fire('❌ Error', 'No se pudo guardar en la nube: ' + error.message, 'error');
                     }
                 });
 

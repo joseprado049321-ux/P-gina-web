@@ -2,37 +2,56 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Función para verificar si es el Super Administrador
+    // 1. Función para saber si es el Súper Administrador
     function isSuperAdmin() {
       return request.auth != null && request.auth.token.email == "joseprado049321@gmail.com";
     }
 
-    // Reglas por defecto: el SuperAdmin puede acceder a todo, el resto denegado
-    match /{document=**} {
-      allow read, write: if isSuperAdmin();
+    // 2. Función clave: Obtiene el perfil del usuario que está haciendo la petición
+    function getUserData() {
+      return get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data;
     }
 
-    // Aislamiento de datos por tienda (Tenant ID)
-    match /empresas/{tenantId} {
-      // Solo el SuperAdmin, el dueño o los empleados con el mismo tenantId pueden leer/escribir
-      allow read, write: if isSuperAdmin() || (request.auth != null && 
-        (get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data.tenantId == tenantId ||
-         get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data.rol == 'admin'));
+    // 3. Reglas para los accesos y usuarios
+    match /usuarios_acceso/{userId} {
+      // Un usuario puede crear su perfil, O un 'admin' puede crear usuarios locales para su misma tienda
+      allow create: if isSuperAdmin() || 
+                    (request.auth != null && request.auth.uid == userId) ||
+                    (request.auth != null && getUserData().rol == 'admin' && request.resource.data.tenantId == getUserData().tenantId);
+      
+      // Puedes leer tu propio perfil, o si eres parte de la misma tienda (necesario para ver la lista de empleados)
+      allow read: if isSuperAdmin() || 
+                  (request.auth != null && request.auth.uid == userId) || 
+                  (request.auth != null && resource != null && resource.data.tenantId == getUserData().tenantId);
+      
+      // Solo puedes editar tu propia cuenta, o el 'admin' puede editar a los empleados de su tienda
+      allow update: if isSuperAdmin() || 
+                    (request.auth != null && request.auth.uid == userId) ||
+                    (request.auth != null && getUserData().rol == 'admin' && resource.data.tenantId == getUserData().tenantId);
+      
+      // Solo el Súper Administrador puede eliminar cuentas o el admin de la tienda
+      allow delete: if isSuperAdmin() || 
+                    (request.auth != null && getUserData().rol == 'admin' && resource.data.tenantId == getUserData().tenantId);
+    }
 
-      // Subcolecciones dentro de empresa
+    // 4. Reglas blindadas para las empresas (Las Cajas Fuertes)
+    match /empresas/{tenantId} {
+      // MAGIA AQUÍ: Para que el empleado pueda vincularse, necesita leer el "storeId" temporalmente.
+      // Permitimos lectura general a cualquier autenticado (es seguro porque solo ven el nombre y el storeId).
+      allow read: if request.auth != null;
+      
+      // La escritura sí está bloqueada estrictamente al dueño/admin de la tienda.
+      allow write: if isSuperAdmin() || (request.auth != null && getUserData().tenantId == tenantId);
+      
+      // BLINDAJE DE DATOS SENSIBLES: Todas las subcolecciones (ventas, inventario, gastos, clientes, etc.)
       match /{subcollections=**} {
-        allow read, write: if isSuperAdmin() || (request.auth != null && 
-          (get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data.tenantId == tenantId ||
-           get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data.rol == 'admin'));
+        allow read, write: if isSuperAdmin() || (request.auth != null && getUserData().tenantId == tenantId);
       }
     }
 
-    // Acceso a la colección de usuarios
-    match /usuarios_acceso/{userId} {
-      // Cualquiera autenticado puede leer (para poder listar los usuarios en la interfaz)
-      allow read: if request.auth != null;
-      // Modificar: SuperAdmin, el mismo usuario, o un 'admin' de una empresa
-      allow write: if isSuperAdmin() || (request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data.rol == 'admin'));
+    // 5. Bloquear cualquier otra colección por defecto
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
     }
   }
 }
