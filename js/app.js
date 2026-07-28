@@ -3920,8 +3920,11 @@ const firebaseConfig = {
                         const invItem = Estado.inventario.find(i => i.sku === item.sku);
                         if (invItem) {
                             invItem.stock += item.cantidad;
+                            Storage.actualizarProducto(invItem); // Lanzado en background
                         } else {
-                            Estado.inventario.push({ sku: item.sku, nombre: item.nombre, stock: item.cantidad, reorderThreshold: 5 });
+                            const nuevoInvItem = { sku: item.sku, nombre: item.nombre, stock: item.cantidad, reorderThreshold: 5 };
+                            Estado.inventario.push(nuevoInvItem);
+                            Storage.agregarProducto(nuevoInvItem); // Lanzado en background
                         }
                         // Actualizar costo en rentabilidad
                         const precioVenta = Estado.ventas.filter(v => v.sku === item.sku).reduce((s, v, _, a) => s + v.precio / a.length, 0) || item.costoUnit * 1.3;
@@ -3929,7 +3932,6 @@ const firebaseConfig = {
                         Estado.costosProductos[item.sku] = { costo: item.costoUnit, precioVenta, margen, porcentajeMargen: precioVenta > 0 ? (margen / precioVenta * 100) : 0 };
                     }
                 });
-                await Storage.guardarInventario();
                 await Storage.guardarCostos();
 
                 const compras = this.cargar();
