@@ -680,7 +680,31 @@ const firebaseConfig = {
                     return { ...v, adelanto, saldoPendiente, estadoPago, historialPagos };
                 }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
             },
-            async guardarVentas() { await Firebase.guardar('ventas', Estado.ventas); },
+            async agregarVenta(venta) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('ventas').doc(venta.id).set(venta);
+            },
+            async actualizarVenta(venta) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('ventas').doc(venta.id).update(venta);
+            },
+            async eliminarVenta(id) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('ventas').doc(id).delete();
+            },
+            async guardarVentas() {
+                // Función deprecada (se mantiene temporalmente para no romper flujos globales de importación)
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                const batch = db.batch();
+                Estado.ventas.forEach(venta => {
+                    batch.set(tenantRef.collection('ventas').doc(venta.id), venta);
+                });
+                await batch.commit();
+            },
             async agregarProducto(item) {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
@@ -723,7 +747,7 @@ const firebaseConfig = {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
-                const claves = ['ventas', 'clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
+                const claves = ['clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
 
                 // Snapshot para la nueva subcolección de inventario
                 tenantRef.collection('inventario').onSnapshot(snap => {
@@ -735,6 +759,18 @@ const firebaseConfig = {
                     }, 150);
                 }, error => {
                     console.error(`Error escuchando en tiempo real inventario:`, error);
+                });
+
+                // Snapshot para la nueva subcolección de ventas
+                tenantRef.collection('ventas').onSnapshot(snap => {
+                    Estado.ventas = Storage._normalizarVentas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    
+                    clearTimeout(this._uiUpdateTimer);
+                    this._uiUpdateTimer = setTimeout(() => {
+                        if (typeof UI !== 'undefined' && UI.actualizarVistas) UI.actualizarVistas();
+                    }, 150);
+                }, error => {
+                    console.error(`Error escuchando en tiempo real ventas:`, error);
                 });
 
                 claves.forEach(clave => {
@@ -1136,7 +1172,7 @@ const firebaseConfig = {
                     if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.incrementarStock(venta.sku, -venta.cantidad); }
                 }
                 Estado.ventas.unshift(venta);
-                await Storage.guardarVentas();
+                await Storage.agregarVenta(venta);
                 UI.actualizarVistas();
                 const msg = document.getElementById('success-msg');
                 msg.classList.add('show');
@@ -1226,7 +1262,7 @@ const firebaseConfig = {
                 if (venta) await Papelera.moverA('ventas', venta, `Venta - Total: S/ ${venta.total || 0}`);
                 if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.incrementarStock(venta.sku, venta.cantidad); } }
                 Estado.ventas = Estado.ventas.filter(v => v.id !== id);
-                await Storage.guardarVentas();
+                await Storage.eliminarVenta(id);
                 UI.actualizarVistas();
                 Toastify({ text: "🗑️ Venta eliminada", duration: 3000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#ff5f6d,#ffc371)" }).showToast();
             },
@@ -1263,7 +1299,7 @@ const firebaseConfig = {
                 venta.saldoPendiente = venta.total - venta.adelanto;
                 venta.estadoPago = venta.saldoPendiente <= 0.01 ? 'Pagado' : 'Pendiente';
                 venta.metodo = Ventas.calcularMetodoCombinado(venta.historialPagos);
-                await Storage.guardarVentas();
+                await Storage.actualizarVenta(venta);
                 UI.actualizarVistas();
                 if (venta.estadoPago === 'Pagado') await Swal.fire({ icon: 'success', title: '¡Pago Completo!', html: `<p>Total pagado. Método: ${venta.metodo}</p>`, confirmButtonColor: '#4472C4' });
                 else Toastify({ text: `💰 Saldo restante: S/${venta.saldoPendiente.toFixed(2)}`, duration: 4000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#17a2b8,#138496)" }).showToast();
@@ -4012,8 +4048,8 @@ const firebaseConfig = {
                 if (vIdx !== -1) {
                     Estado.ventas[vIdx].devolucionParcial = (Estado.ventas[vIdx].devolucionParcial || 0) + detalle.cantidad;
                     if (Estado.ventas[vIdx].devolucionParcial >= venta.cantidad) Estado.ventas[vIdx].devolucionTotal = true;
+                    await Storage.actualizarVenta(Estado.ventas[vIdx]);
                 }
-                await Storage.guardarVentas();
 
                 const devs = this.cargar();
                 devs.unshift(devolucion);
@@ -4085,7 +4121,7 @@ const firebaseConfig = {
                 if (vIdx !== -1) {
                     Estado.ventas[vIdx].devolucionParcial = Math.max(0, (Estado.ventas[vIdx].devolucionParcial || 0) - devolucion.cantidadDevuelta);
                     if (Estado.ventas[vIdx].devolucionParcial < Estado.ventas[vIdx].cantidad) Estado.ventas[vIdx].devolucionTotal = false;
-                    await Storage.guardarVentas();
+                    await Storage.actualizarVenta(Estado.ventas[vIdx]);
                 }
 
                 if (typeof Papelera !== 'undefined') await Papelera.moverA('devoluciones', devolucion, `Devolución de ${devolucion.producto}`);
@@ -4239,7 +4275,7 @@ const firebaseConfig = {
 
                 // Registrar una venta por cada item de la cotización
                 const fecha = new Date().toISOString().slice(0, 10);
-                cot.items.forEach(item => {
+                for (const item of cot.items) {
                     const venta = {
                         id: Date.now() + Math.random(),
                         fecha,
@@ -4260,8 +4296,8 @@ const firebaseConfig = {
                         createdAt: new Date().toISOString()
                     };
                     Estado.ventas.unshift(venta);
-                });
-                await Storage.guardarVentas();
+                    await Storage.agregarVenta(venta);
+                }
 
                 // Marcar cotización como aprobada
                 const cots = this.cargar();
