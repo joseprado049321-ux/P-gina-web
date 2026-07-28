@@ -1631,9 +1631,8 @@
             // Paso 4: Si hay respuesta exitosa, se rellena #cliente
             // Paso 5: Se muestra una alerta de éxito con SweetAlert2
             // ─────────────────────────────────────────────────────────────
-            window.consultarDNIGenerico = function(dniInputId, nombreInputId, btnElement) {
+            window.consultarDNIGenerico = async function(dniInputId, nombreInputId, btnElement) {
                 var dni = $('#' + dniInputId).val().toString().trim();
-                var token = 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
 
                 // Validar que sean exactamente 8 dígitos
                 if (!/^\d{8}$/.test(dni)) {
@@ -1651,63 +1650,54 @@
                 var originalText = $btn.html();
                 $btn.html('⏳ Buscando...').prop('disabled', true);
 
-                fetch('https://miapi.cloud/v1/dni/' + dni, {
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
-                })
-                    .then(function (response) {
-                        return response.json();
-                    })
-                    .then(function (data) {
-                        console.log('Respuesta API DNI:', JSON.stringify(data));
-                        var d = data.datos || data.data || {};
-                        var nombres = d.nombres || '';
-                        var apPaterno = d.ape_paterno || d.apellidoPaterno || '';
-                        var apMaterno = d.ape_materno || d.apellidoMaterno || '';
-                        var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
+                try {
+                    const callDni = firebase.functions().httpsCallable('consultarDNI');
+                    const response = await callDni({ dni: dni });
+                    const data = response.data;
+                    
+                    console.log('Respuesta API DNI (Segura):', JSON.stringify(data));
+                    var d = data.datos || data.data || {};
+                    var nombres = d.nombres || '';
+                    var apPaterno = d.ape_paterno || d.apellidoPaterno || '';
+                    var apMaterno = d.ape_materno || d.apellidoMaterno || '';
+                    var nombreCompleto = (nombres + ' ' + apPaterno + ' ' + apMaterno).trim();
 
-                        if (nombreCompleto.length > 2) {
-                            $('#' + nombreInputId).val(nombreCompleto);
-                            if (nombreInputId === 'cliente') $('#campos-manuales-dni').slideUp(200);
-                            
-                            // Si estamos en Órdenes de Servicio, buscar si ya existe para rellenar teléfono
-                            if (nombreInputId === 'os-cliente' && typeof Estado !== 'undefined' && Estado.clientes) {
-                                const c = Estado.clientes.find(x => x.nombre.toLowerCase() === nombreCompleto.toLowerCase() || x.dni === dni);
-                                if (c && c.telefono) $('#os-telefono').val(c.telefono);
-                            }
-
-                            Swal.fire({
-                                icon: 'success',
-                                title: '✅ Cliente encontrado',
-                                text: nombreCompleto,
-                                timer: 2500,
-                                showConfirmButton: false
-                            });
-                        } else {
-                            Swal.fire({
-                                icon: 'warning',
-                                title: 'Respuesta inesperada',
-                                html: '<p>La API respondió con un formato distinto.</p>'
-                                    + '<pre class="utils-54a15b">'
-                                    + JSON.stringify(data, null, 2) + '</pre>',
-                                confirmButtonColor: '#4472C4'
-                            });
+                    if (nombreCompleto.length > 2) {
+                        $('#' + nombreInputId).val(nombreCompleto);
+                        if (nombreInputId === 'cliente') $('#campos-manuales-dni').slideUp(200);
+                        
+                        // Si estamos en Órdenes de Servicio, buscar si ya existe para rellenar teléfono
+                        if (nombreInputId === 'os-cliente' && typeof Estado !== 'undefined' && Estado.clientes) {
+                            const c = Estado.clientes.find(x => x.nombre.toLowerCase() === nombreCompleto.toLowerCase() || x.dni === dni);
+                            if (c && c.telefono) $('#os-telefono').val(c.telefono);
                         }
-                    })
-                    .catch(function (error) {
-                        console.error('Error API DNI:', error);
+
                         Swal.fire({
-                            icon: 'error',
-                            title: 'Error de conexión',
-                            text: 'No se pudo conectar con la API. Revisa tu internet.',
+                            icon: 'success',
+                            title: '✅ Cliente encontrado',
+                            text: nombreCompleto,
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Respuesta inesperada',
+                            html: '<p>La API respondió con un formato distinto.</p><pre class="utils-54a15b">' + JSON.stringify(data, null, 2) + '</pre>',
                             confirmButtonColor: '#4472C4'
                         });
-                    })
-                    .finally(function () {
-                        // Restaurar el botón siempre, haya error o éxito
-                        $btn.html(originalText).prop('disabled', false);
+                    }
+                } catch (error) {
+                    console.error('Error API DNI (Segura):', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de conexión',
+                        text: 'No se pudo validar el DNI o no hay conexión con el servidor.',
+                        confirmButtonColor: '#4472C4'
                     });
+                } finally {
+                    $btn.html(originalText).prop('disabled', false);
+                }
             };
 
             $('#btnConsultarDNI').on('click', function () {

@@ -739,15 +739,62 @@ const firebaseConfig = {
                 await batch.commit();
                 Inventario.actualizarTabla(); 
             },
-            async guardarClientes() { await Firebase.guardar('clientes', Estado.clientes); },
-            async guardarGastos() { await Firebase.guardar('gastos', Estado.gastos); },
+            async agregarCliente(cliente) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('clientes').doc(cliente.id).set(cliente);
+            },
+            async actualizarCliente(cliente) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('clientes').doc(cliente.id).update(cliente);
+            },
+            async eliminarCliente(id) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('clientes').doc(id).delete();
+            },
+            async guardarClientes() {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                const batch = db.batch();
+                Estado.clientes.forEach(cliente => {
+                    batch.set(tenantRef.collection('clientes').doc(cliente.id), cliente);
+                });
+                await batch.commit();
+            },
+
+            async agregarGasto(gasto) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('gastos').doc(gasto.id).set(gasto);
+            },
+            async actualizarGasto(gasto) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('gastos').doc(gasto.id).update(gasto);
+            },
+            async eliminarGasto(id) {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                await tenantRef.collection('gastos').doc(id).delete();
+            },
+            async guardarGastos() {
+                const tenantRef = Firebase._col();
+                if (!tenantRef) return;
+                const batch = db.batch();
+                Estado.gastos.forEach(gasto => {
+                    batch.set(tenantRef.collection('gastos').doc(gasto.id), gasto);
+                });
+                await batch.commit();
+            },
             async guardarCostos() { await Firebase.guardar('costos', Estado.costosProductos); },
             async sincronizarDesdeFirebase() {
                 if (!window.firebaseOK) return;
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
-                const claves = ['clientes', 'gastos', 'costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
+                const claves = ['costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
 
                 // Snapshot para la nueva subcolección de inventario
                 tenantRef.collection('inventario').onSnapshot(snap => {
@@ -771,6 +818,30 @@ const firebaseConfig = {
                     }, 150);
                 }, error => {
                     console.error(`Error escuchando en tiempo real ventas:`, error);
+                });
+
+                // Snapshot para la nueva subcolección de clientes
+                tenantRef.collection('clientes').onSnapshot(snap => {
+                    Estado.clientes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    clearTimeout(this._uiUpdateTimer);
+                    this._uiUpdateTimer = setTimeout(() => {
+                        if (typeof UI !== 'undefined' && UI.actualizarVistas) UI.actualizarVistas();
+                    }, 150);
+                }, error => {
+                    console.error(`Error escuchando en tiempo real clientes:`, error);
+                });
+
+                // Snapshot para la nueva subcolección de gastos
+                tenantRef.collection('gastos').onSnapshot(snap => {
+                    Estado.gastos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    clearTimeout(this._uiUpdateTimer);
+                    this._uiUpdateTimer = setTimeout(() => {
+                        if (typeof UI !== 'undefined' && UI.actualizarVistas) UI.actualizarVistas();
+                    }, 150);
+                }, error => {
+                    console.error(`Error escuchando en tiempo real gastos:`, error);
                 });
 
                 claves.forEach(clave => {
@@ -1233,7 +1304,7 @@ const firebaseConfig = {
                             };
                             if(!Estado.clientes) Estado.clientes = [];
                             Estado.clientes.push(nuevoCliente);
-                            await Storage.guardarClientes();
+                            await Storage.agregarCliente(nuevoCliente);
                             if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
                         }
                     } else {
@@ -1241,7 +1312,7 @@ const firebaseConfig = {
                         const dniIngresado = document.getElementById('dniInput') ? document.getElementById('dniInput').value.trim() : '';
                         if (dniIngresado && !clienteExistente.dni) {
                             clienteExistente.dni = dniIngresado;
-                            await Storage.guardarClientes();
+                            await Storage.actualizarCliente(clienteExistente);
                             if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
                         }
                     }
@@ -1961,20 +2032,21 @@ const firebaseConfig = {
                     if (datos.telefono) Estado.clientes[idx].telefono = datos.telefono;
                     if (datos.direccion) Estado.clientes[idx].direccion = datos.direccion;
                     if (datos.dni) Estado.clientes[idx].dni = datos.dni;
-                    await Storage.guardarClientes();
+                    await Storage.actualizarCliente(Estado.clientes[idx]);
                     if (typeof Clientes !== 'undefined' && Clientes.renderizarLista) Clientes.renderizarLista();
                 } else {
                     // Guardado silencioso de nuevo cliente
-                    Estado.clientes.push({
-                        id: Date.now(),
+                    const nuevoC = {
+                        id: Date.now().toString(),
                         nombre: datos.cliente,
                         dni: datos.dni || '',
                         telefono: datos.telefono || '',
                         direccion: datos.direccion || '',
                         notas: '',
                         fechaRegistro: new Date().toISOString()
-                    });
-                    await Storage.guardarClientes();
+                    };
+                    Estado.clientes.push(nuevoC);
+                    await Storage.agregarCliente(nuevoC);
                     if (typeof Clientes !== 'undefined' && Clientes.renderizarLista) Clientes.renderizarLista();
                 }
             },
@@ -2858,8 +2930,9 @@ const firebaseConfig = {
                 const nombre = document.getElementById('nuevo-cliente-nombre').value.trim();
                 if (!nombre) { Swal.fire('Error', 'El nombre es obligatorio', 'error'); return; }
                 if (Estado.clientes.find(c => c.nombre.toLowerCase() === nombre.toLowerCase())) { Swal.fire('Ya existe', 'Este cliente ya está registrado.', 'warning'); return; }
-                Estado.clientes.push({ id: Date.now(), nombre, telefono: document.getElementById('nuevo-cliente-telefono').value.trim(), email: document.getElementById('nuevo-cliente-email').value.trim(), direccion: document.getElementById('nuevo-cliente-direccion').value.trim(), notas: document.getElementById('nuevo-cliente-notas').value.trim(), fechaRegistro: new Date().toISOString() });
-                await Storage.guardarClientes();
+                const nuevoCliente = { id: Date.now().toString(), nombre, telefono: document.getElementById('nuevo-cliente-telefono').value.trim(), email: document.getElementById('nuevo-cliente-email').value.trim(), direccion: document.getElementById('nuevo-cliente-direccion').value.trim(), notas: document.getElementById('nuevo-cliente-notas').value.trim(), fechaRegistro: new Date().toISOString() };
+                Estado.clientes.push(nuevoCliente);
+                await Storage.agregarCliente(nuevoCliente);
                 this.cancelarNuevoCliente();
                 this.renderizarLista();
                 ['nuevo-cliente-nombre', 'nuevo-cliente-telefono', 'nuevo-cliente-email', 'nuevo-cliente-direccion', 'nuevo-cliente-notas'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -2908,7 +2981,7 @@ const firebaseConfig = {
                 const itemABorrar = Estado.clientes.find(c => c.id === id);
                 if (itemABorrar) await Papelera.moverA('clientes', itemABorrar, `Cliente: ${itemABorrar.nombre}`);
                 Estado.clientes = Estado.clientes.filter(c => c.id !== id);
-                await Storage.guardarClientes();
+                await Storage.eliminarCliente(id);
                 this.renderizarLista();
             },
             exportarClientes() {
@@ -2928,8 +3001,9 @@ const firebaseConfig = {
                 const descripcion = document.getElementById('nuevo-gasto-descripcion').value.trim();
                 const monto = parseFloat(document.getElementById('nuevo-gasto-monto').value) || 0;
                 if (!fecha || !categoria || !descripcion || monto <= 0) { Swal.fire('Error', 'Completa todos los campos obligatorios', 'error'); return; }
-                Estado.gastos.push({ id: Date.now(), fecha, categoria, descripcion, monto, proveedor: document.getElementById('nuevo-gasto-proveedor').value.trim(), comprobante: document.getElementById('nuevo-gasto-comprobante').value.trim(), recurrente: document.getElementById('nuevo-gasto-recurrente').checked, notas: document.getElementById('nuevo-gasto-notas').value.trim(), createdAt: new Date().toISOString() });
-                await Storage.guardarGastos();
+                const nuevoGasto = { id: Date.now().toString(), fecha, categoria, descripcion, monto, proveedor: document.getElementById('nuevo-gasto-proveedor').value.trim(), comprobante: document.getElementById('nuevo-gasto-comprobante').value.trim(), recurrente: document.getElementById('nuevo-gasto-recurrente').checked, notas: document.getElementById('nuevo-gasto-notas').value.trim(), createdAt: new Date().toISOString() };
+                Estado.gastos.push(nuevoGasto);
+                await Storage.agregarGasto(nuevoGasto);
                 this.cancelarNuevoGasto();
                 this.renderizarLista();
                 Toastify({ text: '✅ Gasto registrado', duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#dc3545,#c82333)' }).showToast();
@@ -2971,7 +3045,7 @@ const firebaseConfig = {
                 const itemABorrar = Estado.gastos.find(g => g.id === id);
                 if (itemABorrar) await Papelera.moverA('gastos', itemABorrar, `Gasto: ${itemABorrar.descripcion} (S/ ${itemABorrar.monto})`);
                 Estado.gastos = Estado.gastos.filter(g => g.id !== id);
-                await Storage.guardarGastos();
+                await Storage.eliminarGasto(id);
                 this.renderizarLista();
             },
             exportarGastos() {
@@ -3343,7 +3417,7 @@ const firebaseConfig = {
                             };
                             if(!Estado.clientes) Estado.clientes = [];
                             Estado.clientes.push(nuevoCliente);
-                            await Storage.guardarClientes();
+                            await Storage.agregarCliente(nuevoCliente);
                             if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
                         }
                     } else {
@@ -3353,7 +3427,7 @@ const firebaseConfig = {
                         if (dniIngresado && !clienteExistente.dni) { clienteExistente.dni = dniIngresado; modificado = true; }
                         if (telIngresado && !clienteExistente.telefono) { clienteExistente.telefono = telIngresado; modificado = true; }
                         if (modificado) {
-                            await Storage.guardarClientes();
+                            await Storage.actualizarCliente(clienteExistente);
                             if(typeof Clientes !== 'undefined') Clientes.renderizarLista();
                         }
                     }

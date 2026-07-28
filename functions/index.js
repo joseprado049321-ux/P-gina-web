@@ -9,28 +9,34 @@ const db = admin.firestore();
 // Variable de entorno / Secreto para el token de la API externa
 const API_TOKEN = functions.config().miapi ? functions.config().miapi.token : 'f4616d3f-dd18-4e08-89dc-ebc2fad3c9ba';
 
-exports.consultarDNI = functions.https.onRequest((req, res) => {
-    cors(req, res, async () => {
-        if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-        
-        const dni = req.body.dni;
-        if (!dni || dni.length !== 8) {
-            return res.status(400).json({ error: 'DNI inválido' });
-        }
+exports.consultarDNI = functions.https.onCall(async (data, context) => {
+    // 1. Validar autenticación
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Debes estar autenticado para consultar DNI.');
+    }
 
-        try {
-            const apiResponse = await fetch(`https://miapi.cloud/v1/dni/${dni}`, {
-                headers: {
-                    'Authorization': `Bearer ${API_TOKEN}`
-                }
-            });
-            const data = await apiResponse.json();
-            return res.status(200).json(data);
-        } catch (error) {
-            console.error('Error fetching DNI:', error);
-            return res.status(500).json({ error: 'Error interno del servidor' });
+    const dni = data.dni;
+    if (!dni || dni.length !== 8) {
+        throw new functions.https.HttpsError('invalid-argument', 'DNI inválido.');
+    }
+
+    try {
+        const apiResponse = await fetch(`https://miapi.cloud/v1/dni/${dni}`, {
+            headers: {
+                'Authorization': `Bearer ${API_TOKEN}`
+            }
+        });
+        
+        if (!apiResponse.ok) {
+            throw new Error(`API Error: ${apiResponse.statusText}`);
         }
-    });
+        
+        const resultData = await apiResponse.json();
+        return resultData;
+    } catch (error) {
+        console.error('Error fetching DNI:', error);
+        throw new functions.https.HttpsError('internal', 'Error interno al consultar el DNI.');
+    }
 });
 
 exports.procesarVenta = functions.https.onCall(async (data, context) => {
