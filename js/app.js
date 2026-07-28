@@ -2293,9 +2293,19 @@ const firebaseConfig = {
                 const registro = p[idx];
                 if (Array.isArray(Estado[registro.modulo])) {
                     Estado[registro.modulo].unshift(registro.itemData);
-                    const capitalizado = registro.modulo.charAt(0).toUpperCase() + registro.modulo.slice(1);
-                    if (typeof Storage[`guardar${capitalizado}`] === 'function') await Storage[`guardar${capitalizado}`]();
-                    else await Firebase.guardar(registro.modulo, Estado[registro.modulo]);
+                    
+                    // Si el módulo soporta guardado atómico (subcolecciones)
+                    let agregado = false;
+                    if (registro.modulo === 'ventas' && typeof Storage.agregarVenta === 'function') { await Storage.agregarVenta(registro.itemData); agregado = true; }
+                    else if (registro.modulo === 'inventario' && typeof Storage.agregarProducto === 'function') { await Storage.agregarProducto(registro.itemData); agregado = true; }
+                    else if (registro.modulo === 'clientes' && typeof Storage.agregarCliente === 'function') { await Storage.agregarCliente(registro.itemData); agregado = true; }
+                    else if (registro.modulo === 'gastos' && typeof Storage.agregarGasto === 'function') { await Storage.agregarGasto(registro.itemData); agregado = true; }
+                    
+                    if (!agregado) {
+                        const capitalizado = registro.modulo.charAt(0).toUpperCase() + registro.modulo.slice(1);
+                        if (typeof Storage[`guardar${capitalizado}`] === 'function') await Storage[`guardar${capitalizado}`]();
+                        else await Firebase.guardar(registro.modulo, Estado[registro.modulo]);
+                    }
                 }
                 p.splice(idx, 1); await this.guardar(p);
                 this.actualizarVista();
@@ -3467,10 +3477,10 @@ const firebaseConfig = {
                             const invItem = Estado.inventario.find(i => i.id === rep.idProducto);
                             if (invItem && invItem.stock > 0) {
                                 invItem.stock -= 1;
+                                Storage.actualizarProducto(invItem); // Guardado atómico a la subcolección en background
                             }
                         }
                     });
-                    await Firebase.guardar('inventario', Estado.inventario);
                     if (typeof UI !== 'undefined' && UI.renderInventario) UI.renderInventario();
                 }
 
