@@ -44,8 +44,12 @@ service cloud.firestore {
       allow write: if isSuperAdmin() || (request.auth != null && getUserData().tenantId == tenantId);
       
       // BLINDAJE DE DATOS SENSIBLES: Todas las subcolecciones (ventas, inventario, gastos, clientes, etc.)
-      match /{subcollections=**} {
-        allow read, write: if isSuperAdmin() || (request.auth != null && getUserData().tenantId == tenantId);
+      match /{subcollection}/{document=**} {
+        allow read, delete: if isSuperAdmin() || (request.auth != null && getUserData().tenantId == tenantId);
+        allow create, update: if isSuperAdmin() || (
+          request.auth != null && getUserData().tenantId == tenantId &&
+          (subcollection != 'inventario' || !request.resource.data.keys().hasAny(['stock']) || request.resource.data.stock >= 0)
+        );
       }
     }
 

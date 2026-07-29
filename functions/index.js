@@ -67,7 +67,7 @@ exports.procesarVenta = functions.https.onCall(async (data, context) => {
         }
 
         // 3. Ejecutar la venta en una transacción para asegurar atomicidad
-        await db.runTransaction(async (transaction) => {
+        const resultId = await db.runTransaction(async (transaction) => {
             const inventarioRef = db.collection('empresas').doc(tenantId).collection('inventario').doc(sku);
             const doc = await transaction.get(inventarioRef);
 
@@ -93,8 +93,10 @@ exports.procesarVenta = functions.https.onCall(async (data, context) => {
                 });
             }
 
+            let ventaId;
             // Registrar venta
             const ventaRef = db.collection('empresas').doc(tenantId).collection('ventas').doc();
+            ventaId = ventaRef.id;
             transaction.set(ventaRef, {
                 sku,
                 producto: producto.nombre || sku,
@@ -106,9 +108,10 @@ exports.procesarVenta = functions.https.onCall(async (data, context) => {
                 fecha: admin.firestore.FieldValue.serverTimestamp(),
                 estado: 'completada'
             });
+            return ventaId;
         });
 
-        return { success: true, message: 'Venta registrada exitosamente' };
+        return { success: true, message: 'Venta registrada exitosamente', ventaId: resultId };
     } catch (error) {
         console.error('Error procesando venta:', error);
         throw new functions.https.HttpsError('internal', error.message || 'Ocurrió un error al procesar la venta.');

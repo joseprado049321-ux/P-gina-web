@@ -422,6 +422,7 @@ const firebaseConfig = {
                 localStorage.removeItem('sesionActiva');
                 localStorage.removeItem('sesionInvitado');
                 localStorage.removeItem('superAdmin');
+                localStorage.removeItem('tenantId'); // Limpieza para evitar estado inconsistente entre sesiones locales
                 location.reload();
             },
             async cargarEmpresas() {
@@ -640,6 +641,13 @@ const firebaseConfig = {
                         
                         const userCred = await secondaryApp.auth().createUserWithEmailAndPassword(fakeEmail, password);
                         await secondaryApp.auth().signOut();
+                        await secondaryApp.delete(); // IMPORTANTE: Limpiar la instancia para evitar conflictos de sesiones ocultas
+
+                        const tenantId = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
+                        let storeId = null;
+                        if (Auth.usuarioActual && Auth.usuarioActual.storeId) {
+                            storeId = Auth.usuarioActual.storeId;
+                        }
 
                         await db.collection('usuarios_acceso').doc(userCred.user.uid).set({
                             tipo: 'local',
@@ -648,14 +656,22 @@ const firebaseConfig = {
                             rol: rol,
                             modulos: rol === 'empleado' ? modulos : [],
                             estado: 'aprobado', // Los creados por el admin nacen aprobados
-                            tenantId: localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo',
+                            tenantId: tenantId,
+                            storeId: storeId, // Agregado para robustez
                             fechaSolicitud: new Date().toISOString()
                         });
                         Toastify({ text: `✅ Usuario "${username}" guardado en la nube de forma segura`, duration: 3000, backgroundColor: '#28a745' }).showToast();
                         this.cargarTodos();
                     } catch (error) {
                         console.error(error);
-                        Swal.fire('❌ Error', 'No se pudo guardar en la nube: ' + error.message, 'error');
+                        const secApp = firebase.apps.find(app => app.name === 'SecondaryApp');
+                        if (secApp) await secApp.delete();
+                        
+                        if (error.code === 'auth/email-already-in-use') {
+                            Swal.fire('❌ Nombre Ocupado', 'Este nombre de usuario ya está registrado en la plataforma por otra tienda. Por favor elige uno más específico (Ej: "juan_mitienda").', 'error');
+                        } else {
+                            Swal.fire('❌ Error', 'No se pudo guardar en la nube: ' + error.message, 'error');
+                        }
                     }
                 });
 
@@ -799,10 +815,15 @@ const firebaseConfig = {
                 const tenantRef = Firebase._col();
                 if (!tenantRef) return;
 
+                if (this._unsubscribes) {
+                    this._unsubscribes.forEach(unsub => unsub());
+                }
+                this._unsubscribes = [];
+
                 const claves = ['costos', 'ordenesServicio', 'proveedores', 'compras', 'devoluciones', 'cotizaciones', 'cierresCaja', 'estadoCaja', 'categoriasCustom', 'configuracion', 'papelera', 'marcasCustom', 'metodosPagoCustom'];
 
                 // Snapshot para la nueva subcolección de inventario
-                tenantRef.collection('inventario').onSnapshot(snap => {
+                this._unsubscribes.push(tenantRef.collection('inventario').onSnapshot(snap => {
                     Estado.inventario = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     
                     clearTimeout(this._uiUpdateTimer);
@@ -811,10 +832,10 @@ const firebaseConfig = {
                     }, 150);
                 }, error => {
                     console.error(`Error escuchando en tiempo real inventario:`, error);
-                });
+                }));
 
                 // Snapshot para la nueva subcolección de ventas
-                tenantRef.collection('ventas').onSnapshot(snap => {
+                this._unsubscribes.push(tenantRef.collection('ventas').onSnapshot(snap => {
                     Estado.ventas = Storage._normalizarVentas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                     
                     clearTimeout(this._uiUpdateTimer);
@@ -823,10 +844,10 @@ const firebaseConfig = {
                     }, 150);
                 }, error => {
                     console.error(`Error escuchando en tiempo real ventas:`, error);
-                });
+                }));
 
                 // Snapshot para la nueva subcolección de clientes
-                tenantRef.collection('clientes').onSnapshot(snap => {
+                this._unsubscribes.push(tenantRef.collection('clientes').onSnapshot(snap => {
                     Estado.clientes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     
                     clearTimeout(this._uiUpdateTimer);
@@ -835,10 +856,10 @@ const firebaseConfig = {
                     }, 150);
                 }, error => {
                     console.error(`Error escuchando en tiempo real clientes:`, error);
-                });
+                }));
 
                 // Snapshot para la nueva subcolección de gastos
-                tenantRef.collection('gastos').onSnapshot(snap => {
+                this._unsubscribes.push(tenantRef.collection('gastos').onSnapshot(snap => {
                     Estado.gastos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     
                     clearTimeout(this._uiUpdateTimer);
@@ -847,10 +868,10 @@ const firebaseConfig = {
                     }, 150);
                 }, error => {
                     console.error(`Error escuchando en tiempo real gastos:`, error);
-                });
+                }));
 
                 claves.forEach(clave => {
-                    tenantRef.doc(clave).onSnapshot(docSnap => {
+                    this._unsubscribes.push(tenantRef.doc(clave).onSnapshot(docSnap => {
                         const data = docSnap.exists ? docSnap.data().datos : null;
 
                         // (Dentro del onSnapshot, antes de la actualización reactiva)
@@ -886,7 +907,7 @@ const firebaseConfig = {
 
                     }, error => {
                         console.error(`Error escuchando en tiempo real ${clave}:`, error);
-                    });
+                    }));
                 });
 
                 // Ocultar cualquier pantalla de carga que tengas activa tras 1 segundo
@@ -1243,17 +1264,31 @@ const firebaseConfig = {
                         venta.historialPagos.push({ monto: adelantoReal, metodo: metodoPago, fecha: new Date().toISOString() });
                     }
                 }
-                if (venta.sku) {
-                    const item = Estado.inventario.find(x => x.sku === venta.sku);
-                    if (item) { item.stock -= venta.cantidad; if (item.stock < 0) item.stock = 0; await Storage.incrementarStock(venta.sku, -venta.cantidad); }
+                try {
+                    if (venta.sku) {
+                        const item = Estado.inventario.find(x => x.sku === venta.sku);
+                        if (item) { 
+                            await Storage.incrementarStock(venta.sku, -venta.cantidad); 
+                            item.stock -= venta.cantidad; 
+                            if (item.stock < 0) item.stock = 0; 
+                        }
+                    }
+                    Estado.ventas.unshift(venta);
+                    await Storage.agregarVenta(venta);
+                    UI.actualizarVistas();
+                    const msg = document.getElementById('success-msg');
+                    msg.classList.add('show');
+                    setTimeout(() => msg.classList.remove('show'), 3000);
+                    Toastify({ text: "✅ Venta registrada", duration: 3000, gravity: "top", position: "right", style: { background: "linear-gradient(to right,#00b09b,#96c93d)" } }).showToast();
+                } catch (error) {
+                    console.error("Error al registrar la venta:", error);
+                    if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
+                        Swal.fire('❌ Stock Insuficiente', 'Otra caja vendió este producto al mismo tiempo y el stock llegó a cero. La venta ha sido anulada para evitar descuadres.', 'error');
+                    } else {
+                        Swal.fire('❌ Error', 'Hubo un problema de conexión al registrar la venta. Inténtalo de nuevo.', 'error');
+                    }
+                    return; // Abortar el resto del proceso
                 }
-                Estado.ventas.unshift(venta);
-                await Storage.agregarVenta(venta);
-                UI.actualizarVistas();
-                const msg = document.getElementById('success-msg');
-                msg.classList.add('show');
-                setTimeout(() => msg.classList.remove('show'), 3000);
-                Toastify({ text: "✅ Venta registrada", duration: 3000, gravity: "top", position: "right", style: { background: "linear-gradient(to right,#00b09b,#96c93d)" } }).showToast();
                 const ventaGuardada = venta;
                 this.limpiarFormulario();
                 // Ofrecer generar boleta
@@ -1334,13 +1369,18 @@ const firebaseConfig = {
             async eliminar(id) {
                 const result = await Swal.fire({ title: '¿Eliminar venta?', text: "Esta acción no se puede deshacer", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
                 if (!result.isConfirmed) return;
-                const venta = Estado.ventas.find(v => v.id === id);
-                if (venta) await Papelera.moverA('ventas', venta, `Venta - Total: S/ ${venta.total || 0}`);
-                if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.incrementarStock(venta.sku, venta.cantidad); } }
-                Estado.ventas = Estado.ventas.filter(v => v.id !== id);
-                await Storage.eliminarVenta(id);
-                UI.actualizarVistas();
-                Toastify({ text: "🗑️ Venta eliminada", duration: 3000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#ff5f6d,#ffc371)" }).showToast();
+                try {
+                    const venta = Estado.ventas.find(v => v.id === id);
+                    if (venta) await Papelera.moverA('ventas', venta, `Venta - Total: S/ ${venta.total || 0}`);
+                    if (venta && venta.sku) { const item = Estado.inventario.find(x => x.sku === venta.sku); if (item) { item.stock += venta.cantidad; await Storage.incrementarStock(venta.sku, venta.cantidad); } }
+                    Estado.ventas = Estado.ventas.filter(v => v.id !== id);
+                    await Storage.eliminarVenta(id);
+                    UI.actualizarVistas();
+                    Toastify({ text: "🗑️ Venta eliminada", duration: 3000, gravity: "top", position: "right", backgroundColor: "linear-gradient(to right,#ff5f6d,#ffc371)" }).showToast();
+                } catch (e) {
+                    console.error("Error eliminando venta:", e);
+                    Swal.fire('Error', 'Fallo al eliminar la venta. Verifica tu conexión.', 'error');
+                }
             },
             calcularMetodoCombinado(historialPagos) {
                 if (!historialPagos || !historialPagos.length) return 'Sin método';
@@ -2435,17 +2475,23 @@ const firebaseConfig = {
                 const costo = parseFloat(document.getElementById('nuevo-costo-inv').value) || 0;
                 if (!sku || !nombre) { Swal.fire('Error', 'SKU y Nombre son obligatorios', 'error'); return; }
 
-                const existente = Estado.inventario.find(x => x.sku === sku);
-                if (existente) {
-                    existente.stock += stock; existente.nombre = nombre; existente.reorderThreshold = reorder;
-                    existente.precioVenta = precio; existente.costo = costo;
-                    await Storage.actualizarProducto(existente);
-                    Toastify({ text: `📦 Stock actualizado: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
-                } else {
-                    const nuevoItem = { sku, nombre, stock, reorderThreshold: reorder, precioVenta: precio, costo: costo };
-                    Estado.inventario.push(nuevoItem);
-                    await Storage.agregarProducto(nuevoItem);
-                    Toastify({ text: `✅ Producto añadido: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                try {
+                    const existente = Estado.inventario.find(x => x.sku === sku);
+                    if (existente) {
+                        existente.stock += stock; existente.nombre = nombre; existente.reorderThreshold = reorder;
+                        existente.precioVenta = precio; existente.costo = costo;
+                        await Storage.actualizarProducto(existente);
+                        Toastify({ text: `📦 Stock actualizado: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                    } else {
+                        const nuevoItem = { sku, nombre, stock, reorderThreshold: reorder, precioVenta: precio, costo: costo };
+                        Estado.inventario.push(nuevoItem);
+                        await Storage.agregarProducto(nuevoItem);
+                        Toastify({ text: `✅ Producto añadido: ${sku}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                    }
+                } catch (e) {
+                    console.error("Error al guardar producto:", e);
+                    Swal.fire('Error', 'Fallo de red o permisos al guardar el producto.', 'error');
+                    return;
                 }
                 this.cancelarNuevoItem();
                 ['nuevo-sku', 'nuevo-nombre', 'nuevo-precio-inv', 'nuevo-costo-inv', 'nuevo-stock', 'nuevo-reorder'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -2492,8 +2538,13 @@ const firebaseConfig = {
                 if (tipo === 'sumar') item.stock += cantidad;
                 else if (tipo === 'restar') item.stock = Math.max(0, item.stock - cantidad);
                 else item.stock = cantidad;
-                await Storage.actualizarProducto(item);
-                Toastify({ text: `📦 Stock actualizado: ${item.sku} → ${item.stock}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                try {
+                    await Storage.actualizarProducto(item);
+                    Toastify({ text: `📦 Stock actualizado: ${item.sku} → ${item.stock}`, duration: 3000, gravity: 'top', position: 'right', backgroundColor: 'linear-gradient(to right,#00b09b,#96c93d)' }).showToast();
+                } catch(e) {
+                    console.error("Error al ajustar stock:", e);
+                    Swal.fire('Error', 'Fallo al ajustar el stock en la nube.', 'error');
+                }
             },
             async eliminarItem(idx) {
                 const r = await Swal.fire({ title: '¿Eliminar del inventario?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
