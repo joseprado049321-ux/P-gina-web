@@ -53,16 +53,11 @@ exports.procesarVenta = functions.https.onCall(async (data, context) => {
 
     try {
         // 2. Verificar que el usuario pertenece al tenantId o es SuperAdmin
-        const isSuperAdmin = context.auth.token.email === "joseprado049321@gmail.com";
+        const isSuperAdmin = context.auth.token.email === "joseprado049321@gmail.com" || context.auth.token.admin === true;
         
         if (!isSuperAdmin) {
-            const userDoc = await db.collection('usuarios_acceso').doc(context.auth.uid).get();
-            if (!userDoc.exists) {
-                throw new functions.https.HttpsError('permission-denied', 'Tu cuenta no está registrada correctamente.');
-            }
-            const userData = userDoc.data();
-            if (userData.tenantId !== tenantId) {
-                throw new functions.https.HttpsError('permission-denied', 'No tienes permisos para realizar ventas en esta tienda.');
+            if (!context.auth.token.tenantId || context.auth.token.tenantId !== tenantId) {
+                throw new functions.https.HttpsError('permission-denied', 'No tienes permisos para realizar ventas en esta tienda. Por favor cierra sesión y vuelve a entrar para actualizar tus permisos.');
             }
         }
 
@@ -117,3 +112,43 @@ exports.procesarVenta = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', error.message || 'Ocurrió un error al procesar la venta.');
     }
 });
+
+// Trigger para asignar Custom Claims cuando se crea un usuario en usuarios_acceso
+exports.onUserAccessCreated = functions.firestore
+    .document('usuarios_acceso/{userId}')
+    .onCreate(async (snap, context) => {
+        const userId = context.params.userId;
+        const data = snap.data();
+        
+        try {
+            const claims = {
+                tenantId: data.tenantId,
+                rol: data.rol,
+                admin: data.rol === 'admin' || data.rol === 'superadmin'
+            };
+            await admin.auth().setCustomUserClaims(userId, claims);
+            console.log(`Custom claims assigned to new user ${userId}:`, claims);
+        } catch (error) {
+            console.error(`Error setting custom claims for new user ${userId}:`, error);
+        }
+    });
+
+// Trigger para actualizar Custom Claims si cambia el rol o tenant de un usuario
+exports.onUserAccessUpdated = functions.firestore
+    .document('usuarios_acceso/{userId}')
+    .onUpdate(async (change, context) => {
+        const userId = context.params.userId;
+        const newData = change.after.data();
+        
+        try {
+            const claims = {
+                tenantId: newData.tenantId,
+                rol: newData.rol,
+                admin: newData.rol === 'admin' || newData.rol === 'superadmin'
+            };
+            await admin.auth().setCustomUserClaims(userId, claims);
+            console.log(`Custom claims updated for user ${userId}:`, claims);
+        } catch (error) {
+            console.error(`Error updating custom claims for user ${userId}:`, error);
+        }
+    });
