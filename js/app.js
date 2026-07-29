@@ -19,7 +19,7 @@
                             return await original.apply(this, args);
                         } catch (e) {
                             console.error(`Firebase Error en ${method}:`, e);
-                            if (window.Toastify) {
+                            if (window.Toastify && e.code !== 'permission-denied') {
                                 Toastify({
                                     text: "Error de conexión o permisos. Revisa tu internet.",
                                     duration: 4000,
@@ -5104,10 +5104,8 @@ const firebaseConfig = {
         // INICIALIZACIÓN
         // ════════════════════════════════════════════════════════════════
         document.addEventListener('DOMContentLoaded', () => {
+            ThemeManager.init();
             Auth.init();
-
-
-
 
             document.getElementById('fecha').valueAsDate = new Date();
 
@@ -5154,6 +5152,4 @@ const firebaseConfig = {
             document.documentElement.setAttribute('data-theme', saved);
         })();
 
-        document.addEventListener('DOMContentLoaded', () => {
-            ThemeManager.init();
-        });
+        // ThemeManager initialization moved to global DOMContentLoaded listener
