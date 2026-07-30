@@ -70,6 +70,10 @@ const firebaseConfig = {
                 const tenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
                 return db ? db.collection('empresas').doc(tenant).collection('datos') : null;
             },
+            _tenantDoc() {
+                const tenant = localStorage.getItem('superAdminTenant') || localStorage.getItem('tenantId') || 'demo';
+                return db ? db.collection('empresas').doc(tenant) : null;
+            },
             async leer(clave) {
                 if (!window.firebaseOK || (typeof Auth !== 'undefined' && Auth.modoInvitado)) return null;
                 try {

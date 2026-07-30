@@ -147,7 +147,7 @@
                                     <label style="${localStorage.getItem('giroNegocio') === 'general' ? 'display:none;' : ''}"><input type="checkbox" value="ordenes-servicio" class="swal-modulos"> 🔧 Órdenes Serv.</label>
                                     <label><input type="checkbox" value="cuentas-cobrar" class="swal-modulos"> 💰 Ctas. Cobrar</label>
                                     <label><input type="checkbox" value="clientes" class="swal-modulos"> 👥 Clientes</label>
-                                    <label><input type="checkbox" value="cierre-caja" class="swal-modulos"> 🏧 Cierre Caja</label>
+                                    <label><input type="checkbox" value="cierre-caja" class="swal-modulos"> 🏪 Apertura / Cierre Caja</label>
                                     <label><input type="checkbox" value="cotizaciones" class="swal-modulos"> 📄 Cotizaciones</label>
                                     <label><input type="checkbox" value="devoluciones" class="swal-modulos"> ↩️ Devoluciones</label>
                                 </div>

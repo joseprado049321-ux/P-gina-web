@@ -29,22 +29,22 @@
                 }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
             },
             async agregarVenta(venta) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('ventas').doc(venta.id).set(venta);
             },
             async actualizarVenta(venta) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('ventas').doc(venta.id).update(venta);
             },
             async eliminarVenta(id) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('ventas').doc(id).delete();
             },
             async guardarVentas() {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 let chunks = [];
                 for (let i = 0; i < Estado.ventas.length; i += 450) chunks.push(Estado.ventas.slice(i, i + 450));
@@ -55,29 +55,29 @@
                 }
             },
             async agregarProducto(item) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('inventario').doc(item.sku).set(item);
             },
             async actualizarProducto(item) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('inventario').doc(item.sku).update(item);
             },
             async eliminarProducto(sku) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('inventario').doc(sku).delete();
             },
             async incrementarStock(sku, cantidad) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('inventario').doc(sku).update({
                     stock: firebase.firestore.FieldValue.increment(cantidad)
                 });
             },
             async guardarInventario() {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 let chunks = [];
                 for (let i = 0; i < Estado.inventario.length; i += 450) chunks.push(Estado.inventario.slice(i, i + 450));
@@ -89,22 +89,22 @@
                 if (typeof Inventario !== 'undefined') Inventario.actualizarTabla(); 
             },
             async agregarCliente(cliente) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('clientes').doc(cliente.id).set(cliente);
             },
             async actualizarCliente(cliente) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('clientes').doc(cliente.id).update(cliente);
             },
             async eliminarCliente(id) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('clientes').doc(id).delete();
             },
             async guardarClientes() {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 let chunks = [];
                 for (let i = 0; i < Estado.clientes.length; i += 450) chunks.push(Estado.clientes.slice(i, i + 450));
@@ -116,22 +116,22 @@
             },
 
             async agregarGasto(gasto) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('gastos').doc(gasto.id).set(gasto);
             },
             async actualizarGasto(gasto) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('gastos').doc(gasto.id).update(gasto);
             },
             async eliminarGasto(id) {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 await tenantRef.collection('gastos').doc(id).delete();
             },
             async guardarGastos() {
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
                 let chunks = [];
                 for (let i = 0; i < Estado.gastos.length; i += 450) chunks.push(Estado.gastos.slice(i, i + 450));
@@ -144,7 +144,7 @@
             async guardarCostos() { await Firebase.guardar('costos', Estado.costosProductos); },
             async sincronizarDesdeFirebase() {
                 if (!window.firebaseOK) return;
-                const tenantRef = Firebase._col();
+                const tenantRef = Firebase._tenantDoc();
                 if (!tenantRef) return;
 
                 if (this._unsubscribes) {
@@ -202,8 +202,9 @@
                     console.error(`Error escuchando en tiempo real gastos:`, error);
                 }));
 
+                const tenantCol = Firebase._col();
                 claves.forEach(clave => {
-                    this._unsubscribes.push(tenantRef.doc(clave).onSnapshot(docSnap => {
+                    this._unsubscribes.push(tenantCol.doc(clave).onSnapshot(docSnap => {
                         const data = docSnap.exists ? docSnap.data().datos : null;
 
                         // (Dentro del onSnapshot, antes de la actualización reactiva)
