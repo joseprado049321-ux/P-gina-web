@@ -7,26 +7,39 @@ service cloud.firestore {
       return request.auth != null && (request.auth.token.email == "joseprado049321@gmail.com" || request.auth.token.admin == true);
     }
 
+    // 2. Funciones de ayuda para los usuarios locales sin custom claims
+    function getMyData() {
+      return get(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)).data;
+    }
+
+    function isMyTenant(tenantId) {
+      return request.auth != null && exists(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)) && getMyData().tenantId == tenantId;
+    }
+
+    function isAdminForTenant(tenantId) {
+      return request.auth != null && exists(/databases/$(database)/documents/usuarios_acceso/$(request.auth.uid)) && getMyData().rol == 'admin' && getMyData().tenantId == tenantId;
+    }
+
     // 3. Reglas para los accesos y usuarios
     match /usuarios_acceso/{userId} {
       // Un usuario puede crear su perfil, O un 'admin' puede crear usuarios locales para su misma tienda
       allow create: if isSuperAdmin() || 
                     (request.auth != null && request.auth.uid == userId) ||
-                    (request.auth != null && request.auth.token.rol == 'admin' && request.resource.data.tenantId == request.auth.token.tenantId);
+                    isAdminForTenant(request.resource.data.tenantId);
       
       // Puedes leer tu propio perfil, o si eres parte de la misma tienda (necesario para ver la lista de empleados)
       allow read: if isSuperAdmin() || 
                   (request.auth != null && request.auth.uid == userId) || 
-                  (request.auth != null && resource != null && resource.data.tenantId == request.auth.token.tenantId);
+                  (request.auth != null && resource != null && isMyTenant(resource.data.tenantId));
       
       // Solo puedes editar tu propia cuenta, o el 'admin' puede editar a los empleados de su tienda
       allow update: if isSuperAdmin() || 
                     (request.auth != null && request.auth.uid == userId) ||
-                    (request.auth != null && request.auth.token.rol == 'admin' && resource.data.tenantId == request.auth.token.tenantId);
+                    isAdminForTenant(resource.data.tenantId);
       
       // Solo el Súper Administrador puede eliminar cuentas o el admin de la tienda
       allow delete: if isSuperAdmin() || 
-                    (request.auth != null && request.auth.token.rol == 'admin' && resource.data.tenantId == request.auth.token.tenantId);
+                    isAdminForTenant(resource.data.tenantId);
     }
 
     // 4. Reglas blindadas para las empresas (Las Cajas Fuertes)
@@ -36,13 +49,13 @@ service cloud.firestore {
       allow read: if request.auth != null;
       
       // La escritura sí está bloqueada estrictamente al dueño/admin de la tienda.
-      allow write: if isSuperAdmin() || (request.auth != null && request.auth.token.tenantId == tenantId);
+      allow write: if isSuperAdmin() || isMyTenant(tenantId);
       
       // BLINDAJE DE DATOS SENSIBLES: Todas las subcolecciones (ventas, inventario, gastos, clientes, etc.)
       match /{subcollection}/{document=**} {
-        allow read, delete: if isSuperAdmin() || (request.auth != null && request.auth.token.tenantId == tenantId);
+        allow read, delete: if isSuperAdmin() || isMyTenant(tenantId);
         allow create, update: if isSuperAdmin() || (
-          request.auth != null && request.auth.token.tenantId == tenantId &&
+          isMyTenant(tenantId) &&
           (subcollection != 'inventario' || !request.resource.data.keys().hasAny(['stock']) || request.resource.data.stock >= 0)
         );
       }
